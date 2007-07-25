@@ -1,0 +1,178 @@
+NAME
+    Variable::Magic - Associate user-defined magic to variables from Perl.
+
+VERSION
+    Version 0.01
+
+SYNOPSIS
+        use Variable::Magic qw/wizard cast dispell/;
+
+        my $wiz = wizard set => sub { print STDERR "now set to $_[0]!\n" };
+        my $a = 1;
+        cast $a, $wiz;
+        $a = 2;          # "now set to 2!"
+        dispell $a, $wiz;
+        $a = 3           # (nothing)
+
+DESCRIPTION
+    Magic is Perl way of enhancing objects. This mechanism let the user add
+    extra data to any variable and overload syntaxical operations (such as
+    access, assignation or destruction) that can be applied to it. With this
+    module, you can add your own magic to any variable without the pain of
+    the C API.
+
+    The operations that can be overloaded are :
+
+    "get"
+        This magic is invoked when the variable is evaluated (does not
+        include array/hash subscripts and slices).
+
+    "set"
+        This one is triggered each time the value of the variable changes
+        (includes array/hash subscripts and slices).
+
+    "len"
+        This magic is a little special : it is called when the 'size' or the
+        'length' of the variable has to be known by Perl. Typically, it's
+        the magic involved when an array is evaluated in scalar context, but
+        also on array assignation and loops ("for", "map" or "grep"). The
+        callback has then to return the length as an integer.
+
+    "clear"
+        This magic is invoked when the variable is reset, such as when an
+        array is emptied. Please note that this is different from undefining
+        the variable, even though the magic is called when the reset is a
+        result of the undefine (e.g. for an array).
+
+    "free"
+        This last one can be considered as an object destructor. It happens
+        when the variable goes out of scope (with the exception of global
+        scope), but not when it is undefined.
+
+    To prevent any clash between different magics defined with this module,
+    an unique numerical signature is attached to each kind of magic (i.e.
+    each set of callbacks for magic operations).
+
+CONSTANTS
+  "SIG_MIN"
+    The minimum integer used as a signature for user-defined magic.
+
+  "SIG_MAX"
+    The maximum integer used as a signature for user-defined magic.
+
+  "SIG_NBR"
+        SIG_NBR = SIG_MAX - SIG_MIN + 1
+
+FUNCTIONS
+  "wizard"
+        wizard sig => .., data => ..., get => .., set => .., len => .., clear => .., free => ..
+
+    This function creates a 'wizard', an opaque type that holds the magic
+    information. It takes a list of keys / values as argument, whose keys
+    can be :
+
+    'sig'
+        The numerical signature. If not specified or undefined, a random
+        signature is generated.
+
+    'data'
+        A code reference to a private data constructor. It will be called
+        each time this magic is cast on a variable, and the scalar returned
+        will be used as private data storage for it.
+
+    'get', 'set', 'len', 'clear' and 'free'
+        Code references to corresponding magic callbacks. You don't have to
+        specify all of them : the magic associated with undefined entries
+        simply won't be hooked. When the magic variable is an array or a
+        hash, $_[0] is a reference to it, but directly references it
+        otherwise. $_[1] is the private data (or "undef" when no private
+        data constructor was supplied). In the special case of "len" magic
+        and when the variable is an array, $_[2] contains its normal length.
+
+        # A simple scalar tracer
+        my $wiz = wizard get  => sub { print STDERR "got $_[0]\n" },
+                         set  => sub { print STDERR "set to $_[0]\n" },
+                         free => sub { print STDERR "$_[0] was deleted\n" }
+
+  "gensig"
+    With this tool, you can manually generate random magic signature between
+    SIG_MIN and SIG_MAX inclusive. That's the way "wizard" creates them when
+    no signature is supplied.
+
+        # Generate a signature
+        my $sig = gensig;
+
+  "getsig"
+        getsig $wiz
+
+    This accessor returns the magic signature of this wizard.
+
+        # Get $wiz signature
+        my $sig = getsig $wiz;
+
+  "cast"
+        cast [$@%&*]var, $wiz
+
+    This function associates $wiz magic to the variable supplied, without
+    overwriting any other kind of magic. It returns true on success or when
+    $wiz magic is already present, and false on error.
+
+        # Casts $wiz to $x
+        my $x;
+        die 'error' unless cast $x, $wiz;
+
+  "getdata"
+        getdata [$@%&*]var, $wiz
+
+    This accessor fetches the private data associated with the magic $wiz in
+    the variable. "undef" is returned when no such magic or data is found.
+
+  "dispell"
+        dispell [$@%&*]variable, $wiz
+        dispell [$@%&*]variable, $sig
+
+    The exact opposite of "cast" : it dissociates $wiz magic from the
+    variable. You can also pass the magic signature as the second argument.
+    True is returned on success, and false on error or when no magic
+    represented by $wiz could be found in the variable.
+
+        # Dispell now
+        die 'no such magic or error' unless dispell $x, $wiz;
+
+EXPORT
+    The functions "wizard", "gensig", "getsig", "cast", "getdata" and
+    "dispell" are only exported on request. All of them are exported by the
+    tags ':funcs' and ':all'.
+
+    The constants "SIG_MIN", "SIG_MAX" and "SIG_NBR" are also only exported
+    on request. They are all exported by the tags ':consts' and ':all'.
+
+DEPENDENCIES
+    Carp (standard since perl 5), XSLoader (standard since perl 5.006).
+
+    Tests use Symbol (standard since perl 5.002).
+
+SEE ALSO
+    perlguts and perlapi for internal information about magic.
+
+AUTHOR
+    Vincent Pit, "<perl at profvince.com>"
+
+BUGS
+    Please report any bugs or feature requests to "bug-variable-magic at
+    rt.cpan.org", or through the web interface at
+    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic>. I will
+    be notified, and then you'll automatically be notified of progress on
+    your bug as I make changes.
+
+SUPPORT
+    You can find documentation for this module with the perldoc command.
+
+        perldoc Variable::Magic
+
+COPYRIGHT & LICENSE
+    Copyright 2007 Vincent Pit, all rights reserved.
+
+    This program is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
