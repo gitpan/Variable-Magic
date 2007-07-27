@@ -11,11 +11,11 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
@@ -50,7 +50,7 @@ This magic is a little special : it is called when the 'size' or the 'length' of
 
 =item C<clear>
 
-This magic is invoked when the variable is reset, such as when an array is emptied. Please note that this is different from undefining the variable, even though the magic is called when the reset is a result of the undefine (e.g. for an array).
+This magic is invoked when the variable is reset, such as when an array is emptied. Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
 
 =item C<free>
 
@@ -59,6 +59,24 @@ This last one can be considered as an object destructor. It happens when the var
 =back
 
 To prevent any clash between different magics defined with this module, an unique numerical signature is attached to each kind of magic (i.e. each set of callbacks for magic operations).
+
+=head1 PERL MAGIC HISTORY
+
+=head2 B<5.9.3>
+
+=over 4
+
+=item 'len' magic is no longer called when pushing an element into a magic array.
+
+=back
+
+=head2 B<5.9.5>
+
+=over 4
+
+=item 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
+
+=back
 
 =head1 CONSTANTS
 

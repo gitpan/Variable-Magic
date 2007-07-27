@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Variable-Magic
-version:             0.01
+version:             0.02
 abstract:            Associate user-defined magic to variables from Perl.
 license:             perl
 generated_by:        ExtUtils::MakeMaker version 6.36

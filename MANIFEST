@@ -20,6 +20,7 @@ t/30-scalar.t
 t/31-array.t
 t/32-hash.t
 t/33-code.t
+t/34-glob.t
 t/boilerplate.t
 t/kwalitee.t
 t/pod-coverage.t

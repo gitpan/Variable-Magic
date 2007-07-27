@@ -3,6 +3,16 @@
 #include "perl.h"
 #include "XSUB.h"
 
+/* --- Compatibility ------------------------------------------------------- */
+
+#ifndef Newx
+# define Newx(v, n, c) New(0, v, n, c)
+#endif
+
+#ifndef SvMAGIC_set
+# define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
+#endif
+
 #define SIG_WIZ ((U16) (1u << 8 - 1))
 
 #define R(S) fprintf(stderr, "R(" #S ") = %d\n", SvREFCNT(sv))

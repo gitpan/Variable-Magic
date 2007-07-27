@@ -54,7 +54,7 @@ $a[3] = 'd';
 ok(check(), 'array : assign new element');
 
 push @a, 'x';
-++$x[1]; ++$x[2];
+++$x[1]; ++$x[2] unless $^V && $^V gt 5.9.2; # since 5.9.3
 ok(check(), 'array : push');
 
 pop @a;
@@ -87,12 +87,13 @@ ok(check(), 'array : for');
 
 {
  my @b = @n;
-# cast @b, $wiz;
+ cast @b, $wiz;
 }
-#++$x[4];
+++$x[4];
 ok(check(), 'array : scope end');
 
 undef @a;
+++$x[3] if $^V && $^V gt 5.9.4; # since 5.9.5 - see #43357
 ok(check(), 'array : undef');
 
 dispell @a, $wiz;

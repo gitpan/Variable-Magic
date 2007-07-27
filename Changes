@@ -1,5 +1,14 @@
 Revision history for Variable-Magic
 
+0.02    2007-07-27 13:50 UTC
+        + Fix : In response to test report 548152 :
+                Newx() and SvMAGIC_set() not present on older perls.
+        + Fix : In response to test report 548275 :
+                Since perl 5.9.5, 'clear' magic is invoked when an array is
+                undefined (bug #43357). Moreover, 'len' magic is no longer
+                called by pushing an element since perl 5.9.3.
+        + Fix : Missing glob test in MANIFEST.
+
 0.01    2007-07-25 16:15 UTC
         First version, released on an unsuspecting world.
 

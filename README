@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.01
+    Version 0.02
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -41,8 +41,9 @@ DESCRIPTION
     "clear"
         This magic is invoked when the variable is reset, such as when an
         array is emptied. Please note that this is different from undefining
-        the variable, even though the magic is called when the reset is a
-        result of the undefine (e.g. for an array).
+        the variable, even though the magic is called when the clearing is a
+        result of the undefine (e.g. for an array, but actually a bug
+        prevent it to work before perl 5.9.5 - see the history).
 
     "free"
         This last one can be considered as an object destructor. It happens
@@ -52,6 +53,15 @@ DESCRIPTION
     To prevent any clash between different magics defined with this module,
     an unique numerical signature is attached to each kind of magic (i.e.
     each set of callbacks for magic operations).
+
+PERL MAGIC HISTORY
+  5.9.3
+    'len' magic is no longer called when pushing an element into a magic
+    array.
+
+  5.9.5
+    'clear' magic wasn't invoked when undefining an array. The bug is fixed
+    as of this version.
 
 CONSTANTS
   "SIG_MIN"

@@ -64,9 +64,9 @@ ok(check(), 'hash : each');
 
 {
  my %b = %n;
-# cast %b, $wiz;
+ cast %b, $wiz;
 }
-#++$x[4];
+++$x[4];
 ok(check(), 'hash : scope end');
 
 undef %a;
