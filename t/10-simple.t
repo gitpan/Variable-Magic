@@ -1,6 +1,6 @@
 #!perl -T
 
-use Test::More tests => 12;
+use Test::More tests => 14;
 
 use Variable::Magic qw/wizard gensig getsig cast dispell/;
 
@@ -12,20 +12,30 @@ ok(defined $wiz, 'wizard is defined');
 ok(ref $wiz eq 'SCALAR', 'wizard is a scalar ref');
 ok($sig == getsig $wiz, 'wizard signature is correct');
 
-my $a = 0;
+my $a = 1;
 my $res = eval { cast $a, $wiz };
-ok(!$@, "cast error 1 ($@)");
-ok($res, 'cast error 2');
+ok(!$@, "cast croaks ($@)");
+ok($res, 'cast invalid');
 
 $res = eval { dispell $a, $wiz };
-ok(!$@, "dispell from wizard error 1 ($@)");
-ok($res, 'dispell from wizard error 2');
+ok(!$@, "dispell from wizard croaks ($@)");
+ok($res, 'dispell from wizard invalid');
 
 $res = eval { cast $a, $wiz };
-ok(!$@, "re-cast error 1 ($@)");
-ok($res, 're-cast error 2');
+ok(!$@, "re-cast croaks ($@)");
+ok($res, 're-cast invalid');
 
-$res = eval { dispell $a, $sig };
-ok(!$@, "dispell from signature error 1 ($@)");
-ok($res, 'dispell from signature error 2');
+$res = eval { dispell $a, $wiz };
+ok(!$@, "re-dispell croaks ($@)");
+ok($res, 're-dispell invalid');
 
+$sig = gensig;
+{
+ my $wiz = wizard sig => $sig;
+ my $b = 2;
+ my $res = cast $b, $wiz;
+}
+my $c = 3;
+$res = eval { cast $c, $sig };
+ok(!$@, "cast from obsolete signature croaks ($@)");
+ok(!defined($res), 'cast from obsolete signature returns undef');

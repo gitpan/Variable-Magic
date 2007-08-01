@@ -37,8 +37,8 @@ multi sub {
  cast $a, $w[$i];
 }, sub {
  my ($res, $err) = @_;
- ok(!$err, "cast magic $i error 1 ($err)");
- ok($res, "cast magic $i error 2");
+ ok(!$err, "cast magic $i croaks ($err)");
+ ok($res, "cast magic $i invalid");
 };
 
 my $b = $a;
@@ -48,8 +48,8 @@ $a = 1;
 for (0 .. $n - 1) { ok($c[$_] == 0, "set magic $_"); }
 
 my $res = eval { dispell $a, $w[1] };
-ok(!$@, "dispell magic 1 error 1 ($@)");
-ok($res, 'dispell magic 1 error 2');
+ok(!$@, "dispell magic 1 croaks ($@)");
+ok($res, 'dispell magic 1 invalid');
 
 $b = $a;
 for (0, 2) { ok($c[$_] == 1, "get magic $_ after dispelled 1"); }
@@ -58,8 +58,8 @@ $a = 2;
 for (0, 2) { ok($c[$_] == 0, "set magic $_ after dispelled 1"); }
 
 $res = eval { dispell $a, $w[0] };
-ok(!$@, "dispell magic 0 error 1 ($@)");
-ok($res, 'dispell magic 0 error 2');
+ok(!$@, "dispell magic 0 croaks ($@)");
+ok($res, 'dispell magic 0 invalid');
 
 $b = $a;
 ok($c[2] == 1, 'get magic 2 after dispelled 1 & 0');
@@ -68,5 +68,5 @@ $a = 3;
 ok($c[2] == 0, 'set magic 2 after dispelled 1 & 0');
 
 $res = eval { dispell $a, $w[2] };
-ok(!$@, "dispell magic 2 error 1 ($@)");
-ok($res, 'dispell magic 2 error 2');
+ok(!$@, "dispell magic 2 croaks ($@)");
+ok($res, 'dispell magic 2 invalid');

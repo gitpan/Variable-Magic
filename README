@@ -2,12 +2,12 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.02
+    Version 0.03
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
 
-        my $wiz = wizard set => sub { print STDERR "now set to $_[0]!\n" };
+        my $wiz = wizard set => sub { print STDERR "now set to ${$_[0]}!\n" };
         my $a = 1;
         cast $a, $wiz;
         $a = 2;          # "now set to 2!"
@@ -55,6 +55,9 @@ DESCRIPTION
     each set of callbacks for magic operations).
 
 PERL MAGIC HISTORY
+    The places where magic is invoked have changed a bit through perl
+    history. Here's a little list of the most recent ones.
+
   5.9.3
     'len' magic is no longer called when pushing an element into a magic
     array.
@@ -83,26 +86,29 @@ FUNCTIONS
 
     'sig'
         The numerical signature. If not specified or undefined, a random
-        signature is generated.
+        signature is generated. If the signature matches an already defined
+        magic, then the existant magic object is returned.
 
     'data'
-        A code reference to a private data constructor. It will be called
-        each time this magic is cast on a variable, and the scalar returned
-        will be used as private data storage for it.
+        A code reference to a private data constructor. It is called each
+        time this magic is cast on a variable, and the scalar returned is
+        used as private data storage for it. $_[0] is a reference to the
+        magic object and @_[1 .. @_-1] are all extra arguments that were
+        passed to "cast".
 
     'get', 'set', 'len', 'clear' and 'free'
         Code references to corresponding magic callbacks. You don't have to
         specify all of them : the magic associated with undefined entries
-        simply won't be hooked. When the magic variable is an array or a
-        hash, $_[0] is a reference to it, but directly references it
-        otherwise. $_[1] is the private data (or "undef" when no private
-        data constructor was supplied). In the special case of "len" magic
-        and when the variable is an array, $_[2] contains its normal length.
+        simply won't be hooked. In those callbacks, $_[0] is a reference to
+        the magic object and $_[1] is the private data (or "undef" when no
+        private data constructor was supplied). In the special case of "len"
+        magic and when the variable is an array, $_[2] contains its normal
+        length.
 
         # A simple scalar tracer
-        my $wiz = wizard get  => sub { print STDERR "got $_[0]\n" },
-                         set  => sub { print STDERR "set to $_[0]\n" },
-                         free => sub { print STDERR "$_[0] was deleted\n" }
+        my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
+                         set  => sub { print STDERR "set to ${$_[0]}\n" },
+                         free => sub { print STDERR "${$_[0]} was deleted\n" }
 
   "gensig"
     With this tool, you can manually generate random magic signature between
@@ -121,32 +127,41 @@ FUNCTIONS
         my $sig = getsig $wiz;
 
   "cast"
-        cast [$@%&*]var, $wiz
+        cast [$@%&*]var, [$wiz|$sig], ...
 
     This function associates $wiz magic to the variable supplied, without
-    overwriting any other kind of magic. It returns true on success or when
-    $wiz magic is already present, and false on error.
+    overwriting any other kind of magic. You can also supply the numeric
+    signature $sig instead of $wiz. It returns true on success or when $wiz
+    magic is already present, 0 on error, and "undef" when no magic
+    corresponds to the given signature (in case $sig was supplied). All
+    extra arguments specified after $wiz are passed to the private data
+    constructor.
 
-        # Casts $wiz to $x
+        # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
         my $x;
         die 'error' unless cast $x, $wiz;
 
   "getdata"
-        getdata [$@%&*]var, $wiz
+        getdata [$@%&*]var, [$wiz|$sig]
 
-    This accessor fetches the private data associated with the magic $wiz in
-    the variable. "undef" is returned when no such magic or data is found.
+    This accessor fetches the private data associated with the magic $wiz
+    (or the signature $sig) in the variable. "undef" is returned when no
+    such magic or data is found, or when $sig does not represent a current
+    valid magic object.
+
+        # Get the attached data.
+        my $data = getdata $x, $wiz or die 'no such magic or magic has no data';
 
   "dispell"
-        dispell [$@%&*]variable, $wiz
-        dispell [$@%&*]variable, $sig
+        dispell [$@%&*]variable, [$wiz|$sig]
 
     The exact opposite of "cast" : it dissociates $wiz magic from the
-    variable. You can also pass the magic signature as the second argument.
-    True is returned on success, and false on error or when no magic
-    represented by $wiz could be found in the variable.
+    variable. You can also pass the magic signature $sig as the second
+    argument. True is returned on success, 0 on error or when no magic
+    represented by $wiz could be found in the variable, and "undef" when no
+    magic corresponds to the given signature (in case $sig was supplied).
 
-        # Dispell now
+        # Dispell now. If $wiz isn't a signature, undef can't be returned.
         die 'no such magic or error' unless dispell $x, $wiz;
 
 EXPORT
@@ -167,6 +182,8 @@ SEE ALSO
 
 AUTHOR
     Vincent Pit, "<perl at profvince.com>"
+
+    You can contact me by mail or on #perl @ FreeNode (Prof_Vince).
 
 BUGS
     Please report any bugs or feature requests to "bug-variable-magic at

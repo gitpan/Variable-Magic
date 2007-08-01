@@ -11,6 +11,7 @@ t/01-import.t
 t/10-simple.t
 t/11-multiple.t
 t/12-data.t
+t/13-sig.t
 t/20-get.t
 t/21-set.t
 t/22-len.t

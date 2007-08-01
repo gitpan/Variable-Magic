@@ -11,17 +11,17 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =head1 SYNOPSIS
 
     use Variable::Magic qw/wizard cast dispell/;
 
-    my $wiz = wizard set => sub { print STDERR "now set to $_[0]!\n" };
+    my $wiz = wizard set => sub { print STDERR "now set to ${$_[0]}!\n" };
     my $a = 1;
     cast $a, $wiz;
     $a = 2;          # "now set to 2!"
@@ -62,6 +62,8 @@ To prevent any clash between different magics defined with this module, an uniqu
 
 =head1 PERL MAGIC HISTORY
 
+The places where magic is invoked have changed a bit through perl history. Here's a little list of the most recent ones.
+
 =head2 B<5.9.3>
 
 =over 4
@@ -84,25 +86,13 @@ To prevent any clash between different magics defined with this module, an uniqu
 
 The minimum integer used as a signature for user-defined magic.
 
-=cut
-
-use constant SIG_MIN => 2 ** 8;
-
 =head2 C<SIG_MAX>
 
 The maximum integer used as a signature for user-defined magic.
 
-=cut
-
-use constant SIG_MAX => 2 ** 16 - 1;
-
 =head2 C<SIG_NBR>
 
     SIG_NBR = SIG_MAX - SIG_MIN + 1
-
-=cut
-
-use constant SIG_NBR => SIG_MAX - SIG_MIN + 1;
 
 =head1 FUNCTIONS
 
@@ -111,8 +101,6 @@ use constant SIG_NBR => SIG_MAX - SIG_MIN + 1;
 require XSLoader;
 
 XSLoader::load(__PACKAGE__, $VERSION);
-
-my %wizz;
 
 =head2 C<wizard>
 
@@ -124,37 +112,29 @@ This function creates a 'wizard', an opaque type that holds the magic informatio
 
 =item C<'sig'>
 
-The numerical signature. If not specified or undefined, a random signature is generated.
+The numerical signature. If not specified or undefined, a random signature is generated. If the signature matches an already defined magic, then the existant magic object is returned.
 
 =item C<'data'>
 
-A code reference to a private data constructor. It will be called each time this magic is cast on a variable, and the scalar returned will be used as private data storage for it.
+A code reference to a private data constructor. It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it. C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
 
 =item C<'get'>, C<'set'>, C<'len'>, C<'clear'> and C<'free'>
 
-Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. When the magic variable is an array or a hash, C<$_[0]> is a reference to it, but directly references it otherwise. C<$_[1]> is the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length.
+Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is a reference to the magic object and C<$_[1]> is the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length.
 
 =back
 
     # A simple scalar tracer
-    my $wiz = wizard get  => sub { print STDERR "got $_[0]\n" },
-                     set  => sub { print STDERR "set to $_[0]\n" },
-                     free => sub { print STDERR "$_[0] was deleted\n" }
+    my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
+                     set  => sub { print STDERR "set to ${$_[0]}\n" },
+                     free => sub { print STDERR "${$_[0]} was deleted\n" }
 
 =cut
 
 sub wizard {
  croak 'Wrong number of arguments for wizard()' if @_ % 2;
  my %opts = @_;
- my $sig;
- if (defined $opts{sig}) {
-  $sig = int $opts{sig};
-  $sig += SIG_MIN if $sig < SIG_MIN;
-  $sig %= SIG_MAX + 1 if $sig > SIG_MAX;
- } else {
-  $sig = gensig();
- }
- return _wizard($sig, map { $opts{$_} } qw/get set len clear free data/);
+ return _wizard(map { $opts{$_} } qw/sig get set len clear free data/);
 }
 
 =head2 C<gensig>
@@ -163,16 +143,6 @@ With this tool, you can manually generate random magic signature between SIG_MIN
 
     # Generate a signature
     my $sig = gensig;
-
-=cut
-
-sub gensig {
- my $sig;
- my $used = ~~keys %wizz;
- croak 'Too many magic signatures used' if $used == SIG_NBR;
- do { $sig = SIG_MIN + int(rand(SIG_NBR)) } while $wizz{$sig};
- return $sig;
-}
 
 =head2 C<getsig>
 
@@ -185,28 +155,30 @@ This accessor returns the magic signature of this wizard.
 
 =head2 C<cast>
 
-    cast [$@%&*]var, $wiz
+    cast [$@%&*]var, [$wiz|$sig], ...
 
-This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic. It returns true on success or when C<$wiz> magic is already present, and false on error.
+This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic. You can also supply the numeric signature C<$sig> instead of C<$wiz>. It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied). All extra arguments specified after C<$wiz> are passed to the private data constructor.
 
-    # Casts $wiz to $x
+    # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
     my $x;
     die 'error' unless cast $x, $wiz;
 
 =head2 C<getdata>
 
-    getdata [$@%&*]var, $wiz
+    getdata [$@%&*]var, [$wiz|$sig]
 
-This accessor fetches the private data associated with the magic C<$wiz> in the variable. C<undef> is returned when no such magic or data is found.
+This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable. C<undef> is returned when no such magic or data is found, or when C<$sig> does not represent a current valid magic object.
+
+    # Get the attached data.
+    my $data = getdata $x, $wiz or die 'no such magic or magic has no data';
 
 =head2 C<dispell>
 
-    dispell [$@%&*]variable, $wiz
-    dispell [$@%&*]variable, $sig
+    dispell [$@%&*]variable, [$wiz|$sig]
 
-The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable. You can also pass the magic signature as the second argument. True is returned on success, and false on error or when no magic represented by C<$wiz> could be found in the variable.
+The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable. You can also pass the magic signature C<$sig> as the second argument. True is returned on success, C<0> on error or when no magic represented by C<$wiz> could be found in the variable, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
 
-    # Dispell now
+    # Dispell now. If $wiz isn't a signature, undef can't be returned.
     die 'no such magic or error' unless dispell $x, $wiz;
 
 =head1 EXPORT
@@ -240,6 +212,8 @@ L<perlguts> and L<perlapi> for internal information about magic.
 =head1 AUTHOR
 
 Vincent Pit, C<< <perl at profvince.com> >>
+
+You can contact me by mail or on #perl @ FreeNode (Prof_Vince).
 
 =head1 BUGS
 

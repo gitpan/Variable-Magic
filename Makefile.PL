@@ -11,8 +11,7 @@ WriteMakefile(
     PL_FILES            => {},
     PREREQ_PM => {
         'Carp'       => 0,   
-        'Test::More' => 0,
-        'constant'   => 0
+        'Test::More' => 0
     },
     dist                => { 
         PREOP => 'pod2text lib/Variable/Magic.pm > $(DISTVNAME)/README',

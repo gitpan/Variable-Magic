@@ -1,5 +1,20 @@
 Revision history for Variable-Magic
 
+0.03    2007-08-01 17:20 UTC
+        + Add : Passing the signature of an already defined magic to wizard()
+                now returns the corresponding magic object.
+        + Add : You can pass the numeric signature as the wizard argument of
+                cast(), dispell() and getdata().
+        + Add : Any argument specified after the wizard (or the signature) in a
+                call to cast() is now passed to the private data constructor in
+                $_[1] and after.
+        + Chg : $_[0] is now always a reference to the magic variable in all
+                callbacks. The reason for changing from the previous behaviour
+                is that one may want to apply the same magic to a plain scalar
+                and to a scalar reference, and needs a way to distinguish
+                between them in the callback (say, ref()).
+        + Fix : Wizard object destruction used not to free the signature.
+
 0.02    2007-07-27 13:50 UTC
         + Fix : In response to test report 548152 :
                 Newx() and SvMAGIC_set() not present on older perls.
