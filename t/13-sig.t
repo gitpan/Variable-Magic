@@ -1,5 +1,8 @@
 #!perl -T
 
+use strict;
+use warnings;
+
 use Test::More tests => 24;
 
 use Variable::Magic qw/wizard getsig cast dispell SIG_MIN/;

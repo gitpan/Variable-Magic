@@ -11,11 +11,11 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 =head1 SYNOPSIS
 
@@ -98,9 +98,9 @@ The maximum integer used as a signature for user-defined magic.
 
 =cut
 
-require XSLoader;
+use XSLoader;
 
-XSLoader::load(__PACKAGE__, $VERSION);
+XSLoader::load __PACKAGE__, $VERSION;
 
 =head2 C<wizard>
 
@@ -203,7 +203,7 @@ $EXPORT_TAGS{'all'} = \@EXPORT_OK;
 
 L<Carp> (standard since perl 5), L<XSLoader> (standard since perl 5.006).
 
-Tests use L<Symbol> (standard since perl 5.002).
+Glob tests need L<Symbol> (standard since perl 5.002).
 
 =head1 SEE ALSO
 

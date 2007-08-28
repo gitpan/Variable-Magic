@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.03
+    Version 0.04
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -175,7 +175,7 @@ EXPORT
 DEPENDENCIES
     Carp (standard since perl 5), XSLoader (standard since perl 5.006).
 
-    Tests use Symbol (standard since perl 5.002).
+    Glob tests need Symbol (standard since perl 5.002).
 
 SEE ALSO
     perlguts and perlapi for internal information about magic.

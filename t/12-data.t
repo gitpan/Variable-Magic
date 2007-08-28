@@ -1,5 +1,8 @@
 #!perl -T
 
+use strict;
+use warnings;
+
 use Test::More tests => 19;
 
 use Variable::Magic qw/wizard getdata cast dispell/;

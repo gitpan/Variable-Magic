@@ -1,5 +1,8 @@
 #!perl -T
 
+use strict;
+use warnings;
+
 use Test::More tests => 33;
 
 use Variable::Magic qw/wizard cast dispell/;
@@ -10,9 +13,9 @@ my @c = (0) x $n;
 
 sub multi {
  my ($cb, $tests) = @_;
- for (local $i = 0; $i < $n; ++$i) {
-  my $res = eval { $cb->() };
-  $tests->($res, $@);
+ for (my $i = 0; $i < $n; ++$i) {
+  my $res = eval { $cb->($i) };
+  $tests->($i, $res, $@);
  }
 }
 
@@ -24,9 +27,10 @@ eval { $w[2] = wizard get => sub { ++$c[2] }, set => sub { --$c[2] } };
 ok(!$@, "wizard 2 creation error ($@)");
 
 multi sub {
+ my ($i) = @_;
  $w[$i]
 }, sub {
- my ($res, $err) = @_;
+ my ($i, $res, $err) = @_;
  ok(defined $res, "wizard $i is defined");
  ok(ref($w[$i]) eq 'SCALAR', "wizard $i is a scalar ref");
 };
@@ -34,9 +38,10 @@ multi sub {
 my $a = 0;
 
 multi sub {
+ my ($i) = @_;
  cast $a, $w[$i];
 }, sub {
- my ($res, $err) = @_;
+ my ($i, $res, $err) = @_;
  ok(!$err, "cast magic $i croaks ($err)");
  ok($res, "cast magic $i invalid");
 };

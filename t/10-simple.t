@@ -1,5 +1,8 @@
 #!perl -T
 
+use strict;
+use warnings;
+
 use Test::More tests => 14;
 
 use Variable::Magic qw/wizard gensig getsig cast dispell/;

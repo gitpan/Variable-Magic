@@ -1,5 +1,10 @@
 Revision history for Variable-Magic
 
+0.04    2007-08-28 12:25 UTC
+        + Chg : s/require (XSLoader)/use $1/.
+        + Fix : Tests are now strict.
+        + Fix : Complete dependencies.
+
 0.03    2007-08-01 17:20 UTC
         + Add : Passing the signature of an already defined magic to wizard()
                 now returns the corresponding magic object.
