@@ -14,7 +14,7 @@ my $sig;
 {
  my $wiz = wizard get  => \&foo,
                   set  => $bar,
-                  free => sub {  print STDERR "deleted!\n"; };
+                  free => sub { print STDERR "deleted!\n"; };
  $sig = getsig $wiz;
  print "my sig is $sig\n";
  cast $a, $wiz, qw/a b c/;

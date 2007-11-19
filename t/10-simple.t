@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 14;
+use Test::More tests => 16;
 
 use Variable::Magic qw/wizard gensig getsig cast dispell/;
 
@@ -31,6 +31,10 @@ ok($res, 're-cast invalid');
 $res = eval { dispell $a, $wiz };
 ok(!$@, "re-dispell croaks ($@)");
 ok($res, 're-dispell invalid');
+
+$res = eval { dispell my $b, $wiz };
+ok(!$@, "dispell non-magic object fails ($@)");
+ok($res == 0, 'dispell non-magic object doesn\'t return 0');
 
 $sig = gensig;
 {

@@ -1,5 +1,8 @@
 Revision history for Variable-Magic
 
+0.05    2007-11-19 09:10 UTC
+        + Fix : 5.10.0_RC1 compatibility fix.
+
 0.04    2007-08-28 12:25 UTC
         + Chg : s/require (XSLoader)/use $1/.
         + Fix : Tests are now strict.

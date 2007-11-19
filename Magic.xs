@@ -273,7 +273,7 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
  w = SV2MGWIZ(wiz);
 
  SvREFCNT_inc(wiz); /* Fake survival - it's gonna be deleted anyway */
-#if PERL_API_REVISION >= 5 && PERL_API_VERSION >= 9 && PERL_API_SUBVERSION >= 5
+#if PERL_API_REVISION > 5 || (PERL_API_REVISION == 5 && (PERL_API_VERSION > 9 || (PERL_API_VERSION == 9 && PERL_API_SUBVERSION >= 5)))
  SvREFCNT_inc(wiz); /* One more push */
 #endif
  if (hv_delete(MY_CXT.wizz, buf, sprintf(buf, "%u", w->sig), 0)) {
