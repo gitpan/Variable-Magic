@@ -1,7 +1,6 @@
 /* This file is part of the Variable::Magic Perl module.
  * See http://search.cpan.org/dist/Variable-Magic/ */
 
-#include <stdlib.h> /* rand(), RAND_MAX */
 #include <stdio.h>  /* sprintf() */
 
 #define PERL_NO_GET_CONTEXT
@@ -12,6 +11,10 @@
 #define __PACKAGE__ "Variable::Magic"
 
 #define R(S) fprintf(stderr, "R(" #S ") = %d\n", SvREFCNT(S))
+
+#define PERL_VERSION_LE(R, V, S) (PERL_REVISION < (R) || (PERL_REVISION == (R) && (PERL_VERSION < (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION <= (S))))))
+
+#define PERL_API_VERSION_GE(R, V, S) (PERL_API_REVISION > (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION > (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION >= (S))))))
 
 /* --- Compatibility ------------------------------------------------------- */
 
@@ -29,6 +32,59 @@
 # define START_MY_CXT STATIC my_cxt_t MY_CXT;
 # define MY_CXT_INIT
 #endif
+
+#ifndef PERL_MAGIC_ext
+# define PERL_MAGIC_ext '~'
+#endif
+
+/* --- Our sv_magicext ----------------------------------------------------- */
+
+#ifdef sv_magicext
+STATIC MAGIC *vmg_sv_magicext(pTHX_ SV *sv, SV *obj, MGVTBL *vtbl, SV *obj2, I32 flag) {
+ return sv_magicext(sv, obj, PERL_MAGIC_ext, vtbl, (const char *) obj2, flag);
+}
+#else /* Stub inspired from 5.7.3's sv_magicext */
+STATIC MAGIC *vmg_sv_magicext(pTHX_ SV *sv, SV *obj, MGVTBL *vtbl, SV *obj2, I32 flag) {
+ MAGIC* mg;
+
+ if (SvTYPE(sv) < SVt_PVMG) {
+  SvUPGRADE(sv, SVt_PVMG);
+ }
+ Newx(mg, 1, MAGIC);
+ mg->mg_moremagic = SvMAGIC(sv);
+ SvMAGIC_set(sv, mg);
+
+ if (!obj || obj == sv ||
+     (SvTYPE(obj) == SVt_PVGV &&
+        (GvSV(obj) == sv || GvHV(obj) == (HV *) sv || GvAV(obj) == (AV *) sv ||
+                            GvCV(obj) == (CV *) sv || GvIOp(obj) == (IO *) sv ||
+                            GvFORM(obj) == (CV *) sv))) {
+  mg->mg_obj = obj;
+ } else {
+  mg->mg_obj = SvREFCNT_inc(obj);
+  mg->mg_flags |= MGf_REFCOUNTED;
+ }
+
+ mg->mg_type = PERL_MAGIC_ext;
+ mg->mg_len  = flag;
+ if (obj2) {
+  if (flag == HEf_SVKEY) {
+   mg->mg_ptr = (char *) SvREFCNT_inc((SV *) obj2);
+  } else {
+   mg->mg_ptr = (char *) obj2;
+  }
+ }
+ mg->mg_virtual = vtbl;
+
+ mg_magical(sv);
+ if (SvGMAGICAL(sv)) {
+  SvFLAGS(sv) &= ~(SVf_IOK | SVf_NOK | SVf_POK);
+ }
+
+ return mg;
+}
+#endif
+#define vmg_sv_magicext(S, O, V, OO, F) vmg_sv_magicext(aTHX_ (S), (O), (V), (OO), (F))
 
 /* --- Context-safe global data -------------------------------------------- */
 
@@ -57,8 +113,7 @@ STATIC U16 vmg_gensig(pTHX) {
  dMY_CXT;
 
  do {
-  double u = rand() / (RAND_MAX + 1.0);
-  sig = SIG_NBR * u + SIG_MIN;
+  sig = SIG_NBR * Drand01() + SIG_MIN;
  } while (hv_exists(MY_CXT.wizz, buf, sprintf(buf, "%u", sig)));
 
  return sig;
@@ -101,7 +156,11 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
  nsv = POPs;
- SvREFCNT_inc(nsv); /* Or it will be destroyed in FREETMPS */
+#if PERL_VERSION_LE(5, 8, 2)
+ nsv = sv_newref(nsv); /* Workaround some bug in SvREFCNT_inc() */
+#else
+ SvREFCNT_inc(nsv);    /* Or it will be destroyed in FREETMPS */
+#endif
 
  PUTBACK;
 
@@ -145,8 +204,7 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  }
 
  data = (w->cb_data) ? vmg_data_new(w->cb_data, sv, args) : NULL;
- mg = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl,
-                            (const char *) wiz, HEf_SVKEY);
+ mg = vmg_sv_magicext(sv, data, w->vtbl, wiz, HEf_SVKEY);
  mg->mg_private = w->sig;
 
  return 1;
@@ -273,7 +331,7 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
  w = SV2MGWIZ(wiz);
 
  SvREFCNT_inc(wiz); /* Fake survival - it's gonna be deleted anyway */
-#if PERL_API_REVISION > 5 || (PERL_API_REVISION == 5 && (PERL_API_VERSION > 9 || (PERL_API_VERSION == 9 && PERL_API_SUBVERSION >= 5)))
+#if PERL_API_VERSION_GE(5, 9, 5)
  SvREFCNT_inc(wiz); /* One more push */
 #endif
  if (hv_delete(MY_CXT.wizz, buf, sprintf(buf, "%u", w->sig), 0)) {
@@ -400,7 +458,7 @@ CODE:
  w->cb_data  = (SvROK(cb_data))  ? newRV_inc(SvRV(cb_data))  : NULL;
 
  sv = MGWIZ2SV(w);
- mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, -1);
+ mg = vmg_sv_magicext(sv, NULL, &vmg_wizard_vtbl, NULL, -1);
  mg->mg_private = SIG_WIZ;
 
  hv_store(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), sv, 0);

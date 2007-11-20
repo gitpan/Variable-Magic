@@ -1,5 +1,7 @@
 package Variable::Magic;
 
+use 5.007003;
+
 use strict;
 use warnings;
 
@@ -11,11 +13,11 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 =head1 SYNOPSIS
 
@@ -200,6 +202,8 @@ our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = \@EXPORT_OK;
 
 =head1 DEPENDENCIES
+
+L<perl> 5.7.3.
 
 L<Carp> (standard since perl 5), L<XSLoader> (standard since perl 5.006).
 
