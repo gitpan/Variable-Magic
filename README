@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.06
+    Version 0.08
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -46,9 +46,42 @@ DESCRIPTION
         prevent it to work before perl 5.9.5 - see the history).
 
     "free"
-        This last one can be considered as an object destructor. It happens
-        when the variable goes out of scope (with the exception of global
-        scope), but not when it is undefined.
+        This one can be considered as an object destructor. It happens when
+        the variable goes out of scope (with the exception of global scope),
+        but not when it is undefined.
+
+    "copy"
+        This magic only applies to tied arrays and hashes. It fires when you
+        try to access or change their elements. It is available on your perl
+        iff "MGf_COPY" is true.
+
+    "dup"
+        Invoked when the variable is cloned across threads. Currently not
+        available.
+
+    "local"
+        When this magic is set on a variable, all subsequent localizations
+        of the variable will trigger the callback. It is available on your
+        perl iff "MGf_LOCAL" is true.
+
+    The following actions only applies to hashes and are available iff
+    "VMG_UVAR" is true. They are referred to as "uvar" magics.
+
+    "fetch"
+        This magic happens each time an element is fetched from the hash.
+
+    "store"
+        This one is called when an element is stored into the hash.
+
+    "exists"
+        This magic fires when a key is tested for existence in the hash.
+
+    "delete"
+        This last one triggers when a key is deleted in the hash, regardless
+        of whether the key actually exists in it.
+
+    You can refer to the tests to have more insight of where the different
+    magics are invoked.
 
     To prevent any clash between different magics defined with this module,
     an unique numerical signature is attached to each kind of magic (i.e.
@@ -58,13 +91,18 @@ PERL MAGIC HISTORY
     The places where magic is invoked have changed a bit through perl
     history. Here's a little list of the most recent ones.
 
+  5.6.x
+    *p14416* : 'copy' and 'dup' magic.
+
   5.9.3
     'len' magic is no longer called when pushing an element into a magic
     array.
+    *p26569* : 'local' magic.
 
   5.9.5
-    'clear' magic wasn't invoked when undefining an array. The bug is fixed
-    as of this version.
+    *p31064* : Meaningful 'uvar' magic.
+    *p31473* : 'clear' magic wasn't invoked when undefining an array. The
+    bug is fixed as of this version.
 
 CONSTANTS
   "SIG_MIN"
@@ -76,34 +114,62 @@ CONSTANTS
   "SIG_NBR"
         SIG_NBR = SIG_MAX - SIG_MIN + 1
 
+  "MGf_COPY"
+    Evaluates to true iff the 'copy' magic is available.
+
+  "MGf_DUP"
+    Evaluates to true iff the 'dup' magic is available.
+
+  "MGf_LOCAL"
+    Evaluates to true iff the 'local' magic is available.
+
+  "VMG_UVAR"
+    When this constant is true, you can use the "fetch,store,exists,delete"
+    callbacks on hashes.
+
 FUNCTIONS
   "wizard"
-        wizard sig => .., data => ..., get => .., set => .., len => .., clear => .., free => ..
+        wizard sig    => ...,
+               data   => sub { ... },
+               get    => sub { my ($ref, $data) = @_; ... },
+               set    => sub { my ($ref, $data) = @_; ... },
+               len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
+               clear  => sub { my ($ref, $data) = @_; ... },
+               free   => sub { my ($ref, $data) = @_, ... },
+               copy   => sub { my ($ref, $data, $elt) = @_; ... },
+               local  => sub { my ($ref, $data) = @_; ... },
+               fetch  => sub { my ($ref, $data, $key) = @_; ... },
+               store  => sub { my ($ref, $data, $key) = @_; ... },
+               exists => sub { my ($ref, $data, $key) = @_; ... },
+               delete => sub { my ($ref, $data, $key) = @_; ... }
 
     This function creates a 'wizard', an opaque type that holds the magic
     information. It takes a list of keys / values as argument, whose keys
     can be :
 
-    'sig'
+    "sig"
         The numerical signature. If not specified or undefined, a random
         signature is generated. If the signature matches an already defined
         magic, then the existant magic object is returned.
 
-    'data'
+    "data"
         A code reference to a private data constructor. It is called each
         time this magic is cast on a variable, and the scalar returned is
         used as private data storage for it. $_[0] is a reference to the
         magic object and @_[1 .. @_-1] are all extra arguments that were
         passed to "cast".
 
-    'get', 'set', 'len', 'clear' and 'free'
+    "get", "set", "len", "clear", "free", "copy", "local", "fetch", "store",
+    "exists" and "delete"
         Code references to corresponding magic callbacks. You don't have to
         specify all of them : the magic associated with undefined entries
-        simply won't be hooked. In those callbacks, $_[0] is a reference to
-        the magic object and $_[1] is the private data (or "undef" when no
-        private data constructor was supplied). In the special case of "len"
-        magic and when the variable is an array, $_[2] contains its normal
-        length.
+        simply won't be hooked. In those callbacks, $_[0] is always a
+        reference to the magic object and $_[1] is always the private data
+        (or "undef" when no private data constructor was supplied). In the
+        special case of "len" magic and when the variable is an array, $_[2]
+        contains its normal length. "copy" magic receives the current
+        element (i.e. the value) in $_[2]. $_[2] is also the current key in
+        "fetch", "store", "exists" and "delete" callbacks.
 
         # A simple scalar tracer
         my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
@@ -169,18 +235,27 @@ EXPORT
     "dispell" are only exported on request. All of them are exported by the
     tags ':funcs' and ':all'.
 
-    The constants "SIG_MIN", "SIG_MAX" and "SIG_NBR" are also only exported
-    on request. They are all exported by the tags ':consts' and ':all'.
+    The constants "SIG_MIN", "SIG_MAX", "SIG_NBR", "MGf_COPY", "MGf_DUP",
+    "MGf_LOCAL" and "VMG_UVAR" are also only exported on request. They are
+    all exported by the tags ':consts' and ':all'.
 
 DEPENDENCIES
     perl 5.7.3.
 
     Carp (standard since perl 5), XSLoader (standard since perl 5.006).
 
+    Copy tests need Tie::Array (standard since perl 5.005) and Tie::Hash
+    (since 5.002).
+
+    Some uvar tests need Hash::Util::FieldHash (standard since perl
+    5.009004).
+
     Glob tests need Symbol (standard since perl 5.002).
 
 SEE ALSO
     perlguts and perlapi for internal information about magic.
+
+    perltie and overload for other ways of enhancing objects.
 
 AUTHOR
     Vincent Pit, "<perl at profvince.com>"
@@ -200,7 +275,7 @@ SUPPORT
         perldoc Variable::Magic
 
 COPYRIGHT & LICENSE
-    Copyright 2007 Vincent Pit, all rights reserved.
+    Copyright 2007-2008 Vincent Pit, all rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

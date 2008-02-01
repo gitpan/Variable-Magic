@@ -37,54 +37,51 @@
 # define PERL_MAGIC_ext '~'
 #endif
 
-/* --- Our sv_magicext ----------------------------------------------------- */
-
-#ifdef sv_magicext
-STATIC MAGIC *vmg_sv_magicext(pTHX_ SV *sv, SV *obj, MGVTBL *vtbl, SV *obj2, I32 flag) {
- return sv_magicext(sv, obj, PERL_MAGIC_ext, vtbl, (const char *) obj2, flag);
-}
-#else /* Stub inspired from 5.7.3's sv_magicext */
-STATIC MAGIC *vmg_sv_magicext(pTHX_ SV *sv, SV *obj, MGVTBL *vtbl, SV *obj2, I32 flag) {
- MAGIC* mg;
-
- if (SvTYPE(sv) < SVt_PVMG) {
-  SvUPGRADE(sv, SVt_PVMG);
- }
- Newx(mg, 1, MAGIC);
- mg->mg_moremagic = SvMAGIC(sv);
- SvMAGIC_set(sv, mg);
-
- if (!obj || obj == sv ||
-     (SvTYPE(obj) == SVt_PVGV &&
-        (GvSV(obj) == sv || GvHV(obj) == (HV *) sv || GvAV(obj) == (AV *) sv ||
-                            GvCV(obj) == (CV *) sv || GvIOp(obj) == (IO *) sv ||
-                            GvFORM(obj) == (CV *) sv))) {
-  mg->mg_obj = obj;
- } else {
-  mg->mg_obj = SvREFCNT_inc(obj);
-  mg->mg_flags |= MGf_REFCOUNTED;
- }
-
- mg->mg_type = PERL_MAGIC_ext;
- mg->mg_len  = flag;
- if (obj2) {
-  if (flag == HEf_SVKEY) {
-   mg->mg_ptr = (char *) SvREFCNT_inc((SV *) obj2);
-  } else {
-   mg->mg_ptr = (char *) obj2;
-  }
- }
- mg->mg_virtual = vtbl;
-
- mg_magical(sv);
- if (SvGMAGICAL(sv)) {
-  SvFLAGS(sv) &= ~(SVf_IOK | SVf_NOK | SVf_POK);
- }
-
- return mg;
-}
+#ifndef MGf_COPY
+# define MGf_COPY 0
 #endif
-#define vmg_sv_magicext(S, O, V, OO, F) vmg_sv_magicext(aTHX_ (S), (O), (V), (OO), (F))
+
+#undef MGf_DUP /* Disable it for now. */
+#ifndef MGf_DUP
+# define MGf_DUP 0
+#endif
+
+#ifndef MGf_LOCAL
+# define MGf_LOCAL 0
+#endif
+
+#if PERL_API_VERSION_GE(5, 10, 0)
+# define VMG_UVAR 1
+#else
+# define VMG_UVAR 0
+#endif
+
+#if VMG_UVAR
+
+/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html */
+STATIC void vmg_mg_magical(pTHX_ SV *sv) {
+#define vmg_mg_magical(S) vmg_mg_magical(aTHX_ (S))
+ const MAGIC* mg;
+ PERL_UNUSED_CONTEXT;
+ if ((mg = SvMAGIC(sv))) {
+  SvRMAGICAL_off(sv);
+  do {
+   const MGVTBL* const vtbl = mg->mg_virtual;
+   if (vtbl) {
+    if (vtbl->svt_get && !(mg->mg_flags & MGf_GSKIP))
+     SvGMAGICAL_on(sv);
+    if (vtbl->svt_set)
+     SvSMAGICAL_on(sv);
+    if (vtbl->svt_clear)
+     SvRMAGICAL_on(sv);
+   }
+  } while ((mg = mg->mg_moremagic));
+  if (!(SvFLAGS(sv) & (SVs_GMG|SVs_SMG)))
+   SvRMAGICAL_on(sv);
+ }
+}
+
+#endif /* VMG_UVAR */
 
 /* --- Context-safe global data -------------------------------------------- */
 
@@ -124,7 +121,21 @@ STATIC U16 vmg_gensig(pTHX) {
 typedef struct {
  MGVTBL *vtbl;
  U16 sig;
- SV *cb_get, *cb_set, *cb_len, *cb_clear, *cb_free, *cb_data;
+ U16 uvar;
+ SV *cb_data;
+ SV *cb_get, *cb_set, *cb_len, *cb_clear, *cb_free;
+#if MGf_COPY
+ SV *cb_copy;
+#endif /* MGf_COPY */
+#if MGf_DUP
+ SV *cb_dup;
+#endif /* MGf_DUP */
+#if MGf_LOCAL
+ SV *cb_local;
+#endif /* MGf_LOCAL */
+#if VMG_UVAR
+ SV *cb_fetch, *cb_store, *cb_exists, *cb_delete;
+#endif /* VMG_UVAR */
 } MGWIZ;
 
 #define MGWIZ2SV(W) (newSVuv(PTR2UV(W)))
@@ -187,6 +198,19 @@ STATIC SV *vmg_data_get(SV *sv, U16 sig) {
 
 /* ... Magic cast/dispell .................................................. */
 
+STATIC I32 vmg_svt_val(pTHX_ IV, SV *);
+
+STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) {
+ if (prevmagic) {
+  prevmagic->mg_moremagic = moremagic;
+ } else {
+  SvMAGIC_set(sv, moremagic);
+ }
+ mg->mg_moremagic = NULL;
+ Safefree(mg->mg_ptr);
+ Safefree(mg);
+}
+
 STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
 #define vmg_cast(S, W, A) vmg_cast(aTHX_ (S), (W), (A))
  MAGIC *mg = NULL, *moremagic = NULL;
@@ -204,22 +228,85 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  }
 
  data = (w->cb_data) ? vmg_data_new(w->cb_data, sv, args) : NULL;
- mg = vmg_sv_magicext(sv, data, w->vtbl, wiz, HEf_SVKEY);
+ mg = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl, (const char *) wiz, HEf_SVKEY);
  mg->mg_private = w->sig;
+ mg->mg_flags   = mg->mg_flags
+#if MGf_COPY
+                | MGf_COPY
+#endif /* MGf_COPY */
+#if MGf_DUP
+                | MGf_DUP
+#endif /* MGf_DUP */
+#if MGf_LOCAL
+                | MGf_LOCAL
+#endif /* MGf_LOCAL */
+                ;
+
+#if VMG_UVAR
+ if (w->uvar && SvTYPE(sv) >= SVt_PVHV) {
+  MAGIC *prevmagic;
+  int add_uvar = 1;
+  struct ufuncs uf[2];
+
+  uf[0].uf_val   = vmg_svt_val;
+  uf[0].uf_set   = NULL;
+  uf[0].uf_index = 0;
+  uf[1].uf_val   = NULL;
+  uf[1].uf_set   = NULL;
+  uf[1].uf_index = 0;
+
+  /* One uvar magic in the chain is enough. */
+  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
+   moremagic = mg->mg_moremagic;
+   if (mg->mg_type == PERL_MAGIC_uvar) { break; }
+  }
+
+  if (mg) { /* Found another uvar magic. */
+   struct ufuncs *olduf = (struct ufuncs *) mg->mg_ptr;
+   if (olduf->uf_val == vmg_svt_val) {
+    /* It's our uvar magic, nothing to do. */
+    add_uvar = 0;
+   } else {
+    /* It's another uvar magic, backup it and replace it by ours. */
+    uf[1] = *olduf;
+    vmg_uvar_del(sv, prevmagic, mg, moremagic);
+   }
+  }
+
+  if (add_uvar) {
+   sv_magic(sv, NULL, PERL_MAGIC_uvar, (const char *) &uf, sizeof(uf));
+   vmg_mg_magical(sv);
+  }
+
+ }
+#endif /* VMG_UVAR */
 
  return 1;
 }
 
 STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 #define vmg_dispell(S, Z) vmg_dispell(aTHX_ (S), (Z))
+#if VMG_UVAR
+ U32 uvars = 0;
+#endif /* VMG_UVAR */
  MAGIC *mg, *prevmagic, *moremagic = NULL;
- MGWIZ *w;
 
  if (SvTYPE(sv) < SVt_PVMG) { return 0; }
 
  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
   moremagic = mg->mg_moremagic;
-  if ((mg->mg_type == PERL_MAGIC_ext) && (mg->mg_private == sig)) { break; }
+  if (mg->mg_type == PERL_MAGIC_ext) {
+#if VMG_UVAR
+   MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+   if (w->uvar) { ++uvars; }
+#endif /* VMG_UVAR */
+   if (mg->mg_private == sig) {
+#if VMG_UVAR
+    if (!w->uvar) { uvars = 0; } /* Short-circuit uvar deletion. */
+#endif /* VMG_UVAR */
+    break;
+   }
+  }
  }
  if (!mg) { return 0; }
 
@@ -233,6 +320,39 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
  if (mg->mg_obj != sv) { SvREFCNT_dec(mg->mg_obj); } /* Destroy private data */
  SvREFCNT_dec((SV *) mg->mg_ptr); /* Unreference the wizard */
  Safefree(mg);
+
+#if VMG_UVAR
+ if (uvars == 1 && SvTYPE(sv) >= SVt_PVHV) {
+  /* mg was the first ext magic in the chain that had uvar */
+
+  for (mg = moremagic; mg; mg = mg->mg_moremagic) {
+   if ((mg->mg_type == PERL_MAGIC_ext) && SV2MGWIZ(mg->mg_ptr)->uvar) {
+    ++uvars;
+    break;
+   }
+  }
+
+  if (uvars == 1) {
+   struct ufuncs *uf;
+   for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic){
+    moremagic = mg->mg_moremagic;
+    if (mg->mg_type == PERL_MAGIC_uvar) { break; }
+   }
+   /* assert(mg); */
+   uf = (struct ufuncs *) mg->mg_ptr;
+   /* assert(uf->uf_val == vmg_svt_val); */
+   if (uf[1].uf_val || uf[1].uf_set) {
+    /* Revert the original uvar magic. */
+    uf[0] = uf[1];
+    Renew(uf, 1, struct ufuncs);
+    mg->mg_len = sizeof(struct ufuncs);
+   } else {
+    /* Remove the uvar magic. */
+    vmg_uvar_del(sv, prevmagic, mg, moremagic);
+   }
+  }
+ }
+#endif /* VMG_UVAR */
 
  return 1;
 }
@@ -269,6 +389,39 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
  return ret;
 }
 
+#if MGf_COPY || VMG_UVAR
+STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
+#define vmg_cb_call2(I, S, D, S2) vmg_cb_call2(aTHX_ (I), (S), (D), (S2))
+ int ret;
+
+ dSP;
+ int count;
+
+ ENTER;
+ SAVETMPS;
+
+ PUSHMARK(SP);
+ XPUSHs(sv_2mortal(newRV_inc(sv)));
+ XPUSHs(data ? data : &PL_sv_undef);
+ if (sv2) { XPUSHs(sv2); }
+ PUTBACK;
+
+ count = call_sv(cb, G_SCALAR);
+
+ SPAGAIN;
+
+ if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
+ ret = POPi;
+
+ PUTBACK;
+
+ FREETMPS;
+ LEAVE;
+
+ return ret;
+}
+#endif /* MGf_COPY || VMG_UVAR */
+
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
  return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_get, sv, mg->mg_obj);
 }
@@ -288,7 +441,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 
  PUSHMARK(SP);
  XPUSHs(sv_2mortal(newRV_inc(sv)));
- XPUSHs((mg->mg_obj) ? (mg->mg_obj) : &PL_sv_undef);
+ XPUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (SvTYPE(sv) == SVt_PVAV) {
   XPUSHs(sv_2mortal(newSViv(av_len((AV *) sv) + 1)));
  }
@@ -321,6 +474,67 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_free, sv, mg->mg_obj);
 }
 
+#if MGf_COPY
+STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *name, int namelen) {
+ return vmg_cb_call2(SV2MGWIZ(mg->mg_ptr)->cb_copy, sv, mg->mg_obj, nsv);
+}
+#endif /* MGf_COPY */
+
+#if MGf_DUP
+STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
+ return 0;
+}
+#endif /* MGf_DUP */
+
+#if MGf_LOCAL
+STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
+ return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_local, nsv, mg->mg_obj);
+}
+#endif /* MGf_LOCAL */
+
+#if VMG_UVAR
+STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
+ struct ufuncs *uf;
+ MAGIC *mg;
+ SV *key = NULL;
+
+ mg  = mg_find(sv, PERL_MAGIC_uvar);
+ /* mg can't be NULL or we wouldn't be there. */
+ key = mg->mg_obj;
+ uf  = (struct ufuncs *) mg->mg_ptr;
+
+ if (uf[1].uf_val != NULL) { uf[1].uf_val(aTHX_ action, sv); }
+ if (uf[1].uf_set != NULL) { uf[1].uf_set(aTHX_ action, sv); }
+
+ action &= HV_FETCH_ISSTORE | HV_FETCH_ISEXISTS | HV_FETCH_LVALUE | HV_DELETE;
+ for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
+  MGWIZ *w;
+  if ((mg->mg_type != PERL_MAGIC_ext)
+   || (mg->mg_private < SIG_MIN)
+   || (mg->mg_private > SIG_MAX)) { continue; }
+  w = SV2MGWIZ(mg->mg_ptr);
+  switch (action) {
+   case 0:
+    vmg_cb_call2(w->cb_fetch, sv, mg->mg_obj, key);
+    break;
+   case HV_FETCH_ISSTORE:
+   case HV_FETCH_LVALUE:
+   case (HV_FETCH_ISSTORE|HV_FETCH_LVALUE):
+    vmg_cb_call2(w->cb_store, sv, mg->mg_obj, key);
+    break;
+   case HV_FETCH_ISEXISTS:
+    vmg_cb_call2(w->cb_exists, sv, mg->mg_obj, key);
+    break;
+   case HV_DELETE:
+    vmg_cb_call2(w->cb_delete, sv, mg->mg_obj, key);
+    break;
+  }
+ }
+
+ return 0;
+}
+#endif /* VMG_UVAR */
+
 /* ... Wizard destructor ................................................... */
 
 STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
@@ -338,12 +552,27 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
   --MY_CXT.count;
  }
 
+ if (w->cb_data  != NULL) { SvREFCNT_dec(SvRV(w->cb_data)); }
  if (w->cb_get   != NULL) { SvREFCNT_dec(SvRV(w->cb_get)); }
  if (w->cb_set   != NULL) { SvREFCNT_dec(SvRV(w->cb_set)); }
  if (w->cb_len   != NULL) { SvREFCNT_dec(SvRV(w->cb_len)); }
  if (w->cb_clear != NULL) { SvREFCNT_dec(SvRV(w->cb_clear)); }
  if (w->cb_free  != NULL) { SvREFCNT_dec(SvRV(w->cb_free)); }
- if (w->cb_data  != NULL) { SvREFCNT_dec(SvRV(w->cb_data)); }
+#if MGf_COPY
+ if (w->cb_copy  != NULL) { SvREFCNT_dec(SvRV(w->cb_copy)); }
+#endif /* MGf_COPY */
+#if MGf_DUP
+ if (w->cb_dup   != NULL) { SvREFCNT_dec(SvRV(w->cb_dup)); }
+#endif /* MGf_COPY */
+#if MGf_LOCAL
+ if (w->cb_local != NULL) { SvREFCNT_dec(SvRV(w->cb_local)); }
+#endif /* MGf_COPY */
+#if VMG_UVAR
+ if (w->cb_fetch  != NULL) { SvREFCNT_dec(SvRV(w->cb_fetch)); }
+ if (w->cb_store  != NULL) { SvREFCNT_dec(SvRV(w->cb_store)); }
+ if (w->cb_exists != NULL) { SvREFCNT_dec(SvRV(w->cb_exists)); }
+ if (w->cb_delete != NULL) { SvREFCNT_dec(SvRV(w->cb_delete)); }
+#endif /* VMG_UVAR */
  Safefree(w->vtbl);
  Safefree(w);
 
@@ -356,17 +585,21 @@ STATIC MGVTBL vmg_wizard_vtbl = {
  NULL,            /* len */
  NULL,            /* clear */
  vmg_wizard_free, /* free */
-#ifdef MGf_COPY
+#if MGf_COPY
  NULL,            /* copy */
 #endif /* MGf_COPY */
-#ifdef MGf_DUP
+#if MGf_DUP
  NULL,            /* dup */
+#endif /* MGf_DUP */
+#if MGf_LOCAL
+ NULL,            /* local */
 #endif /* MGf_DUP */
 };
 
 STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
 STATIC const char vmg_invalid_sv[]     = "Invalid variable";
 STATIC const char vmg_invalid_sig[]    = "Invalid numeric signature";
+STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
 STATIC const char vmg_toomanysigs[]    = "Too many magic signatures used";
 STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
 
@@ -389,6 +622,21 @@ STATIC U16 vmg_sv2sig(pTHX_ SV *sv) {
  return sig;
 }
 
+#define VMG_SET_CB(S, N)              \
+ cb = (S);                            \
+ w->cb_ ## N = (SvOK(cb) && SvROK(cb)) ? newRV_inc(SvRV(cb)) : NULL;
+
+#define VMG_SET_SVT_CB(S, N)          \
+ cb = (S);                            \
+ if (SvOK(cb) && SvROK(cb)) {         \
+  t->svt_ ## N = vmg_svt_ ## N;       \
+  w->cb_  ## N = newRV_inc(SvRV(cb)); \
+ } else {                             \
+  t->svt_ ## N = NULL;                \
+  w->cb_  ## N = NULL;                \
+ }
+
+
 /* --- XS ------------------------------------------------------------------ */
 
 MODULE = Variable::Magic            PACKAGE = Variable::Magic
@@ -402,26 +650,46 @@ BOOT:
  MY_CXT.wizz = newHV();
  MY_CXT.count = 0;
  stash = gv_stashpv(__PACKAGE__, 1);
- newCONSTSUB(stash, "SIG_MIN",  newSVuv(SIG_MIN));
- newCONSTSUB(stash, "SIG_MAX",  newSVuv(SIG_MAX));
- newCONSTSUB(stash, "SIG_NBR",  newSVuv(SIG_NBR));
-/*
- newCONSTSUB(stash, "MGf_COPY", newSVuv(MGf_COPY));
- newCONSTSUB(stash, "MGf_DUP",  newSVuv(MGf_DUP));
-*/
+ newCONSTSUB(stash, "SIG_MIN",   newSVuv(SIG_MIN));
+ newCONSTSUB(stash, "SIG_MAX",   newSVuv(SIG_MAX));
+ newCONSTSUB(stash, "SIG_NBR",   newSVuv(SIG_NBR));
+ newCONSTSUB(stash, "MGf_COPY",  newSVuv(MGf_COPY));
+ newCONSTSUB(stash, "MGf_DUP",   newSVuv(MGf_DUP));
+ newCONSTSUB(stash, "MGf_LOCAL", newSVuv(MGf_LOCAL));
+ newCONSTSUB(stash, "VMG_UVAR",  newSVuv(VMG_UVAR));
 }
 
-SV *_wizard(SV *svsig, SV *cb_get, SV *cb_set, SV *cb_len, SV *cb_clear, SV *cb_free, SV *cb_data)
-PROTOTYPE: $&&&&&&
+SV *_wizard(...)
+PROTOTYPE: DISABLE
 PREINIT:
+ I32 i = 0;
  U16 sig;
  char buf[8];
  MGWIZ *w;
  MGVTBL *t;
  MAGIC *mg;
  SV *sv;
+ SV *svsig;
+ SV *cb;
 CODE:
  dMY_CXT;
+
+ if (items != 7
+#if MGf_COPY
+              + 1
+#endif /* MGf_COPY */
+#if MGf_DUP
+              + 1
+#endif /* MGf_DUP */
+#if MGf_LOCAL
+              + 1
+#endif /* MGf_LOCAL */
+#if VMG_UVAR
+              + 4
+#endif /* VMG_UVAR */
+              ) { croak(vmg_wrongargnum); }
+
+ svsig = ST(i++);
  if (SvOK(svsig)) {
   SV **old;
   sig = vmg_sv2sig(svsig);
@@ -435,30 +703,38 @@ CODE:
  }
  
  Newx(t, 1, MGVTBL);
- t->svt_get   = (SvOK(cb_get))   ? vmg_svt_get   : NULL;
- t->svt_set   = (SvOK(cb_set))   ? vmg_svt_set   : NULL;
- t->svt_len   = (SvOK(cb_len))   ? vmg_svt_len   : NULL;
- t->svt_clear = (SvOK(cb_clear)) ? vmg_svt_clear : NULL;
- t->svt_free  = (SvOK(cb_free))  ? vmg_svt_free  : NULL;
-#ifdef MGf_COPY
- t->svt_copy  = NULL;
-#endif /* MGf_COPY */
-#ifdef MGf_DUP
- t->svt_dup   = NULL;
-#endif /* MGf_DUP */
-
  Newx(w, 1, MGWIZ);
+
+ VMG_SET_CB(ST(i++), data);
+ VMG_SET_SVT_CB(ST(i++), get);
+ VMG_SET_SVT_CB(ST(i++), set);
+ VMG_SET_SVT_CB(ST(i++), len);
+ VMG_SET_SVT_CB(ST(i++), clear);
+ VMG_SET_SVT_CB(ST(i++), free);
+#if MGf_COPY
+ VMG_SET_SVT_CB(ST(i++), copy);
+#endif /* MGf_COPY */
+#if MGf_DUP
+ VMG_SET_SVT_CB(ST(i++), dup);
+#endif /* MGf_DUP */
+#if MGf_LOCAL
+ VMG_SET_SVT_CB(ST(i++), local);
+#endif /* MGf_LOCAL */
+#if VMG_UVAR
+ VMG_SET_CB(ST(i++), fetch);
+ VMG_SET_CB(ST(i++), store);
+ VMG_SET_CB(ST(i++), exists);
+ VMG_SET_CB(ST(i++), delete);
+#endif /* VMG_UVAR */
+
  w->vtbl = t;
  w->sig  = sig;
- w->cb_get   = (SvROK(cb_get))   ? newRV_inc(SvRV(cb_get))   : NULL;
- w->cb_set   = (SvROK(cb_set))   ? newRV_inc(SvRV(cb_set))   : NULL;
- w->cb_len   = (SvROK(cb_len))   ? newRV_inc(SvRV(cb_len))   : NULL;
- w->cb_clear = (SvROK(cb_clear)) ? newRV_inc(SvRV(cb_clear)) : NULL;
- w->cb_free  = (SvROK(cb_free))  ? newRV_inc(SvRV(cb_free))  : NULL;
- w->cb_data  = (SvROK(cb_data))  ? newRV_inc(SvRV(cb_data))  : NULL;
+#if VMG_UVAR
+ w->uvar = (w->cb_fetch || w->cb_store || w->cb_exists || w->cb_delete);
+#endif /* VMG_UVAR */
 
  sv = MGWIZ2SV(w);
- mg = vmg_sv_magicext(sv, NULL, &vmg_wizard_vtbl, NULL, -1);
+ mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, -1);
  mg->mg_private = SIG_WIZ;
 
  hv_store(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), sv, 0);

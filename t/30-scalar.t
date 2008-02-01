@@ -7,11 +7,11 @@ use Test::More tests => 13;
 
 use Variable::Magic qw/wizard cast dispell/;
 
-my @c = (0) x 5;
-my @x = (0) x 5;
+my @c = (0) x 12;
+my @x = (0) x 12;
 
 sub check {
- for (0 .. 4) { return 0 unless $c[$_] == $x[$_]; }
+ for (0 .. 11) { return 0 unless $c[$_] == $x[$_]; }
  return 1;
 }
 
@@ -20,7 +20,14 @@ my $wiz = wizard get   => sub { ++$c[0] },
                  set   => sub { ++$c[1] },
                  len   => sub { ++$c[2] },
                  clear => sub { ++$c[3] },
-                 free  => sub { ++$c[4] };
+                 free  => sub { ++$c[4] },
+                 copy  => sub { ++$c[5] },
+                 dup   => sub { ++$c[6] },
+                 local => sub { ++$c[7] },
+                 fetch => sub { ++$c[8] },
+                 store => sub { ++$c[9] },
+                 'exists' => sub { ++$c[10] },
+                 'delete' => sub { ++$c[11] };
 ok(check(), 'scalar : create wizard');
 
 my $n = int rand 1000;

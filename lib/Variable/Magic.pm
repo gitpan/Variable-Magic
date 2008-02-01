@@ -13,11 +13,14 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.06
+Version 0.08
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION;
+BEGIN {
+ $VERSION = '0.08';
+}
 
 =head1 SYNOPSIS
 
@@ -56,9 +59,45 @@ This magic is invoked when the variable is reset, such as when an array is empti
 
 =item C<free>
 
-This last one can be considered as an object destructor. It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
+This one can be considered as an object destructor. It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
+
+=item C<copy>
+
+This magic only applies to tied arrays and hashes. It fires when you try to access or change their elements. It is available on your perl iff C<MGf_COPY> is true.
+
+=item C<dup>
+
+Invoked when the variable is cloned across threads. Currently not available.
+
+=item C<local>
+
+When this magic is set on a variable, all subsequent localizations of the variable will trigger the callback. It is available on your perl iff C<MGf_LOCAL> is true.
 
 =back
+
+The following actions only applies to hashes and are available iff C<VMG_UVAR> is true. They are referred to as C<uvar> magics.
+
+=over 4
+
+=item C<fetch>
+
+This magic happens each time an element is fetched from the hash.
+
+=item C<store>
+
+This one is called when an element is stored into the hash.
+
+=item C<exists>
+
+This magic fires when a key is tested for existence in the hash.
+
+=item C<delete>
+
+This last one triggers when a key is deleted in the hash, regardless of whether the key actually exists in it.
+
+=back
+
+You can refer to the tests to have more insight of where the different magics are invoked.
 
 To prevent any clash between different magics defined with this module, an unique numerical signature is attached to each kind of magic (i.e. each set of callbacks for magic operations).
 
@@ -66,11 +105,21 @@ To prevent any clash between different magics defined with this module, an uniqu
 
 The places where magic is invoked have changed a bit through perl history. Here's a little list of the most recent ones.
 
+=head2 B<5.6.x>
+
+=over 4
+
+=item I<p14416> : 'copy' and 'dup' magic.
+
+=back
+
 =head2 B<5.9.3>
 
 =over 4
 
 =item 'len' magic is no longer called when pushing an element into a magic array.
+
+=item I<p26569> : 'local' magic.
 
 =back
 
@@ -78,7 +127,9 @@ The places where magic is invoked have changed a bit through perl history. Here'
 
 =over 4
 
-=item 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
+=item I<p31064> : Meaningful 'uvar' magic.
+
+=item I<p31473> : 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
 
 =back
 
@@ -96,33 +147,62 @@ The maximum integer used as a signature for user-defined magic.
 
     SIG_NBR = SIG_MAX - SIG_MIN + 1
 
+=head2 C<MGf_COPY>
+
+Evaluates to true iff the 'copy' magic is available.
+
+=head2 C<MGf_DUP>
+
+Evaluates to true iff the 'dup' magic is available.
+
+=head2 C<MGf_LOCAL>
+
+Evaluates to true iff the 'local' magic is available.
+
+=head2 C<VMG_UVAR>
+
+When this constant is true, you can use the C<fetch,store,exists,delete> callbacks on hashes.
+
 =head1 FUNCTIONS
 
 =cut
 
-use XSLoader;
-
-XSLoader::load __PACKAGE__, $VERSION;
+BEGIN {
+ require XSLoader;
+ XSLoader::load(__PACKAGE__, $VERSION);
+}
 
 =head2 C<wizard>
 
-    wizard sig => .., data => ..., get => .., set => .., len => .., clear => .., free => ..
+    wizard sig    => ...,
+           data   => sub { ... },
+           get    => sub { my ($ref, $data) = @_; ... },
+           set    => sub { my ($ref, $data) = @_; ... },
+           len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
+           clear  => sub { my ($ref, $data) = @_; ... },
+           free   => sub { my ($ref, $data) = @_, ... },
+           copy   => sub { my ($ref, $data, $elt) = @_; ... },
+           local  => sub { my ($ref, $data) = @_; ... },
+           fetch  => sub { my ($ref, $data, $key) = @_; ... },
+           store  => sub { my ($ref, $data, $key) = @_; ... },
+           exists => sub { my ($ref, $data, $key) = @_; ... },
+           delete => sub { my ($ref, $data, $key) = @_; ... }
 
 This function creates a 'wizard', an opaque type that holds the magic information. It takes a list of keys / values as argument, whose keys can be :
 
 =over 4
 
-=item C<'sig'>
+=item C<sig>
 
 The numerical signature. If not specified or undefined, a random signature is generated. If the signature matches an already defined magic, then the existant magic object is returned.
 
-=item C<'data'>
+=item C<data>
 
 A code reference to a private data constructor. It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it. C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
 
-=item C<'get'>, C<'set'>, C<'len'>, C<'clear'> and C<'free'>
+=item C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
-Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is a reference to the magic object and C<$_[1]> is the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length.
+Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length. C<copy> magic receives the current element (i.e. the value) in C<$_[2]>. C<$_[2]> is also the current key in C<fetch>, C<store>, C<exists> and C<delete> callbacks.
 
 =back
 
@@ -136,7 +216,12 @@ Code references to corresponding magic callbacks. You don't have to specify all 
 sub wizard {
  croak 'Wrong number of arguments for wizard()' if @_ % 2;
  my %opts = @_;
- return _wizard(map { $opts{$_} } qw/sig get set len clear free data/);
+ my @cbs  = qw/sig data get set len clear free/;
+ push @cbs, 'copy'  if MGf_COPY;
+ push @cbs, 'dup'   if MGf_DUP;
+ push @cbs, 'local' if MGf_LOCAL;
+ push @cbs, qw/fetch store exists delete/ if VMG_UVAR;
+ return _wizard(map $opts{$_}, @cbs);
 }
 
 =head2 C<gensig>
@@ -187,7 +272,7 @@ The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable.
 
 The functions L</wizard>, L</gensig>, L</getsig>, L</cast>, L</getdata> and L</dispell> are only exported on request. All of them are exported by the tags C<':funcs'> and C<':all'>.
 
-The constants L</SIG_MIN>, L</SIG_MAX> and L</SIG_NBR> are also only exported on request. They are all exported by the tags C<':consts'> and C<':all'>.
+The constants L</SIG_MIN>, L</SIG_MAX>, L</SIG_NBR>, L</MGf_COPY>, L</MGf_DUP>, L</MGf_LOCAL> and L</VMG_UVAR> are also only exported on request. They are all exported by the tags C<':consts'> and C<':all'>.
 
 =cut
 
@@ -196,10 +281,10 @@ use base qw/Exporter/;
 our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
- 'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR/ ]
+ 'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
-$EXPORT_TAGS{'all'} = \@EXPORT_OK;
+$EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
 
 =head1 DEPENDENCIES
 
@@ -207,11 +292,17 @@ L<perl> 5.7.3.
 
 L<Carp> (standard since perl 5), L<XSLoader> (standard since perl 5.006).
 
+Copy tests need L<Tie::Array> (standard since perl 5.005) and L<Tie::Hash> (since 5.002).
+
+Some uvar tests need L<Hash::Util::FieldHash> (standard since perl 5.009004).
+
 Glob tests need L<Symbol> (standard since perl 5.002).
 
 =head1 SEE ALSO
 
 L<perlguts> and L<perlapi> for internal information about magic.
+
+L<perltie> and L<overload> for other ways of enhancing objects.
 
 =head1 AUTHOR
 
@@ -235,7 +326,7 @@ You can find documentation for this module with the perldoc command.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2007 Vincent Pit, all rights reserved.
+Copyright 2007-2008 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

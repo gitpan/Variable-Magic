@@ -6,6 +6,7 @@ Makefile.PL
 README
 lib/Variable/Magic.pm
 samples/magic.pl
+samples/uvar.pl
 t/00-load.t
 t/01-import.t
 t/10-simple.t
@@ -17,6 +18,9 @@ t/21-set.t
 t/22-len.t
 t/23-clear.t
 t/24-free.t
+t/25-copy.t
+t/27-local.t
+t/28-uvar.t
 t/30-scalar.t
 t/31-array.t
 t/32-hash.t
