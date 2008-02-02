@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.08
+    Version 0.09
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -64,7 +64,7 @@ DESCRIPTION
         of the variable will trigger the callback. It is available on your
         perl iff "MGf_LOCAL" is true.
 
-    The following actions only applies to hashes and are available iff
+    The following actions only apply to hashes and are available iff
     "VMG_UVAR" is true. They are referred to as "uvar" magics.
 
     "fetch"
@@ -201,7 +201,8 @@ FUNCTIONS
     magic is already present, 0 on error, and "undef" when no magic
     corresponds to the given signature (in case $sig was supplied). All
     extra arguments specified after $wiz are passed to the private data
-    constructor.
+    constructor. If the variable isn't a hash, any "uvar" callback of the
+    wizard is safely ignored.
 
         # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
         my $x;
@@ -238,6 +239,15 @@ EXPORT
     The constants "SIG_MIN", "SIG_MAX", "SIG_NBR", "MGf_COPY", "MGf_DUP",
     "MGf_LOCAL" and "VMG_UVAR" are also only exported on request. They are
     all exported by the tags ':consts' and ':all'.
+
+CAVEATS
+    If you store a magic object in the private data slot, the magic won't be
+    accessible by "getdata" since it's not copied by assignation. The only
+    way to address this would be to return a reference.
+
+    If you define a wizard with a "free" callback and cast it on itself,
+    this destructor won't be called because the wizard will be destroyed
+    first.
 
 DEPENDENCIES
     perl 5.7.3.

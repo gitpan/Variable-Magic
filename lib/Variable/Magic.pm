@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.08
+Version 0.09
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.08';
+ $VERSION = '0.09';
 }
 
 =head1 SYNOPSIS
@@ -75,7 +75,7 @@ When this magic is set on a variable, all subsequent localizations of the variab
 
 =back
 
-The following actions only applies to hashes and are available iff C<VMG_UVAR> is true. They are referred to as C<uvar> magics.
+The following actions only apply to hashes and are available iff C<VMG_UVAR> is true. They are referred to as C<uvar> magics.
 
 =over 4
 
@@ -244,7 +244,7 @@ This accessor returns the magic signature of this wizard.
 
     cast [$@%&*]var, [$wiz|$sig], ...
 
-This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic. You can also supply the numeric signature C<$sig> instead of C<$wiz>. It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied). All extra arguments specified after C<$wiz> are passed to the private data constructor.
+This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic. You can also supply the numeric signature C<$sig> instead of C<$wiz>. It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied). All extra arguments specified after C<$wiz> are passed to the private data constructor. If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignored.
 
     # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
     my $x;
@@ -285,6 +285,12 @@ our %EXPORT_TAGS    = (
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
+
+=head1 CAVEATS
+
+If you store a magic object in the private data slot, the magic won't be accessible by L</getdata> since it's not copied by assignation. The only way to address this would be to return a reference.
+
+If you define a wizard with a C<free> callback and cast it on itself, this destructor won't be called because the wizard will be destroyed first.
 
 =head1 DEPENDENCIES
 

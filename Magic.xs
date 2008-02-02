@@ -296,15 +296,19 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
   moremagic = mg->mg_moremagic;
   if (mg->mg_type == PERL_MAGIC_ext) {
-#if VMG_UVAR
-   MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
-   if (w->uvar) { ++uvars; }
-#endif /* VMG_UVAR */
    if (mg->mg_private == sig) {
 #if VMG_UVAR
-    if (!w->uvar) { uvars = 0; } /* Short-circuit uvar deletion. */
+    /* If the current has no uvar, short-circuit uvar deletion. */
+    uvars = (SV2MGWIZ(mg->mg_ptr)->uvar) ? (uvars + 1) : 0;
 #endif /* VMG_UVAR */
     break;
+#if VMG_UVAR
+   } else if ((mg->mg_private >= SIG_MIN) &&
+              (mg->mg_private <= SIG_MAX) &&
+               SV2MGWIZ(mg->mg_ptr)->uvar) {
+    ++uvars;
+    /* We can't break here since we need to find the ext magic to delete. */
+#endif /* VMG_UVAR */
    }
   }
  }
@@ -326,7 +330,10 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
   /* mg was the first ext magic in the chain that had uvar */
 
   for (mg = moremagic; mg; mg = mg->mg_moremagic) {
-   if ((mg->mg_type == PERL_MAGIC_ext) && SV2MGWIZ(mg->mg_ptr)->uvar) {
+   if ((mg->mg_type == PERL_MAGIC_ext) &&
+       (mg->mg_private >= SIG_MIN) &&
+       (mg->mg_private <= SIG_MAX) &&
+        SV2MGWIZ(mg->mg_ptr)->uvar) {
     ++uvars;
     break;
    }
@@ -818,7 +825,7 @@ CODE:
  }
  data = vmg_data_get(SvRV(sv), sig);
  if (!data) { XSRETURN_UNDEF; }
- ST(0) = newSVsv(data);
+ ST(0) = data;
  XSRETURN(1);
 
 SV *dispell(SV *sv, SV *wiz)

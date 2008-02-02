@@ -1,5 +1,22 @@
 Revision history for Variable-Magic
 
+0.09    2008-02-02 11:30 UTC
+        + Doc : Explicitely say that uvar callbacks are safely ignored for
+                non-hashes.
+        + Doc : Document caveats and fix the usual set of typos.
+        + Fix : vmg_dispell() didn't check if the ext magic were ours when
+                counting wizards that have uvar callbacks, resulting in a
+                possible memory misread.
+        + Fix : getdata() now returns directly the data object, and no longer a
+                copy. This caused a leak.
+        + Tst : Prefix author tests by 9*-.
+        + Tst : New optional author test : 95-portability-files.t, that uses
+                Test::Portability::Files when it's present.
+        + Tst : New test : 14-self.t, that tests application of magic on the
+                wizard itself.
+        + Tst : Move Hash::Util::FieldHash tests out of 11-multiple.t to
+                15-huf.t.
+
 0.08    2008-02-01 16:55 UTC
         + Add : copy magic for tied arrays/hashes.
         + Add : local magic.
