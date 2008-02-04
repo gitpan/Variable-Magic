@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.09
+    Version 0.10
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -126,6 +126,17 @@ CONSTANTS
   "VMG_UVAR"
     When this constant is true, you can use the "fetch,store,exists,delete"
     callbacks on hashes.
+
+  "VMG_COMPAT_ARRAY_PUSH_NOLEN"
+    True for perls that don't call 'len' magic when you push an element in a
+    magical array.
+
+  "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
+    True for perls that call 'clear' magic when undefining magical arrays.
+
+  "VMG_COMPAT_HASH_LISTASSIGN_COPY"
+    True for perls that call 'copy' magic on list assignments. Implies that
+    "MGf_COPY" is true.
 
 FUNCTIONS
   "wizard"

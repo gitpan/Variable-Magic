@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.09
+Version 0.10
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.09';
+ $VERSION = '0.10';
 }
 
 =head1 SYNOPSIS
@@ -163,6 +163,18 @@ Evaluates to true iff the 'local' magic is available.
 
 When this constant is true, you can use the C<fetch,store,exists,delete> callbacks on hashes.
 
+=head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
+
+True for perls that don't call 'len' magic when you push an element in a magical array.
+
+=head2 C<VMG_COMPAT_ARRAY_UNDEF_CLEAR>
+
+True for perls that call 'clear' magic when undefining magical arrays.
+
+=head2 C<VMG_COMPAT_HASH_LISTASSIGN_COPY>
+
+True for perls that call 'copy' magic on list assignments. Implies that C<MGf_COPY> is true.
+
 =head1 FUNCTIONS
 
 =cut
@@ -281,7 +293,8 @@ use base qw/Exporter/;
 our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
- 'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/ ]
+ 'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_HASH_LISTASSIGN_COPY/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];

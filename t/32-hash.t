@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 17;
+use Test::More tests => 18;
 
-use Variable::Magic qw/wizard cast dispell MGf_COPY VMG_UVAR/;
+use Variable::Magic qw/wizard cast dispell MGf_COPY VMG_UVAR VMG_COMPAT_HASH_LISTASSIGN_COPY/;
 
 my @c = (0) x 12;
 my @x = (0) x 12;
@@ -54,11 +54,17 @@ $x[5] += 2 if MGf_COPY;
 $x[8] += 2 if VMG_UVAR;
 ok(check(), 'hash : slice');
 
+%a = (a => 1, d => 3);
+++$x[3];
+$x[5] += 2 if VMG_COMPAT_HASH_LISTASSIGN_COPY;
+$x[9] += 2 if VMG_UVAR;
+ok(check(), 'hash : assign from list');
+
 %a = map { $_ => 1 } qw/a b d/;
 ++$x[3];
-$x[5] += 3 if MGf_COPY && $^V && $^V gt 5.9.3;
+$x[5] += 3 if VMG_COMPAT_HASH_LISTASSIGN_COPY;
 $x[9] += 3 if VMG_UVAR;
-ok(check(), 'hash : assign');
+ok(check(), 'hash : assign from map');
 
 $a{d} = 2;
 ++$x[5] if MGf_COPY;

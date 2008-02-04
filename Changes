@@ -1,5 +1,16 @@
 Revision history for Variable-Magic
 
+0.10    2008-02-04 11:30 UTC
+        + Add : New script : samples/vm_vs_tie.pl, that benchmarks our uvar
+                magic versus tied hashes.
+        + Add : The VMG_COMPAT_* constants can be used from userspace to check
+                perl magic abilities.
+        + Fix : Callbacks that returned undef made us croak, breaking the
+                variable behaviour (regression test in 14-callbacks.t).
+        + Fix : uvar callbacks weren't tested for non-NULL-ity before being
+                called (regression test in 28-uvar.t).
+        + Tst : Fix typo in 25-copy.t that prevented Tie::Hash tests to be ran.
+
 0.09    2008-02-02 11:30 UTC
         + Doc : Explicitely say that uvar callbacks are safely ignored for
                 non-hashes.

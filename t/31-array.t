@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 21;
 
-use Variable::Magic qw/wizard cast dispell/;
+use Variable::Magic qw/wizard cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
 
 my @c = (0) x 12;
 my @x = (0) x 12;
@@ -64,7 +64,7 @@ $a[3] = 'd';
 ok(check(), 'array : assign new element');
 
 push @a, 'x';
-++$x[1]; ++$x[2] unless $^V && $^V gt 5.9.2; # since 5.9.3
+++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
 ok(check(), 'array : push');
 
 pop @a;
@@ -103,7 +103,7 @@ ok(check(), 'array : for');
 ok(check(), 'array : scope end');
 
 undef @a;
-++$x[3] if $^V && $^V gt 5.9.4; # since 5.9.5 - see #43357
+++$x[3] if VMG_COMPAT_ARRAY_UNDEF_CLEAR;
 ok(check(), 'array : undef');
 
 dispell @a, $wiz;

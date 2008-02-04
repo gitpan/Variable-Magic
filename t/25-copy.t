@@ -44,7 +44,7 @@ SKIP: {
 }
 
 SKIP: {
- eval "use Tie::Has";
+ eval "use Tie::Hash";
  skip 'Tie::Hash required to test copy magic on hashes', 14 if $@;
 
  tie my %h, 'Tie::StdHash';

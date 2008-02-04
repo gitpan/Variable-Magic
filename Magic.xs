@@ -12,9 +12,13 @@
 
 #define R(S) fprintf(stderr, "R(" #S ") = %d\n", SvREFCNT(S))
 
+#define PERL_VERSION_GE(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
+
 #define PERL_VERSION_LE(R, V, S) (PERL_REVISION < (R) || (PERL_REVISION == (R) && (PERL_VERSION < (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION <= (S))))))
 
 #define PERL_API_VERSION_GE(R, V, S) (PERL_API_REVISION > (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION > (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION >= (S))))))
+
+#define PERL_API_VERSION_LE(R, V, S) (PERL_API_REVISION < (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION < (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION <= (S))))))
 
 /* --- Compatibility ------------------------------------------------------- */
 
@@ -54,6 +58,25 @@
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
+#endif
+
+#if PERL_VERSION_GE(5, 9, 3)
+# define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
+#else
+# define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
+#endif
+
+/* since 5.9.5 - see #43357 */
+#if PERL_VERSION_GE(5, 9, 5)
+# define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
+#else
+# define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
+#endif
+
+#if MGf_COPY && PERL_VERSION_GE(5, 9, 4)
+# define VMG_COMPAT_HASH_LISTASSIGN_COPY 1
+#else
+# define VMG_COMPAT_HASH_LISTASSIGN_COPY 0
 #endif
 
 #if VMG_UVAR
@@ -97,9 +120,9 @@ START_MY_CXT
 /* --- Signatures ---------------------------------------------------------- */
 
 #define SIG_MIN ((U16) (1u << 8))
-#define SIG_MAX ((U16) (1u << 16 - 1))
+#define SIG_MAX ((U16) ((1u << 16) - 1))
 #define SIG_NBR (SIG_MAX - SIG_MIN + 1)
-#define SIG_WIZ ((U16) (1u << 8 - 1))
+#define SIG_WIZ ((U16) ((1u << 8) - 1))
 
 /* ... Generate signatures ................................................. */
 
@@ -183,7 +206,6 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
 
 STATIC SV *vmg_data_get(SV *sv, U16 sig) {
  MAGIC *mg, *moremagic;
- MGWIZ *w;
 
  if (SvTYPE(sv) >= SVt_PVMG) {
   for (mg = SvMAGIC(sv); mg; mg = moremagic) {
@@ -368,6 +390,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 
 STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
 #define vmg_cb_call(I, S, D) vmg_cb_call(aTHX_ (I), (S), (D))
+ SV *svr;
  int ret;
 
  dSP;
@@ -386,7 +409,8 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
  SPAGAIN;
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
- ret = POPi;
+ svr = POPs;
+ ret = SvOK(svr) ? SvIV(svr) : 0;
 
  PUTBACK;
 
@@ -399,6 +423,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
 #if MGf_COPY || VMG_UVAR
 STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
 #define vmg_cb_call2(I, S, D, S2) vmg_cb_call2(aTHX_ (I), (S), (D), (S2))
+ SV *svr;
  int ret;
 
  dSP;
@@ -418,7 +443,8 @@ STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
  SPAGAIN;
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
- ret = POPi;
+ svr = POPs;
+ ret = SvOK(svr) ? SvIV(svr) : 0;
 
  PUTBACK;
 
@@ -438,6 +464,8 @@ STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
+ SV *svr;
+ I32 len;
  U32 ret;
 
  dSP;
@@ -450,7 +478,8 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  XPUSHs(sv_2mortal(newRV_inc(sv)));
  XPUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (SvTYPE(sv) == SVt_PVAV) {
-  XPUSHs(sv_2mortal(newSViv(av_len((AV *) sv) + 1)));
+  len = av_len((AV *) sv) + 1;
+  XPUSHs(sv_2mortal(newSViv(len)));
  }
  PUTBACK;
 
@@ -459,7 +488,9 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SPAGAIN;
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
- ret = POPi;
+ svr = POPs;
+ ret = SvOK(svr) ? SvUV(svr)
+                 : ((SvTYPE(sv) == SVt_PVAV) ? len : 1);
 
  PUTBACK;
 
@@ -520,20 +551,21 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
    || (mg->mg_private < SIG_MIN)
    || (mg->mg_private > SIG_MAX)) { continue; }
   w = SV2MGWIZ(mg->mg_ptr);
+  if (!w->uvar) { continue; }
   switch (action) {
    case 0:
-    vmg_cb_call2(w->cb_fetch, sv, mg->mg_obj, key);
+    if (w->cb_fetch) { vmg_cb_call2(w->cb_fetch, sv, mg->mg_obj, key); }
     break;
    case HV_FETCH_ISSTORE:
    case HV_FETCH_LVALUE:
    case (HV_FETCH_ISSTORE|HV_FETCH_LVALUE):
-    vmg_cb_call2(w->cb_store, sv, mg->mg_obj, key);
+    if (w->cb_store) { vmg_cb_call2(w->cb_store, sv, mg->mg_obj, key); }
     break;
    case HV_FETCH_ISEXISTS:
-    vmg_cb_call2(w->cb_exists, sv, mg->mg_obj, key);
+    if (w->cb_exists) { vmg_cb_call2(w->cb_exists, sv, mg->mg_obj, key); }
     break;
    case HV_DELETE:
-    vmg_cb_call2(w->cb_delete, sv, mg->mg_obj, key);
+    if (w->cb_delete) { vmg_cb_call2(w->cb_delete, sv, mg->mg_obj, key); }
     break;
   }
  }
@@ -570,10 +602,10 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
 #endif /* MGf_COPY */
 #if MGf_DUP
  if (w->cb_dup   != NULL) { SvREFCNT_dec(SvRV(w->cb_dup)); }
-#endif /* MGf_COPY */
+#endif /* MGf_DUP */
 #if MGf_LOCAL
  if (w->cb_local != NULL) { SvREFCNT_dec(SvRV(w->cb_local)); }
-#endif /* MGf_COPY */
+#endif /* MGf_LOCAL */
 #if VMG_UVAR
  if (w->cb_fetch  != NULL) { SvREFCNT_dec(SvRV(w->cb_fetch)); }
  if (w->cb_store  != NULL) { SvREFCNT_dec(SvRV(w->cb_store)); }
@@ -600,7 +632,7 @@ STATIC MGVTBL vmg_wizard_vtbl = {
 #endif /* MGf_DUP */
 #if MGf_LOCAL
  NULL,            /* local */
-#endif /* MGf_DUP */
+#endif /* MGf_LOCAL */
 };
 
 STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
@@ -664,6 +696,12 @@ BOOT:
  newCONSTSUB(stash, "MGf_DUP",   newSVuv(MGf_DUP));
  newCONSTSUB(stash, "MGf_LOCAL", newSVuv(MGf_LOCAL));
  newCONSTSUB(stash, "VMG_UVAR",  newSVuv(VMG_UVAR));
+ newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN",
+                    newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
+ newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNDEF_CLEAR",
+                    newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
+ newCONSTSUB(stash, "VMG_COMPAT_HASH_LISTASSIGN_COPY",
+                    newSVuv(VMG_COMPAT_HASH_LISTASSIGN_COPY));
 }
 
 SV *_wizard(...)
@@ -700,7 +738,7 @@ CODE:
  if (SvOK(svsig)) {
   SV **old;
   sig = vmg_sv2sig(svsig);
-  if (old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0)) {
+  if ((old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0))) {
    ST(0) = sv_2mortal(newRV_inc(*old));
    XSRETURN(1);
   }
@@ -781,7 +819,7 @@ CODE:
   char buf[8];
   SV **old;
   U16 sig = vmg_sv2sig(wiz);
-  if (old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0)) {
+  if ((old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0))) {
    wiz = *old;
   } else {
    XSRETURN_UNDEF;
