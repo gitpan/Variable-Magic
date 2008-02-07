@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.11
+Version 0.12
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.11';
+ $VERSION = '0.12';
 }
 
 =head1 SYNOPSIS
@@ -135,7 +135,11 @@ The places where magic is invoked have changed a bit through perl history. Here'
 
 =head2 B<5.10.0>
 
+=over 4
+
 =item Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
+
+=back
 
 =head1 CONSTANTS
 

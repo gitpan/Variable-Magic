@@ -1,5 +1,9 @@
 Revision history for Variable-Magic
 
+0.12    2008-02-07 18:15 UTC
+        + Fix : POD error. Thanks to Chris Williams (BinGOs) for the quick
+                feedback.
+
 0.11    2008-02-07 17:55 UTC
         + Add : Copy callbacks now receive the current key/index in $_[2].
                 The current value/element is now in $_[3].
