@@ -20,6 +20,14 @@
 
 #define PERL_API_VERSION_LE(R, V, S) (PERL_API_REVISION < (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION < (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION <= (S))))))
 
+#ifndef VMG_PERL_PATCHLEVEL
+# ifdef PERL_PATCHNUM
+#  define VMG_PERL_PATCHLEVEL PERL_PATCHNUM
+# else
+#  define VMG_PERL_PATCHLEVEL 0
+# endif
+#endif
+
 /* --- Compatibility ------------------------------------------------------- */
 
 #ifndef Newx
@@ -60,23 +68,17 @@
 # define VMG_UVAR 0
 #endif
 
-#if PERL_VERSION_GE(5, 9, 3)
+#if (VMG_PERL_PATCHLEVEL >= 25854) || PERL_VERSION_GE(5, 9, 3)
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
 #endif
 
 /* since 5.9.5 - see #43357 */
-#if PERL_VERSION_GE(5, 9, 5)
+#if (VMG_PERL_PATCHLEVEL >= 31473) || PERL_VERSION_GE(5, 9, 5)
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
 #else
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
-#endif
-
-#if MGf_COPY && PERL_VERSION_GE(5, 9, 4)
-# define VMG_COMPAT_HASH_LISTASSIGN_COPY 1
-#else
-# define VMG_COMPAT_HASH_LISTASSIGN_COPY 0
 #endif
 
 #if VMG_UVAR
@@ -420,7 +422,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
  return ret;
 }
 
-#if MGf_COPY || VMG_UVAR
+#if VMG_UVAR
 STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
 #define vmg_cb_call2(I, S, D, S2) vmg_cb_call2(aTHX_ (I), (S), (D), (S2))
  SV *svr;
@@ -453,7 +455,43 @@ STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
 
  return ret;
 }
-#endif /* MGf_COPY || VMG_UVAR */
+#endif /* VMG_UVAR */
+
+#if MGf_COPY
+STATIC int vmg_cb_call3(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2, SV *sv3) {
+#define vmg_cb_call3(I, S, D, S2, S3) vmg_cb_call3(aTHX_ (I), (S), (D), (S2), (S3))
+ SV *svr;
+ int ret;
+
+ dSP;
+ int count;
+
+ ENTER;
+ SAVETMPS;
+
+ PUSHMARK(SP);
+ XPUSHs(sv_2mortal(newRV_inc(sv)));
+ XPUSHs(data ? data : &PL_sv_undef);
+ XPUSHs(sv2  ? sv2  : &PL_sv_undef);
+ if (sv3) { XPUSHs(sv3); }
+ PUTBACK;
+
+ count = call_sv(cb, G_SCALAR);
+
+ SPAGAIN;
+
+ if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
+ svr = POPs;
+ ret = SvOK(svr) ? SvIV(svr) : 0;
+
+ PUTBACK;
+
+ FREETMPS;
+ LEAVE;
+
+ return ret;
+}
+#endif /* MGf_COPY */
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
  return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_get, sv, mg->mg_obj);
@@ -513,8 +551,23 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 #if MGf_COPY
-STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *name, int namelen) {
- return vmg_cb_call2(SV2MGWIZ(mg->mg_ptr)->cb_copy, sv, mg->mg_obj, nsv);
+STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, int keylen) {
+ SV *keysv;
+ int ret;
+
+ if (keylen == HEf_SVKEY) {
+  keysv = (SV *) key;
+ } else {
+  keysv = newSVpvn(key, keylen);
+ }
+
+ ret = vmg_cb_call3(SV2MGWIZ(mg->mg_ptr)->cb_copy, sv, mg->mg_obj, keysv, nsv);
+
+ if (keylen != HEf_SVKEY) {
+  SvREFCNT_dec(keysv);
+ }
+
+ return ret;
 }
 #endif /* MGf_COPY */
 
@@ -700,8 +753,6 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNDEF_CLEAR",
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
- newCONSTSUB(stash, "VMG_COMPAT_HASH_LISTASSIGN_COPY",
-                    newSVuv(VMG_COMPAT_HASH_LISTASSIGN_COPY));
 }
 
 SV *_wizard(...)

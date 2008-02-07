@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.10
+Version 0.11
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.10';
+ $VERSION = '0.11';
 }
 
 =head1 SYNOPSIS
@@ -117,7 +117,7 @@ The places where magic is invoked have changed a bit through perl history. Here'
 
 =over 4
 
-=item 'len' magic is no longer called when pushing an element into a magic array.
+=item I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
 
 =item I<p26569> : 'local' magic.
 
@@ -132,6 +132,10 @@ The places where magic is invoked have changed a bit through perl history. Here'
 =item I<p31473> : 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
 
 =back
+
+=head2 B<5.10.0>
+
+=item Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
 
 =head1 CONSTANTS
 
@@ -171,10 +175,6 @@ True for perls that don't call 'len' magic when you push an element in a magical
 
 True for perls that call 'clear' magic when undefining magical arrays.
 
-=head2 C<VMG_COMPAT_HASH_LISTASSIGN_COPY>
-
-True for perls that call 'copy' magic on list assignments. Implies that C<MGf_COPY> is true.
-
 =head1 FUNCTIONS
 
 =cut
@@ -193,7 +193,7 @@ BEGIN {
            len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
            clear  => sub { my ($ref, $data) = @_; ... },
            free   => sub { my ($ref, $data) = @_, ... },
-           copy   => sub { my ($ref, $data, $elt) = @_; ... },
+           copy   => sub { my ($ref, $data, $key, $elt) = @_; ... },
            local  => sub { my ($ref, $data) = @_; ... },
            fetch  => sub { my ($ref, $data, $key) = @_; ... },
            store  => sub { my ($ref, $data, $key) = @_; ... },
@@ -214,7 +214,7 @@ A code reference to a private data constructor. It is called each time this magi
 
 =item C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
-Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length. C<copy> magic receives the current element (i.e. the value) in C<$_[2]>. C<$_[2]> is also the current key in C<fetch>, C<store>, C<exists> and C<delete> callbacks.
+Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length. C<$_[2]> is the current key in C<copy>, C<fetch>, C<store>, C<exists> and C<delete> callbacks, although for C<copy> it may just be a copy of the actual key so it's useless to (for example) cast magic on it. C<copy> magic also receives the current element (i.e. the value) in C<$_[3]>.
 
 =back
 
@@ -294,7 +294,7 @@ our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
  'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
-               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_HASH_LISTASSIGN_COPY/ ]
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];

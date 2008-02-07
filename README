@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.10
+    Version 0.11
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -95,14 +95,19 @@ PERL MAGIC HISTORY
     *p14416* : 'copy' and 'dup' magic.
 
   5.9.3
-    'len' magic is no longer called when pushing an element into a magic
-    array.
+    *p25854* : 'len' magic is no longer called when pushing an element into
+    a magic array.
     *p26569* : 'local' magic.
 
   5.9.5
     *p31064* : Meaningful 'uvar' magic.
     *p31473* : 'clear' magic wasn't invoked when undefining an array. The
     bug is fixed as of this version.
+
+  5.10.0
+    Since "PERL_MAGIC_uvar" is uppercased, "hv_magic_check()" triggers
+    'copy' magic on hash stores for (non-tied) hashes that also have 'uvar'
+    magic.
 
 CONSTANTS
   "SIG_MIN"
@@ -134,10 +139,6 @@ CONSTANTS
   "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
     True for perls that call 'clear' magic when undefining magical arrays.
 
-  "VMG_COMPAT_HASH_LISTASSIGN_COPY"
-    True for perls that call 'copy' magic on list assignments. Implies that
-    "MGf_COPY" is true.
-
 FUNCTIONS
   "wizard"
         wizard sig    => ...,
@@ -147,7 +148,7 @@ FUNCTIONS
                len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
                clear  => sub { my ($ref, $data) = @_; ... },
                free   => sub { my ($ref, $data) = @_, ... },
-               copy   => sub { my ($ref, $data, $elt) = @_; ... },
+               copy   => sub { my ($ref, $data, $key, $elt) = @_; ... },
                local  => sub { my ($ref, $data) = @_; ... },
                fetch  => sub { my ($ref, $data, $key) = @_; ... },
                store  => sub { my ($ref, $data, $key) = @_; ... },
@@ -178,9 +179,11 @@ FUNCTIONS
         reference to the magic object and $_[1] is always the private data
         (or "undef" when no private data constructor was supplied). In the
         special case of "len" magic and when the variable is an array, $_[2]
-        contains its normal length. "copy" magic receives the current
-        element (i.e. the value) in $_[2]. $_[2] is also the current key in
-        "fetch", "store", "exists" and "delete" callbacks.
+        contains its normal length. $_[2] is the current key in "copy",
+        "fetch", "store", "exists" and "delete" callbacks, although for
+        "copy" it may just be a copy of the actual key so it's useless to
+        (for example) cast magic on it. "copy" magic also receives the
+        current element (i.e. the value) in $_[3].
 
         # A simple scalar tracer
         my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },

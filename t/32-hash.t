@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 18;
 
-use Variable::Magic qw/wizard cast dispell MGf_COPY VMG_UVAR VMG_COMPAT_HASH_LISTASSIGN_COPY/;
+use Variable::Magic qw/wizard cast dispell MGf_COPY VMG_UVAR/;
 
 my @c = (0) x 12;
 my @x = (0) x 12;
@@ -56,13 +56,13 @@ ok(check(), 'hash : slice');
 
 %a = (a => 1, d => 3);
 ++$x[3];
-$x[5] += 2 if VMG_COMPAT_HASH_LISTASSIGN_COPY;
+$x[5] += 2 if VMG_UVAR;
 $x[9] += 2 if VMG_UVAR;
 ok(check(), 'hash : assign from list');
 
 %a = map { $_ => 1 } qw/a b d/;
 ++$x[3];
-$x[5] += 3 if VMG_COMPAT_HASH_LISTASSIGN_COPY;
+$x[5] += 3 if VMG_UVAR;
 $x[9] += 3 if VMG_UVAR;
 ok(check(), 'hash : assign from map');
 

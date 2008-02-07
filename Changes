@@ -1,5 +1,15 @@
 Revision history for Variable-Magic
 
+0.11    2008-02-07 17:55 UTC
+        + Add : Copy callbacks now receive the current key/index in $_[2].
+                The current value/element is now in $_[3].
+        + Chg : The trigger of copy magic on list assignment with perls greater
+                than 5.10.0 was caused by uvar magic. Hence,
+                VMG_COMPAT_HASH_LISTASSIGN_COPY was removed. Use VMG_UVAR
+                instead.
+        + Fix : Build failures on patched perls.
+        + Tst : Added missing exported symbols to 01-import.t.
+
 0.10    2008-02-04 11:30 UTC
         + Add : New script : samples/vm_vs_tie.pl, that benchmarks our uvar
                 magic versus tied hashes.
