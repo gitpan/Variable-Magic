@@ -11,8 +11,9 @@ my @c = (0) x 12;
 my @x = (0) x 12;
 
 sub check {
- for (0 .. 11) { return 0 unless $c[$_] == $x[$_]; }
- return 1;
+ is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
+    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
+    $_[0];
 }
 
 my $i = -1;
@@ -28,55 +29,55 @@ my $wiz = wizard get   => sub { ++$c[0] },
                  store => sub { ++$c[9] },
                  'exists' => sub { ++$c[10] },
                  'delete' => sub { ++$c[11] };
-ok(check(), 'scalar : create wizard');
+check('scalar : create wizard');
 
 my $n = int rand 1000;
 my $a = $n;
 
 cast $a, $wiz;
-ok(check(), 'scalar : cast');
+check('scalar : cast');
 
 my $b = $a;
 ++$x[0];
-ok(check(), 'scalar : assign to');
+check('scalar : assign to');
 
 $b = "X${a}Y";
 ++$x[0];
-ok(check(), 'scalar : interpolate');
+check('scalar : interpolate');
 
 $b = \$a;
-ok(check(), 'scalar : reference');
+check('scalar : reference');
 
 $a = 123;
 ++$x[1];
-ok(check(), 'scalar : assign');
+check('scalar : assign');
 
 ++$a;
 ++$x[0]; ++$x[1];
-ok(check(), 'scalar : increment');
+check('scalar : increment');
 
 --$a;
 ++$x[0]; ++$x[1];
-ok(check(), 'scalar : decrement');
+check('scalar : decrement');
 
 $a *= 1.5;
 ++$x[0]; ++$x[1];
-ok(check(), 'scalar : multiply');
+check('scalar : multiply');
 
 $a /= 1.5;
 ++$x[0]; ++$x[1];
-ok(check(), 'scalar : divide');
+check('scalar : divide');
 
 {
  my $b = $n;
  cast $b, $wiz;
 }
 ++$x[4];
-ok(check(), 'scalar : scope end');
+check('scalar : scope end');
 
 undef $a;
 ++$x[1];
-ok(check(), 'scalar : undef');
+check('scalar : undef');
 
 dispell $a, $wiz;
-ok(check(), 'scalar : dispell');
+check('scalar : dispell');

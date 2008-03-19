@@ -13,16 +13,16 @@ my ($a, $b, $c, $d) = 1 .. 4;
 
 {
  my $wiz = eval { wizard sig => $sig };
- ok(!$@, "wizard creation error ($@)");
+ ok(!$@, "wizard creation doesn't croak ($@)");
  ok(defined $wiz, 'wizard is defined');
- ok(ref $wiz eq 'SCALAR', 'wizard is a scalar ref');
- ok($sig == getsig $wiz, 'wizard signature is correct');
+ is(ref $wiz, 'SCALAR', 'wizard is a scalar ref');
+ is($sig, getsig $wiz, 'wizard signature is correct');
 
  my $wiz2 = eval { wizard sig => $sig };
- ok(!$@, "wizard retrieve error ($@)");
+ ok(!$@, "wizard retreive doesn't croak ($@)");
  ok(defined $wiz2, 'retrieved wizard is defined');
- ok(ref $wiz2 eq 'SCALAR', 'retrieved wizard is a scalar ref');
- ok($sig == getsig $wiz2, 'retrieved wizard signature is correct');
+ is(ref $wiz2, 'SCALAR', 'retrieved wizard is a scalar ref');
+ is($sig, getsig $wiz2, 'retrieved wizard signature is correct');
 
  my $a = 1;
  my $res = eval { cast $a, $wiz };

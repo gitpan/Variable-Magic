@@ -11,8 +11,9 @@ my @c = (0) x 12;
 my @x = (0) x 12;
 
 sub check {
- for (0 .. 11) { return 0 unless $c[$_] == $x[$_]; }
- return 1;
+ is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
+    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
+    $_[0];
 }
 
 my $i = -1;
@@ -28,43 +29,43 @@ my $wiz = wizard get   => sub { ++$c[0] },
                  store => sub { ++$c[9] },
                  'exists' => sub { ++$c[10] },
                  'delete' => sub { ++$c[11] };
-ok(check(), 'code : create wizard');
+check('code : create wizard');
 
 my $x = 0;
 my $n = sub { ++$x };
 my $a = $n;
 
 cast $a, $wiz;
-ok(check(), 'code : cast');
+check('code : cast');
 
 my $b = $a;
 ++$x[0];
-ok(check(), 'code : assign to');
+check('code : assign to');
 
 $b = "X${a}Y";
 ++$x[0];
-ok(check(), 'code : interpolate');
+check('code : interpolate');
 
 $b = \$a;
-ok(check(), 'code : reference');
+check('code : reference');
 
 $a = $n;
 ++$x[1];
-ok(check(), 'code : assign');
+check('code : assign');
 
 $a->();
-ok(check(), 'code : call');
+check('code : call');
 
 {
  my $b = $n;
  cast $b, $wiz;
 }
 ++$x[4];
-ok(check(), 'code : scope end');
+check('code : scope end');
 
 undef $a;
 ++$x[1];
-ok(check(), 'code : undef');
+check('code : undef');
 
 dispell $a, $wiz;
-ok(check(), 'code : dispell');
+check('code : dispell');

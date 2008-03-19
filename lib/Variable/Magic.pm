@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.12
+Version 0.13
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.12';
+ $VERSION = '0.13';
 }
 
 =head1 SYNOPSIS
@@ -329,23 +329,21 @@ L<perltie> and L<overload> for other ways of enhancing objects.
 
 =head1 AUTHOR
 
-Vincent Pit, C<< <perl at profvince.com> >>
+Vincent Pit, C<< <perl at profvince.com> >>, L<http://www.profvince.com>.
 
-You can contact me by mail or on #perl @ FreeNode (Prof_Vince).
+You can contact me by mail or on #perl @ FreeNode (vincent or Prof_Vince).
 
 =head1 BUGS
 
-Please report any bugs or feature requests to
-C<bug-variable-magic at rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic>.
-I will be notified, and then you'll automatically be notified of progress on
-your bug as I make changes.
+Please report any bugs or feature requests to C<bug-variable-magic at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic>. I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Variable::Magic
+
+Tests code coverage report is available at L<http://www.profvince.com/perl/cover/Variable-Magic>.
 
 =head1 COPYRIGHT & LICENSE
 

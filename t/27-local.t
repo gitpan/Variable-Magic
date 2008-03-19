@@ -15,15 +15,15 @@ if (MGf_LOCAL) {
 
 my $c = 0;
 my $wiz = wizard 'local' => sub { ++$c };
-ok($c == 0, 'local : create wizard');
+is($c, 0, 'local : create wizard');
 
 local $a = int rand 1000;
 my $res = cast $a, $wiz;
-ok($res,    'local : cast succeeded');
-ok($c == 0, 'local : cast didn\'t triggered the callback');
+ok($res,  'local : cast succeeded');
+is($c, 0, 'local : cast didn\'t triggered the callback');
 
 {
  local $a;
- ok($c == 1, 'local : localized');
+ is($c, 1, 'local : localized');
 }
-ok($c == 1, 'local : end of local scope');
+is($c, 1, 'local : end of local scope');

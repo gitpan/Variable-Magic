@@ -11,8 +11,9 @@ my @c = (0) x 12;
 my @x = (0) x 12;
 
 sub check {
- for (0 .. 11) { return 0 unless $c[$_] == $x[$_]; }
- return 1;
+ is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
+    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
+    $_[0];
 }
 
 my $wiz = wizard get   => sub { ++$c[0] },
@@ -27,84 +28,84 @@ my $wiz = wizard get   => sub { ++$c[0] },
                  store => sub { ++$c[9] },
                  'exists' => sub { ++$c[10] },
                  'delete' => sub { ++$c[11] };
-ok(check(), 'array : create wizard');
+check('array : create wizard');
 
 my @n = map { int rand 1000 } 1 .. 5;
 my @a = @n;
 
 cast @a, $wiz;
-ok(check(), 'array : cast');
+check('array : cast');
 
 my $b = $a[2];
-ok(check(), 'array : assign element to');
+check('array : assign element to');
 
 my @b = @a;
 ++$x[2];
-ok(check(), 'array : assign to');
+check('array : assign to');
 
 $b = "X@{a}Y";
 ++$x[2];
-ok(check(), 'array : interpolate');
+check('array : interpolate');
 
 $b = \@a;
-ok(check(), 'array : reference');
+check('array : reference');
 
 @b = @a[2 .. 4];
-ok(check(), 'array : slice');
+check('array : slice');
 
 @a = qw/a b d/;
 $x[1] += 3; ++$x[3];
-ok(check(), 'array : assign');
+check('array : assign');
 
 $a[2] = 'c';
-ok(check(), 'array : assign old element');
+check('array : assign old element');
 
 $a[3] = 'd';
 ++$x[1];
-ok(check(), 'array : assign new element');
+check('array : assign new element');
 
 push @a, 'x';
 ++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
-ok(check(), 'array : push');
+check('array : push');
 
 pop @a;
 ++$x[1]; ++$x[2];
-ok(check(), 'array : pop');
+check('array : pop');
 
 unshift @a, 'x';
 ++$x[1]; ++$x[2];
-ok(check(), 'array : unshift');
+check('array : unshift');
 
 shift @a;
 ++$x[1]; ++$x[2];
-ok(check(), 'array : shift');
+check('array : shift');
 
 $b = @a;
 ++$x[2];
-ok(check(), 'array : length');
+check('array : length');
 
 @a = map ord, @a; 
 $x[1] += 4; ++$x[2]; ++$x[3];
-ok(check(), 'array : map');
+check('array : map');
 
 @b = grep { defined && $_ >= ord('b') } @a;
 ++$x[2];
-ok(check(), 'array : grep');
+check('array : grep');
 
 for (@a) { }
 $x[2] += 5;
-ok(check(), 'array : for');
+check('array : for');
 
 {
  my @b = @n;
  cast @b, $wiz;
 }
 ++$x[4];
-ok(check(), 'array : scope end');
+check('array : scope end');
 
 undef @a;
 ++$x[3] if VMG_COMPAT_ARRAY_UNDEF_CLEAR;
-ok(check(), 'array : undef');
+check('array : undef');
 
 dispell @a, $wiz;
-ok(check(), 'array : dispel');
+check('array : dispel');

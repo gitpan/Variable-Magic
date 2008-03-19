@@ -18,8 +18,9 @@ my @c = (0) x 12;
 my @x = (0) x 12;
 
 sub check {
- for (0 .. 11) { return 0 unless $c[$_] == $x[$_]; }
- return 1;
+ is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
+    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
+    $_[0];
 }
 
 my $i = -1;
@@ -35,28 +36,28 @@ my $wiz = wizard get   => sub { ++$c[0] },
                  store => sub { ++$c[9] },
                  'exists' => sub { ++$c[10] },
                  'delete' => sub { ++$c[11] };
-ok(check(), 'glob : create wizard');
+check('glob : create wizard');
 
 local *a = gensym();
 
 cast *a, $wiz;
-ok(check(), 'glob : cast');
+check('glob : cast');
 
 local *b = *a;
-ok(check(), 'glob : assign to');
+check('glob : assign to');
 
 *a = gensym();
 ++$x[1];
-ok(check(), 'glob : assign');
+check('glob : assign');
 
 {
  local *b = gensym();
  cast *b, $wiz;
 }
-ok(check(), 'glob : scope end');
+check('glob : scope end');
 
 undef *a;
-ok(check(), 'glob : undef');
+check('glob : undef');
 
 dispell *a, $wiz;
-ok(check(), 'glob : dispell');
+check('glob : dispell');
