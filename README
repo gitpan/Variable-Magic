@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.13
+    Version 0.14
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;

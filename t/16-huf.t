@@ -16,6 +16,8 @@ if ($@) {
  plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction';
 } else {
  plan tests => 12;
+ my $v = $Hash::Util::FieldHash::VERSION;
+ diag "Using Hash::Util::FieldHash $v" if defined $v;
 }
 
 Hash::Util::FieldHash::fieldhash(\my %h);

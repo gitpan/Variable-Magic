@@ -20,6 +20,7 @@ is($c, 0, 'copy : create wizard');
 SKIP: {
  eval "use Tie::Array";
  skip 'Tie::Array required to test copy magic on arrays', 8 if $@;
+ diag "Using Tie::Array $Tie::Array::VERSION" if defined $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
  @a = (1 .. 10);
@@ -46,6 +47,7 @@ SKIP: {
 SKIP: {
  eval "use Tie::Hash";
  skip 'Tie::Hash required to test copy magic on hashes', 14 if $@;
+ diag "Using Tie::Hash $Tie::Hash::VERSION" if defined $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';
  %h = (a => 1, b => 2, c => 3);

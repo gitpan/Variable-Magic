@@ -10,6 +10,7 @@ if ($@) {
  plan skip_all => "Symbol::gensym required for testing magic for globs";
 } else {
  plan tests => 7;
+ diag "Using Symbol $Symbol::VERSION" if defined $Symbol::VERSION;
 }
 
 use Variable::Magic qw/wizard cast dispell/;

@@ -53,7 +53,6 @@
 # define MGf_COPY 0
 #endif
 
-#undef MGf_DUP /* Disable it for now. */
 #ifndef MGf_DUP
 # define MGf_DUP 0
 #endif
@@ -222,6 +221,7 @@ STATIC SV *vmg_data_get(SV *sv, U16 sig) {
 
 /* ... Magic cast/dispell .................................................. */
 
+#if VMG_UVAR
 STATIC I32 vmg_svt_val(pTHX_ IV, SV *);
 
 STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) {
@@ -234,6 +234,7 @@ STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) 
  Safefree(mg->mg_ptr);
  Safefree(mg);
 }
+#endif /* VMG_UVAR */
 
 STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
 #define vmg_cast(S, W, A) vmg_cast(aTHX_ (S), (W), (A))
@@ -376,6 +377,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
     /* Revert the original uvar magic. */
     uf[0] = uf[1];
     Renew(uf, 1, struct ufuncs);
+    mg->mg_ptr = (char *) uf;
     mg->mg_len = sizeof(struct ufuncs);
    } else {
     /* Remove the uvar magic. */
@@ -551,7 +553,13 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 #if MGf_COPY
-STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, int keylen) {
+STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
+# if PERL_API_VERSION_GE(5, 11, 0)
+  I32 keylen
+# else
+  int keylen
+# endif
+ ) {
  SV *keysv;
  int ret;
 
@@ -571,7 +579,7 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, int k
 }
 #endif /* MGf_COPY */
 
-#if MGf_DUP
+#if 0 /*  MGf_DUP */
 STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
  return 0;
 }
@@ -811,7 +819,10 @@ CODE:
  VMG_SET_SVT_CB(ST(i++), copy);
 #endif /* MGf_COPY */
 #if MGf_DUP
- VMG_SET_SVT_CB(ST(i++), dup);
+ /* VMG_SET_SVT_CB(ST(i++), dup); */
+ i++;
+ t->svt_dup = NULL;
+ w->cb_dup  = NULL;
 #endif /* MGf_DUP */
 #if MGf_LOCAL
  VMG_SET_SVT_CB(ST(i++), local);

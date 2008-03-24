@@ -1,5 +1,17 @@
 Revision history for Variable-Magic
 
+0.14    2008-03-24 12:35 UTC
+        + Fix : t/16-huf.t failures on Solaris and FreeBSD caused by not
+                updating mg->mg_ptr after Renew-ing it on dispell.
+        + Fix : Undefining MGf_DUP caused the wizard's magic to be wrongly
+                initialized. MGf_DUP now appears as true from the user point of
+                view, but the dup callback isn't actually set.
+        + Fix : Warnings with blead due to copy callbacks now taking an I32 (API
+                change #33256).
+        + Fix : vmg_svt_val() and vmg_uvar_del() aren't required if no uvar
+                magic is available.
+        + Tst : Tests now output the version of optional modules loaded.
+
 0.13    2008-03-19 14:35 UTC
         + Doc : Link to coverage report.
         + Fix : Correct dependencies listing in META.yml.
