@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.14';
+ $VERSION = '0.15';
 }
 
 =head1 SYNOPSIS
@@ -141,6 +141,14 @@ The places where magic is invoked have changed a bit through perl history. Here'
 
 =back
 
+=head2 B<5.11.x>
+
+=over 4
+
+=item I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
+
+=back
+
 =head1 CONSTANTS
 
 =head2 C<SIG_MIN>
@@ -178,6 +186,10 @@ True for perls that don't call 'len' magic when you push an element in a magical
 =head2 C<VMG_COMPAT_ARRAY_UNDEF_CLEAR>
 
 True for perls that call 'clear' magic when undefining magical arrays.
+
+=head2 C<VMG_COMPAT_SCALAR_LENGTH_NOLEN>
+
+True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
 
 =head1 FUNCTIONS
 
@@ -298,7 +310,8 @@ our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
  'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
-               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/ ]
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
+               qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];

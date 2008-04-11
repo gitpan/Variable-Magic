@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.14
+    Version 0.15
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -109,6 +109,10 @@ PERL MAGIC HISTORY
     'copy' magic on hash stores for (non-tied) hashes that also have 'uvar'
     magic.
 
+  5.11.x
+    *p32969* : 'len' magic is no longer invoked when calling "length" with a
+    magical scalar.
+
 CONSTANTS
   "SIG_MIN"
     The minimum integer used as a signature for user-defined magic.
@@ -138,6 +142,10 @@ CONSTANTS
 
   "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
     True for perls that call 'clear' magic when undefining magical arrays.
+
+  "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
+    True for perls that don't call 'len' magic when taking the "length" of a
+    magical scalar.
 
 FUNCTIONS
   "wizard"

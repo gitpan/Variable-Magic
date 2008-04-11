@@ -1,6 +1,8 @@
 /* This file is part of the Variable::Magic Perl module.
  * See http://search.cpan.org/dist/Variable-Magic/ */
 
+#include <stdarg.h> /* <va_list>, va_{start,arg,end}, ... */
+
 #include <stdio.h>  /* sprintf() */
 
 #define PERL_NO_GET_CONTEXT
@@ -67,17 +69,23 @@
 # define VMG_UVAR 0
 #endif
 
-#if (VMG_PERL_PATCHLEVEL >= 25854) || PERL_VERSION_GE(5, 9, 3)
+#if (VMG_PERL_PATCHLEVEL >= 25854) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 3))
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
 #endif
 
 /* since 5.9.5 - see #43357 */
-#if (VMG_PERL_PATCHLEVEL >= 31473) || PERL_VERSION_GE(5, 9, 5)
+#if (VMG_PERL_PATCHLEVEL >= 31473) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 5))
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
 #else
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
+#endif
+
+#if (VMG_PERL_PATCHLEVEL >= 32969) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 11, 0))
+# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
+#else
+# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
 #endif
 
 #if VMG_UVAR
@@ -392,10 +400,11 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 
 /* ... svt callbacks ....................................................... */
 
-STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
-#define vmg_cb_call(I, S, D) vmg_cb_call(aTHX_ (I), (S), (D))
+STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
+ va_list ap;
  SV *svr;
  int ret;
+ unsigned int i;
 
  dSP;
  int count;
@@ -404,8 +413,15 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
  SAVETMPS;
 
  PUSHMARK(SP);
- XPUSHs(sv_2mortal(newRV_inc(sv)));
- if (data) { XPUSHs(data); }
+ EXTEND(SP, args + 2);
+ PUSHs(sv_2mortal(newRV_inc(sv)));
+ PUSHs(data ? data : &PL_sv_undef);
+ va_start(ap, args);
+ for (i = 0; i < args; ++i) {
+  SV *sv = va_arg(ap, SV *);
+  PUSHs(sv ? sv : &PL_sv_undef);
+ }
+ va_end(ap);
  PUTBACK;
 
  count = call_sv(cb, G_SCALAR);
@@ -424,83 +440,16 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data) {
  return ret;
 }
 
-#if VMG_UVAR
-STATIC int vmg_cb_call2(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2) {
-#define vmg_cb_call2(I, S, D, S2) vmg_cb_call2(aTHX_ (I), (S), (D), (S2))
- SV *svr;
- int ret;
-
- dSP;
- int count;
-
- ENTER;
- SAVETMPS;
-
- PUSHMARK(SP);
- XPUSHs(sv_2mortal(newRV_inc(sv)));
- XPUSHs(data ? data : &PL_sv_undef);
- if (sv2) { XPUSHs(sv2); }
- PUTBACK;
-
- count = call_sv(cb, G_SCALAR);
-
- SPAGAIN;
-
- if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
- svr = POPs;
- ret = SvOK(svr) ? SvIV(svr) : 0;
-
- PUTBACK;
-
- FREETMPS;
- LEAVE;
-
- return ret;
-}
-#endif /* VMG_UVAR */
-
-#if MGf_COPY
-STATIC int vmg_cb_call3(pTHX_ SV *cb, SV *sv, SV *data, SV *sv2, SV *sv3) {
-#define vmg_cb_call3(I, S, D, S2, S3) vmg_cb_call3(aTHX_ (I), (S), (D), (S2), (S3))
- SV *svr;
- int ret;
-
- dSP;
- int count;
-
- ENTER;
- SAVETMPS;
-
- PUSHMARK(SP);
- XPUSHs(sv_2mortal(newRV_inc(sv)));
- XPUSHs(data ? data : &PL_sv_undef);
- XPUSHs(sv2  ? sv2  : &PL_sv_undef);
- if (sv3) { XPUSHs(sv3); }
- PUTBACK;
-
- count = call_sv(cb, G_SCALAR);
-
- SPAGAIN;
-
- if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
- svr = POPs;
- ret = SvOK(svr) ? SvIV(svr) : 0;
-
- PUTBACK;
-
- FREETMPS;
- LEAVE;
-
- return ret;
-}
-#endif /* MGf_COPY */
+#define vmg_cb_call1(I, S, D)         vmg_cb_call(aTHX_ (I), (S), (D), 0)
+#define vmg_cb_call2(I, S, D, S2)     vmg_cb_call(aTHX_ (I), (S), (D), 1, (S2))
+#define vmg_cb_call3(I, S, D, S2, S3) vmg_cb_call(aTHX_ (I), (S), (D), 2, (S2), (S3))
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_get, sv, mg->mg_obj);
+ return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_get, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_set, sv, mg->mg_obj);
+ return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_set, sv, mg->mg_obj);
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
@@ -515,11 +464,14 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SAVETMPS;
 
  PUSHMARK(SP);
- XPUSHs(sv_2mortal(newRV_inc(sv)));
- XPUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
+ EXTEND(SP, 3);
+ PUSHs(sv_2mortal(newRV_inc(sv)));
+ PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (SvTYPE(sv) == SVt_PVAV) {
   len = av_len((AV *) sv) + 1;
-  XPUSHs(sv_2mortal(newSViv(len)));
+  PUSHs(sv_2mortal(newSViv(len)));
+ } else {
+  PUSHs(&PL_sv_undef);
  }
  PUTBACK;
 
@@ -541,7 +493,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_clear, sv, mg->mg_obj);
+ return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_clear, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
@@ -549,12 +501,12 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  SvREFCNT_inc(sv);
  /* Perl_mg_free will get rid of the magic and decrement mg->mg_obj and
   * mg->mg_ptr reference count */
- return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_free, sv, mg->mg_obj);
+ return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_free, sv, mg->mg_obj);
 }
 
 #if MGf_COPY
 STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
-# if PERL_API_VERSION_GE(5, 11, 0)
+# if (VMG_PERL_PATCHLEVEL >= 33256) || (!VMG_PERL_PATCHLEVEL && PERL_API_VERSION_GE(5, 11, 0))
   I32 keylen
 # else
   int keylen
@@ -587,7 +539,7 @@ STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
 
 #if MGf_LOCAL
 STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
- return vmg_cb_call(SV2MGWIZ(mg->mg_ptr)->cb_local, nsv, mg->mg_obj);
+ return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_local, nsv, mg->mg_obj);
 }
 #endif /* MGf_LOCAL */
 
@@ -615,12 +567,12 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   if (!w->uvar) { continue; }
   switch (action) {
    case 0:
-    if (w->cb_fetch) { vmg_cb_call2(w->cb_fetch, sv, mg->mg_obj, key); }
+    if (w->cb_fetch)  { vmg_cb_call2(w->cb_fetch,  sv, mg->mg_obj, key); }
     break;
    case HV_FETCH_ISSTORE:
    case HV_FETCH_LVALUE:
    case (HV_FETCH_ISSTORE|HV_FETCH_LVALUE):
-    if (w->cb_store) { vmg_cb_call2(w->cb_store, sv, mg->mg_obj, key); }
+    if (w->cb_store)  { vmg_cb_call2(w->cb_store,  sv, mg->mg_obj, key); }
     break;
    case HV_FETCH_ISEXISTS:
     if (w->cb_exists) { vmg_cb_call2(w->cb_exists, sv, mg->mg_obj, key); }
@@ -761,6 +713,8 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNDEF_CLEAR",
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
+ newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
+                    newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
 }
 
 SV *_wizard(...)

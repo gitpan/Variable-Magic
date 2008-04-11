@@ -1,5 +1,12 @@
 Revision history for Variable-Magic
 
+0.15    2008-04-11 18:25 UTC
+        + Chg : Factor vmg_cb_call{1,2,3}() into one function.
+        + Fix : len magic is no longer called when taking the length() of a
+                magical scalar since p32969. The VMG_COMPAT_SCALAR_LENGTH_NOLEN
+                constant was added to cover this.
+        + Tst : More tests for t/22-len.t.
+
 0.14    2008-03-24 12:35 UTC
         + Fix : t/16-huf.t failures on Solaris and FreeBSD caused by not
                 updating mg->mg_ptr after Renew-ing it on dispell.

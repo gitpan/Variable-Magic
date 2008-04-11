@@ -22,7 +22,9 @@ my %v;
 $v{$a[$_]} = $_ for 0 .. $#a;
 cast %v, $wiz;
 
+my $x = 0;
+
 cmpthese -3, {
- 'tie'  => sub { my ($x, $y) = map @a[rand @a], 1 .. 2; my $a = $t{$x}; $t{$y} = $a },
- 'v::m' => sub { my ($x, $y) = map @a[rand @a], 1 .. 2; my $a = $v{$x}; $v{$y} = $a }
+ 'tie'  => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $t{$x}; $t{$y} = $a },
+ 'v::m' => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $v{$x}; $v{$y} = $a }
 };
