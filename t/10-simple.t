@@ -15,49 +15,49 @@ $args += 4 if VMG_UVAR;
 for (0 .. 20) {
  next if $_ == $args;
  eval { Variable::Magic::_wizard(('hlagh') x $_) };
- ok($@, "_wizard called directly with a wrong number of arguments croaks ($@)");
+ like($@, qr/Wrong\s+number\s+of\s+arguments/, '_wizard called directly with a wrong number of arguments croaks');
 }
 
 for (0 .. 3) {
  eval { wizard(('dong') x (2 * $_ + 1)) };
- ok($@, "wizard called with an odd number of arguments croaks ($@)");
+ like($@, qr/Wrong\s+number\s+of\s+arguments\s+for\s+wizard\(\)/, 'wizard called with an odd number of arguments croaks');
 }
 
 my $sig = gensig;
 
 my $wiz = eval { wizard sig => $sig };
-ok(!$@,                "wizard doesn't croak ($@)");
+is($@, '',             'wizard doesn\'t croak');
 ok(defined $wiz,       'wizard is defined');
 is(ref $wiz, 'SCALAR', 'wizard is a scalar ref');
 is($sig, getsig $wiz,  'wizard signature is correct');
 
 my $a = 1;
 my $res = eval { cast $a, $wiz };
-ok(!$@,  "cast doesn't croak ($@)");
-ok($res, 'cast is valid');
+is($@, '', 'cast doesn\'t croak');
+ok($res,   'cast is valid');
 
 $res = eval { dispell $a, $wiz };
-ok(!$@,  "dispell from wizard doesn't croak ($@)");
-ok($res, 'dispell from wizard is valid');
+is($@, '', 'dispell from wizard doesn\'t croak');
+ok($res,   'dispell from wizard is valid');
 
 $res = eval { cast $a, $wiz };
-ok(!$@,  "re-cast doesn't croak ($@)");
-ok($res, 're-cast is valid');
+is($@, '', 're-cast doesn\'t croak');
+ok($res,   're-cast is valid');
 
 $res = eval { dispell $a, gensig };
-ok(!$@,            "re-dispell from wrong sig doesn't croak ($@)");
-ok(!defined($res), 're-dispell from wrong sig returns undef');
+is($@, '',      're-dispell from wrong sig doesn\'t croak');
+is($res, undef, 're-dispell from wrong sig doesn\'t return anything');
 
 $res = eval { dispell $a, undef };
-ok($@,             "re-dispell from undef croaks ($@)");
-ok(!defined($res), 're-dispell from undef returns undef');
+like($@, qr/Invalid\s+wizard\s+object/, 're-dispell from undef croaks');
+is($res, undef, 're-dispell from undef doesn\'t return anything');
 
 $res = eval { dispell $a, $sig };
-ok(!$@,  "re-dispell from good sig doesn't croak ($@)");
-ok($res, 're-dispell from good sig is valid');
+is($@, '', 're-dispell from good sig doesn\'t croak');
+ok($res,   're-dispell from good sig is valid');
 
 $res = eval { dispell my $b, $wiz };
-ok(!$@, "dispell non-magic object doesn't croak ($@)");
+is($@, '',  'dispell non-magic object doesn\'t croak');
 is($res, 0, 'dispell non-magic object returns 0');
 
 $sig = gensig;
@@ -68,9 +68,9 @@ $sig = gensig;
 }
 my $c = 3;
 $res = eval { cast $c, $sig };
-ok(!$@, "cast from obsolete signature doesn't croak ($@)");
-ok(!defined($res), 'cast from obsolete signature returns undef');
+is($@, '',      'cast from obsolete signature doesn\'t croak');
+is($res, undef, 'cast from obsolete signature returns undef');
 
 $res = eval { cast $c, undef };
-ok($@, "cast from undef croaks ($@)");
-ok(!defined($res), 'cast from undef returns undef');
+like($@, qr/Invalid\s+numeric\s+signature/, 'cast from undef croaks');
+is($res, undef, 'cast from undef doesn\'t return anything');

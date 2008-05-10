@@ -90,26 +90,34 @@
 
 #if VMG_UVAR
 
-/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html */
-STATIC void vmg_mg_magical(pTHX_ SV *sv) {
-#define vmg_mg_magical(S) vmg_mg_magical(aTHX_ (S))
+/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html, but specialized to our needs. */
+STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
+#define vmg_sv_magicuvar(S, U, L) vmg_sv_magicuvar(aTHX_ (S), (U), (L))
  const MAGIC* mg;
+ sv_magic(sv, NULL, PERL_MAGIC_uvar, uf, len);
+ /* uvar magic has set and get magic, hence this has set SVs_GMG and SVs_SMG. */
  PERL_UNUSED_CONTEXT;
  if ((mg = SvMAGIC(sv))) {
   SvRMAGICAL_off(sv);
   do {
    const MGVTBL* const vtbl = mg->mg_virtual;
    if (vtbl) {
+/* 
     if (vtbl->svt_get && !(mg->mg_flags & MGf_GSKIP))
      SvGMAGICAL_on(sv);
     if (vtbl->svt_set)
      SvSMAGICAL_on(sv);
-    if (vtbl->svt_clear)
+*/
+    if (vtbl->svt_clear) {
      SvRMAGICAL_on(sv);
+     break;
+    }
    }
   } while ((mg = mg->mg_moremagic));
+/*
   if (!(SvFLAGS(sv) & (SVs_GMG|SVs_SMG)))
    SvRMAGICAL_on(sv);
+*/
  }
 }
 
@@ -307,8 +315,7 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
   }
 
   if (add_uvar) {
-   sv_magic(sv, NULL, PERL_MAGIC_uvar, (const char *) &uf, sizeof(uf));
-   vmg_mg_magical(sv);
+   vmg_sv_magicuvar(sv, (const char *) &uf, sizeof(uf));
   }
 
  }
@@ -418,8 +425,8 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
  PUSHs(data ? data : &PL_sv_undef);
  va_start(ap, args);
  for (i = 0; i < args; ++i) {
-  SV *sv = va_arg(ap, SV *);
-  PUSHs(sv ? sv : &PL_sv_undef);
+  SV *sva = va_arg(ap, SV *);
+  PUSHs(sva ? sva : &PL_sv_undef);
  }
  va_end(ap);
  PUTBACK;
@@ -469,8 +476,9 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (SvTYPE(sv) == SVt_PVAV) {
   len = av_len((AV *) sv) + 1;
-  PUSHs(sv_2mortal(newSViv(len)));
+  mPUSHi(len);
  } else {
+  len = 1;
   PUSHs(&PL_sv_undef);
  }
  PUTBACK;
@@ -481,8 +489,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
  svr = POPs;
- ret = SvOK(svr) ? SvUV(svr)
-                 : ((SvTYPE(sv) == SVt_PVAV) ? len : 1);
+ ret = SvOK(svr) ? SvUV(svr) : len;
 
  PUTBACK;
 

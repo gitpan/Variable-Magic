@@ -1,5 +1,13 @@
 Revision history for Variable-Magic
 
+0.16    2008-05-10 22:05 UTC
+        + Add : The samples/copy.pl script.
+        + Chg : The sv_magical() + vmg_mg_magical() combo was simplified into
+                vmg_sv_magicuvar().
+        + Tst : t/33-code.t was testing scalars, not code.
+        + Tst : is() and like() are better than ok().
+        + Tst : 100% coverage reached.
+
 0.15    2008-04-11 18:25 UTC
         + Chg : Factor vmg_cb_call{1,2,3}() into one function.
         + Fix : len magic is no longer called when taking the length() of a

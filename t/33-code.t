@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 10;
+use Test::More tests => 14;
 
 use Variable::Magic qw/wizard cast dispell/;
 
@@ -32,40 +32,37 @@ my $wiz = wizard get   => sub { ++$c[0] },
 check('code : create wizard');
 
 my $x = 0;
-my $n = sub { ++$x };
-my $a = $n;
+sub hlagh { ++$x };
 
-cast $a, $wiz;
+cast &hlagh, $wiz;
 check('code : cast');
 
-my $b = $a;
-++$x[0];
-check('code : assign to');
+hlagh();
+check('code : call without arguments');
+is($x, 1, 'code : call without arguments succeeded');
 
-$b = "X${a}Y";
-++$x[0];
-check('code : interpolate');
+hlagh(1, 2, 3);
+check('code : call with arguments');
+is($x, 2, 'code : call with arguments succeeded');
 
-$b = \$a;
-check('code : reference');
-
-$a = $n;
-++$x[1];
-check('code : assign');
-
-$a->();
-check('code : call');
-
-{
- my $b = $n;
- cast $b, $wiz;
-}
+undef *hlagh;
 ++$x[4];
-check('code : scope end');
+check('code : undef symbol table');
+is($x, 2, 'code : undef symbol table didn\'t call');
 
-undef $a;
-++$x[1];
-check('code : undef');
+my $y = 0;
+*hlagh = sub { ++$y };
 
-dispell $a, $wiz;
+cast &hlagh, $wiz;
+check('code : re-cast');
+
+my $r = \&hlagh;
+check('code : take reference');
+
+$r->();
+check('code : call reference');
+is($y, 1, 'code : call reference succeeded');
+is($x, 2, 'code : call reference didn\'t triggered the previous code');
+
+dispell &hlagh, $wiz;
 check('code : dispell');

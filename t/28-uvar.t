@@ -75,12 +75,12 @@ eval {
  local $SIG{__WARN__} = sub { die };
  $x = $h2{a};
 };
-ok(!$@,    'uvar : fetch with incomplete magic');
+is($@, '', 'uvar : fetch with incomplete magic');
 is($x, 37, 'uvar : fetch with incomplete magic correctly');
 
 eval {
  local $SIG{__WARN__} = sub { die };
  $h2{a} = 73;
 };
-ok(!$@,        'uvar : store with incomplete magic');
+is($@, '',     'uvar : store with incomplete magic');
 is($h2{a}, 73, 'uvar : store with incomplete magic correctly');

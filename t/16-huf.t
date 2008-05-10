@@ -29,13 +29,13 @@ $h{$obj} = 5;
 my ($w, $c) = (undef, 0);
 
 eval { $w = wizard fetch => sub { ++$c }, store => sub { --$c } };
-ok(!$@,              "wizard with uvar doesn't croak ($@)");
+is($@, '',           'wizard with uvar doesn\'t croak');
 ok(defined $w,       'wizard with uvar is defined');
 is(ref $w, 'SCALAR', 'wizard with uvar is a scalar ref');
 
 my $res = eval { cast %h, $w };
-ok(!$@,  "cast uvar magic on fieldhash doesn't croak ($@)");
-ok($res, 'cast uvar magic on fieldhash is valid');
+is($@, '', 'cast uvar magic on fieldhash doesn\'t croak');
+ok($res,   'cast uvar magic on fieldhash is valid');
 
 my $s = $h{$obj};
 is($s, 5, 'fetch magic on fieldhash doesn\'t clobber');
@@ -46,8 +46,8 @@ is($c, 0,       'store magic on fieldhash');
 is($h{$obj}, 7, 'store magic on fieldhash doesn\'t clobber'); # $c == 1
 
 $res = eval { dispell %h, $w };
-ok(!$@,  "dispell uvar magic on fieldhash doesn't croak ($@)");
-ok($res, 'dispell uvar magic on fieldhash is valid');
+is($@, '', 'dispell uvar magic on fieldhash doesn\'t croak');
+ok($res,   'dispell uvar magic on fieldhash is valid');
 
 $h{$obj} = 11;
 $s = $h{$obj};

@@ -24,6 +24,7 @@ cast %v, $wiz;
 
 my $x = 0;
 
+print "Using Variable::Magic ", $Variable::Magic::VERSION, "\n";
 cmpthese -3, {
  'tie'  => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $t{$x}; $t{$y} = $a },
  'v::m' => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $v{$x}; $v{$y} = $a }

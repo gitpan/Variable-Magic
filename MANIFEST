@@ -5,6 +5,7 @@ Magic.xs
 Makefile.PL
 README
 lib/Variable/Magic.pm
+samples/copy.pl
 samples/magic.pl
 samples/uvar.pl
 samples/vm_vs_tie.pl

@@ -20,11 +20,11 @@ sub multi {
 }
 
 eval { $w[0] = wizard get => sub { ++$c[0] }, set => sub { --$c[0] } };
-ok(!$@, "wizard 0 creation error ($@)");
+is($@, '', 'wizard 0 creation doesn\'t croak');
 eval { $w[1] = wizard get => sub { ++$c[1] }, set => sub { --$c[1] } };
-ok(!$@, "wizard 1 creation error ($@)");
+is($@, '', 'wizard 1 creation doesn\'t croak');
 eval { $w[2] = wizard get => sub { ++$c[2] }, set => sub { --$c[2] } };
-ok(!$@, "wizard 2 creation error ($@)");
+is($@, '', 'wizard 2 creation doesn\'t croak');
 
 multi sub {
  my ($i) = @_;
@@ -42,8 +42,8 @@ multi sub {
  cast $a, $w[$i];
 }, sub {
  my ($i, $res, $err) = @_;
- ok(!$err, "cast magic $i doesn't croak ($err)");
- ok($res,  "cast magic $i is valid");
+ is($err, '', "cast magic $i doesn't croak");
+ ok($res,     "cast magic $i is valid");
 };
 
 my $b = $a;
@@ -53,8 +53,8 @@ $a = 1;
 for (0 .. $n - 1) { is($c[$_], 0, "set magic $_"); }
 
 my $res = eval { dispell $a, $w[1] };
-ok(!$@,  "dispell magic 1 doesn't croak ($@)");
-ok($res, 'dispell magic 1 is valid');
+is($@, '', 'dispell magic 1 doesn\'t croak');
+ok($res,   'dispell magic 1 is valid');
 
 $b = $a;
 for (0, 2) { is($c[$_], 1, "get magic $_ after dispelled 1"); }
@@ -63,8 +63,8 @@ $a = 2;
 for (0, 2) { is($c[$_], 0, "set magic $_ after dispelled 1"); }
 
 $res = eval { dispell $a, $w[0] };
-ok(!$@,  "dispell magic 0 doesn't croak ($@)");
-ok($res, 'dispell magic 0 is valid');
+is($@, '', 'dispell magic 0 doesn\'t croak');
+ok($res,   'dispell magic 0 is valid');
 
 $b = $a;
 is($c[2], 1, 'get magic 2 after dispelled 1 & 0');
@@ -73,8 +73,8 @@ $a = 3;
 is($c[2], 0, 'set magic 2 after dispelled 1 & 0');
 
 $res = eval { dispell $a, $w[2] };
-ok(!$@,  "dispell magic 2 doesn't croak ($@)");
-ok($res, 'dispell magic 2 is valid');
+is($@, '', 'dispell magic 2 doesn\'t croak');
+ok($res,   'dispell magic 2 is valid');
 
 SKIP: {
  skip 'No nice uvar magic for this perl', 41 unless VMG_UVAR;
@@ -83,11 +83,11 @@ SKIP: {
  @c = (0) x $n;
 
  eval { $w[0] = wizard fetch => sub { ++$c[0] }, store => sub { --$c[0] } };
- ok(!$@, "wizard with uvar 0 creation error ($@)");
+ is($@, '', 'wizard with uvar 0 doesn\'t croak');
  eval { $w[1] = wizard fetch => sub { ++$c[1] }, store => sub { --$c[1] } };
- ok(!$@, "wizard with uvar 1 creation error ($@)");
+ is($@, '', 'wizard with uvar 1 doesn\'t croak');
  eval { $w[2] = wizard fetch => sub { ++$c[2] }, store => sub { --$c[2] } };
- ok(!$@, "wizard with uvar 2 creation error ($@)");
+ is($@, '', 'wizard with uvar 2 doesn\'t croak');
 
  multi sub {
   my ($i) = @_;
@@ -105,8 +105,8 @@ SKIP: {
   cast %h, $w[$i];
  }, sub {
   my ($i, $res, $err) = @_;
-  ok(!$err, "cast uvar magic $i doesn't croak ($err)");
-  ok($res,  "cast uvar magic $i is valid");
+  is($err, '', "cast uvar magic $i doesn't croak");
+  ok($res,     "cast uvar magic $i is valid");
  };
 
  my $s = $h{a};
@@ -119,8 +119,8 @@ SKIP: {
  # $c[$_] == 1 for 0 .. 2
 
  my $res = eval { dispell %h, $w[1] };
- ok(!$@,  "dispell uvar magic 1 doesn't croak ($@)");
- ok($res, 'dispell uvar magic 1 is valid');
+ is($@, '', 'dispell uvar magic 1 doesn\'t croak');
+ ok($res,   'dispell uvar magic 1 is valid');
 
  $s = $h{b};
  is($s, 2, 'fetch magic after dispelled 1 doesn\'t clobber');
@@ -132,8 +132,8 @@ SKIP: {
  # $c[$_] == 2 for 0, 2
 
  $res = eval { dispell %h, $w[2] };
- ok(!$@,  "dispell uvar magic 2 doesn't croak ($@)");
- ok($res, 'dispell uvar magic 2 is valid');
+ is($@, '', 'dispell uvar magic 2 doesn\'t croak');
+ ok($res,   'dispell uvar magic 2 is valid');
 
  $s = $h{b};
  is($s, 4, 'fetch magic after dispelled 1,2 doesn\'t clobber');
@@ -145,8 +145,8 @@ SKIP: {
  # $c[$_] == 3 for 0
 
  $res = eval { dispell %h, $w[0] };
- ok(!$@,  "dispell uvar magic 0 doesn't croak ($@)");
- ok($res, 'dispell uvar magic 0 is valid');
+ is($@, '', 'dispell uvar magic 0 doesn\'t croak');
+ ok($res,   'dispell uvar magic 0 is valid');
 
  $s = $h{b};
  is($s, 6, 'fetch magic after dispelled 1,2,0 doesn\'t clobber');
