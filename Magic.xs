@@ -40,6 +40,10 @@
 # define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
 #endif
 
+#ifndef mPUSHi
+# define mPUSHi(I) PUSHs(sv_2mortal(newSViv(I)))
+#endif
+
 #ifndef dMY_CXT
 # define MY_CXT vmg_globaldata
 # define dMY_CXT
@@ -90,7 +94,7 @@
 
 #if VMG_UVAR
 
-/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html, but specialized to our needs. */
+/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html - but specialized to our needs. */
 STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 #define vmg_sv_magicuvar(S, U, L) vmg_sv_magicuvar(aTHX_ (S), (U), (L))
  const MAGIC* mg;
@@ -102,22 +106,12 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
   do {
    const MGVTBL* const vtbl = mg->mg_virtual;
    if (vtbl) {
-/* 
-    if (vtbl->svt_get && !(mg->mg_flags & MGf_GSKIP))
-     SvGMAGICAL_on(sv);
-    if (vtbl->svt_set)
-     SvSMAGICAL_on(sv);
-*/
     if (vtbl->svt_clear) {
      SvRMAGICAL_on(sv);
      break;
     }
    }
   } while ((mg = mg->mg_moremagic));
-/*
-  if (!(SvFLAGS(sv) & (SVs_GMG|SVs_SMG)))
-   SvRMAGICAL_on(sv);
-*/
  }
 }
 

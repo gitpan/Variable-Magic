@@ -1,5 +1,9 @@
 Revision history for Variable-Magic
 
+0.17    2008-05-11 09:05 UTC
+        + Fix : 5.8.4 and lower don't have mPUSHi. Gah. Yeah, I know, I should
+                use Devel::PPPort.
+
 0.16    2008-05-10 22:05 UTC
         + Add : The samples/copy.pl script.
         + Chg : The sv_magical() + vmg_mg_magical() combo was simplified into
