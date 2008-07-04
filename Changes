@@ -1,5 +1,10 @@
 Revision history for Variable-Magic
 
+0.18    2008-07-04 12:20 UTC
+        + Fix : Enable uvar magic when patchlevel >= 28419.
+        + Fix : Set VMG_COMPAT_ARRAY_PUSH_NOLEN for Windows ActiveState Perl
+                5.8.x.
+
 0.17    2008-05-11 09:05 UTC
         + Fix : 5.8.4 and lower don't have mPUSHi. Gah. Yeah, I know, I should
                 use Devel::PPPort.

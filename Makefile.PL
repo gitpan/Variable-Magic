@@ -11,15 +11,33 @@ BEGIN {
 }
 
 my @DEFINES;
+
 my $pl = $Config{perl_patchlevel};
 print "Checking perl patchlevel... ";
 if (defined $pl && length $pl) {
  $pl = int $pl;
- push @DEFINES, DEFINE => '-DVMG_PERL_PATCHLEVEL=' . $pl;
+ push @DEFINES, '-DVMG_PERL_PATCHLEVEL=' . $pl;
  print $pl, "\n";
 } else {
  print "none\n";
 }
+
+my $is_as = 0;
+print "Checking if this is Windows ActiveState 5.8.x... ";
+if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.9.0) {
+ eval {
+  require Win32;
+  1;
+ } and do {
+  if (defined &Win32::BuildNumber) {
+   $is_as = 1;
+   push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=1';
+  }
+ }
+}
+print $is_as ? "yes\n" : "no\n";
+
+@DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
 
 my $BUILD_REQUIRES = {
  'Config'              => 0,

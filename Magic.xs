@@ -67,13 +67,14 @@
 # define MGf_LOCAL 0
 #endif
 
-#if PERL_API_VERSION_GE(5, 10, 0)
+/* uvar magic and Hash::Util::FieldHash were commited with p28419 */
+#if (VMG_PERL_PATCHLEVEL >= 28419) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 4))
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
 #endif
 
-#if (VMG_PERL_PATCHLEVEL >= 25854) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 3))
+#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && ((VMG_PERL_PATCHLEVEL >= 25854) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 3)))
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
