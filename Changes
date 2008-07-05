@@ -1,5 +1,18 @@
 Revision history for Variable-Magic
 
+0.19    2008-07-05 15:05 UTC
+        + Add : The patchlevel with which the module has been built is now
+                exported with the VMG_PERL_PATCHLEVEL constant.
+        + Chg : Version checking macros overhaul.
+        + Fix : 'uvar' magic should only be enabled in maint-5.10 and higher
+                since it's never going to be backported to 5.8.
+        + Fix : Likewise, the copy callback API change should only be enabled in
+                5.11 and higher.
+        + Fix : Instead of those ackward fake refcount increments in the wizard
+                destructor, flag the wizard with SVf_BREAK and force temps
+                cleanup. This should fix the wizard destruction for all perls,
+                and solves the leak introduced by the previous solution.
+
 0.18    2008-07-04 12:20 UTC
         + Fix : Enable uvar magic when patchlevel >= 28419.
         + Fix : Set VMG_COMPAT_ARRAY_PUSH_NOLEN for Windows ActiveState Perl

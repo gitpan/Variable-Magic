@@ -18,10 +18,6 @@
 
 #define PERL_VERSION_LE(R, V, S) (PERL_REVISION < (R) || (PERL_REVISION == (R) && (PERL_VERSION < (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION <= (S))))))
 
-#define PERL_API_VERSION_GE(R, V, S) (PERL_API_REVISION > (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION > (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION >= (S))))))
-
-#define PERL_API_VERSION_LE(R, V, S) (PERL_API_REVISION < (R) || (PERL_API_REVISION == (R) && (PERL_API_VERSION < (V) || (PERL_API_VERSION == (V) && (PERL_API_SUBVERSION <= (S))))))
-
 #ifndef VMG_PERL_PATCHLEVEL
 # ifdef PERL_PATCHNUM
 #  define VMG_PERL_PATCHLEVEL PERL_PATCHNUM
@@ -29,6 +25,10 @@
 #  define VMG_PERL_PATCHLEVEL 0
 # endif
 #endif
+
+#define VMG_HAS_PERL_OR(P, R, V, S) ((VMG_PERL_PATCHLEVEL >= (P)) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE((R), (V), (S))))
+
+#define VMG_HAS_PERL_AND(P, R, V, S) (PERL_VERSION_GE((R), (V), (S)) && (!VMG_PERL_PATCHLEVEL || (VMG_PERL_PATCHLEVEL >= (P))))
 
 /* --- Compatibility ------------------------------------------------------- */
 
@@ -68,26 +68,26 @@
 #endif
 
 /* uvar magic and Hash::Util::FieldHash were commited with p28419 */
-#if (VMG_PERL_PATCHLEVEL >= 28419) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 4))
+#if VMG_HAS_PERL_AND(28419, 5, 9, 4)
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
 #endif
 
-#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && ((VMG_PERL_PATCHLEVEL >= 25854) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 3)))
+#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && VMG_HAS_PERL_OR(25854, 5, 9, 3)
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
 #endif
 
 /* since 5.9.5 - see #43357 */
-#if (VMG_PERL_PATCHLEVEL >= 31473) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 9, 5))
+#if VMG_HAS_PERL_OR(31473, 5, 9, 5)
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
 #else
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
 #endif
 
-#if (VMG_PERL_PATCHLEVEL >= 32969) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE(5, 11, 0))
+#if VMG_HAS_PERL_OR(32969, 5, 11, 0)
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
 #else
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
@@ -508,7 +508,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 
 #if MGf_COPY
 STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
-# if (VMG_PERL_PATCHLEVEL >= 33256) || (!VMG_PERL_PATCHLEVEL && PERL_API_VERSION_GE(5, 11, 0))
+# if VMG_HAS_PERL_AND(33256, 5, 11, 0)
   I32 keylen
 # else
   int keylen
@@ -598,13 +598,11 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
 
  w = SV2MGWIZ(wiz);
 
- SvREFCNT_inc(wiz); /* Fake survival - it's gonna be deleted anyway */
-#if PERL_API_VERSION_GE(5, 9, 5)
- SvREFCNT_inc(wiz); /* One more push */
-#endif
  if (hv_delete(MY_CXT.wizz, buf, sprintf(buf, "%u", w->sig), 0)) {
   --MY_CXT.count;
  }
+ SvFLAGS(wiz) |= SVf_BREAK;
+ FREETMPS;
 
  if (w->cb_data  != NULL) { SvREFCNT_dec(SvRV(w->cb_data)); }
  if (w->cb_get   != NULL) { SvREFCNT_dec(SvRV(w->cb_get)); }
@@ -717,6 +715,7 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
  newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
                     newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
+ newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
 }
 
 SV *_wizard(...)

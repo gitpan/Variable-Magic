@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.18
+    Version 0.19
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -146,6 +146,10 @@ CONSTANTS
   "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
     True for perls that don't call 'len' magic when taking the "length" of a
     magical scalar.
+
+  "VMG_PERL_PATCHLEVEL"
+    The perl patchlevel this module was built with, or 0 for non-debugging
+    perls.
 
 FUNCTIONS
   "wizard"

@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.18
+Version 0.19
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.18';
+ $VERSION = '0.19';
 }
 
 =head1 SYNOPSIS
@@ -191,6 +191,10 @@ True for perls that call 'clear' magic when undefining magical arrays.
 
 True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
 
+=head2 C<VMG_PERL_PATCHLEVEL>
+
+The perl patchlevel this module was built with, or C<0> for non-debugging perls.
+
 =head1 FUNCTIONS
 
 =cut
@@ -311,7 +315,8 @@ our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
  'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
                qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
-               qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/ ]
+               qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
+               qw/VMG_PERL_PATCHLEVEL/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
