@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 32;
+use Test::More tests => 38;
 
 use Variable::Magic qw/wizard getdata cast dispell SIG_MIN/;
 
@@ -54,7 +54,7 @@ is($@, '',       'getdata from invalid sig doesn\'t croak');
 is($data, undef, 'getdata from invalid sig returns undef');
 
 $data = eval { getdata $a, undef };
-like($@, qr/Invalid\s+wizard\s+object/, 'getdata from undef croaks');
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'getdata from undef croaks');
 is($data, undef, 'getdata from undef doesn\'t return anything');
 
 $res = eval { dispell $a, $wiz };
@@ -81,3 +81,20 @@ ok($res,   'cast non-data wizard returns true');
 $data = eval { getdata $a, $wiz };
 is($@, '',       'getdata from non-data wizard doesn\'t croak');
 is($data, undef, 'getdata from non-data wizard invalid returns undef');
+
+$wiz = wizard data => sub { ++$_[1] };
+my ($di, $ei) = (1, 10);
+my ($d, $e);
+cast $d, $wiz, $di;
+cast $e, $wiz, $ei;
+my $dd = getdata $d, $wiz;
+my $ed = getdata $e, $wiz;
+is($dd, 2,  'data from d is what we expected');
+is($di, 2,  'cast arguments from d were passed by alias');
+is($ed, 11, 'data from e is what we expected');
+is($ei, 11, 'cast arguments from e were passed by alias');
+$di *= 2;
+$dd = getdata $d, $wiz;
+$ed = getdata $e, $wiz;
+is($dd, 2,  'data from d wasn\'t changed');
+is($ed, 11, 'data from e wasn\'t changed');

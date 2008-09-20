@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.19
+    Version 0.20
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -23,43 +23,51 @@ DESCRIPTION
 
     The operations that can be overloaded are :
 
-    "get"
+    *   "get"
+
         This magic is invoked when the variable is evaluated (does not
         include array/hash subscripts and slices).
 
-    "set"
+    *   "set"
+
         This one is triggered each time the value of the variable changes
         (includes array/hash subscripts and slices).
 
-    "len"
+    *   "len"
+
         This magic is a little special : it is called when the 'size' or the
         'length' of the variable has to be known by Perl. Typically, it's
         the magic involved when an array is evaluated in scalar context, but
         also on array assignation and loops ("for", "map" or "grep"). The
         callback has then to return the length as an integer.
 
-    "clear"
+    *   "clear"
+
         This magic is invoked when the variable is reset, such as when an
         array is emptied. Please note that this is different from undefining
         the variable, even though the magic is called when the clearing is a
         result of the undefine (e.g. for an array, but actually a bug
         prevent it to work before perl 5.9.5 - see the history).
 
-    "free"
+    *   "free"
+
         This one can be considered as an object destructor. It happens when
         the variable goes out of scope (with the exception of global scope),
         but not when it is undefined.
 
-    "copy"
+    *   "copy"
+
         This magic only applies to tied arrays and hashes. It fires when you
         try to access or change their elements. It is available on your perl
         iff "MGf_COPY" is true.
 
-    "dup"
+    *   "dup"
+
         Invoked when the variable is cloned across threads. Currently not
         available.
 
-    "local"
+    *   "local"
+
         When this magic is set on a variable, all subsequent localizations
         of the variable will trigger the callback. It is available on your
         perl iff "MGf_LOCAL" is true.
@@ -67,16 +75,20 @@ DESCRIPTION
     The following actions only apply to hashes and are available iff
     "VMG_UVAR" is true. They are referred to as "uvar" magics.
 
-    "fetch"
+    *   "fetch"
+
         This magic happens each time an element is fetched from the hash.
 
-    "store"
+    *   "store"
+
         This one is called when an element is stored into the hash.
 
-    "exists"
+    *   "exists"
+
         This magic fires when a key is tested for existence in the hash.
 
-    "delete"
+    *   "delete"
+
         This last one triggers when a key is deleted in the hash, regardless
         of whether the key actually exists in it.
 
@@ -91,27 +103,34 @@ PERL MAGIC HISTORY
     The places where magic is invoked have changed a bit through perl
     history. Here's a little list of the most recent ones.
 
-  5.6.x
-    *p14416* : 'copy' and 'dup' magic.
+    *   5.6.x
 
-  5.9.3
-    *p25854* : 'len' magic is no longer called when pushing an element into
-    a magic array.
-    *p26569* : 'local' magic.
+        *p14416* : 'copy' and 'dup' magic.
 
-  5.9.5
-    *p31064* : Meaningful 'uvar' magic.
-    *p31473* : 'clear' magic wasn't invoked when undefining an array. The
-    bug is fixed as of this version.
+    *   5.9.3
 
-  5.10.0
-    Since "PERL_MAGIC_uvar" is uppercased, "hv_magic_check()" triggers
-    'copy' magic on hash stores for (non-tied) hashes that also have 'uvar'
-    magic.
+        *p25854* : 'len' magic is no longer called when pushing an element
+        into a magic array.
 
-  5.11.x
-    *p32969* : 'len' magic is no longer invoked when calling "length" with a
-    magical scalar.
+        *p26569* : 'local' magic.
+
+    *   5.9.5
+
+        *p31064* : Meaningful 'uvar' magic.
+
+        *p31473* : 'clear' magic wasn't invoked when undefining an array.
+        The bug is fixed as of this version.
+
+    *   5.10.0
+
+        Since "PERL_MAGIC_uvar" is uppercased, "hv_magic_check()" triggers
+        'copy' magic on hash stores for (non-tied) hashes that also have
+        'uvar' magic.
+
+    *   5.11.x
+
+        *p32969* : 'len' magic is no longer invoked when calling "length"
+        with a magical scalar.
 
 CONSTANTS
   "SIG_MIN"
@@ -151,6 +170,10 @@ CONSTANTS
     The perl patchlevel this module was built with, or 0 for non-debugging
     perls.
 
+  "VMG_THREADSAFE"
+    True iff this module could have been built with thread-safety features
+    enabled.
+
 FUNCTIONS
   "wizard"
         wizard sig    => ...,
@@ -171,20 +194,23 @@ FUNCTIONS
     information. It takes a list of keys / values as argument, whose keys
     can be :
 
-    "sig"
+    *   "sig"
+
         The numerical signature. If not specified or undefined, a random
         signature is generated. If the signature matches an already defined
         magic, then the existant magic object is returned.
 
-    "data"
+    *   "data"
+
         A code reference to a private data constructor. It is called each
         time this magic is cast on a variable, and the scalar returned is
         used as private data storage for it. $_[0] is a reference to the
         magic object and @_[1 .. @_-1] are all extra arguments that were
         passed to "cast".
 
-    "get", "set", "len", "clear", "free", "copy", "local", "fetch", "store",
-    "exists" and "delete"
+    *   "get", "set", "len", "clear", "free", "copy", "local", "fetch",
+        "store", "exists" and "delete"
+
         Code references to corresponding magic callbacks. You don't have to
         specify all of them : the magic associated with undefined entries
         simply won't be hooked. In those callbacks, $_[0] is always a
@@ -287,6 +313,8 @@ DEPENDENCIES
     5.009004).
 
     Glob tests need Symbol (standard since perl 5.002).
+
+    Threads tests need threads and threads::shared.
 
 SEE ALSO
     perlguts and perlapi for internal information about magic.

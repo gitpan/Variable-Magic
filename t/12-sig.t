@@ -25,7 +25,7 @@ my ($a, $b, $c, $d) = 1 .. 4;
  is($sig, getsig $wiz2,  'retrieved wizard signature is correct');
 
  my $wiz3 = eval { wizard sig => [ ] };
- like($@, qr/Invalid\s+numeric\s+signature/, 'non numeric signature croaks');
+ like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'non numeric signature croaks');
  is($wiz3, undef, 'non numeric signature doesn\'t return anything');
 
  my $a = 1;

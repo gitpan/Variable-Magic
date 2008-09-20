@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.19
+Version 0.20
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.19';
+ $VERSION = '0.20';
 }
 
 =head1 SYNOPSIS
@@ -41,35 +41,51 @@ The operations that can be overloaded are :
 
 =over 4
 
-=item C<get>
+=item *
+
+C<get>
 
 This magic is invoked when the variable is evaluated (does not include array/hash subscripts and slices).
 
-=item C<set>
+=item *
+
+C<set>
 
 This one is triggered each time the value of the variable changes (includes array/hash subscripts and slices).
 
-=item C<len>
+=item *
+
+C<len>
 
 This magic is a little special : it is called when the 'size' or the 'length' of the variable has to be known by Perl. Typically, it's the magic involved when an array is evaluated in scalar context, but also on array assignation and loops (C<for>, C<map> or C<grep>). The callback has then to return the length as an integer.
 
-=item C<clear>
+=item *
+
+C<clear>
 
 This magic is invoked when the variable is reset, such as when an array is emptied. Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
 
-=item C<free>
+=item *
+
+C<free>
 
 This one can be considered as an object destructor. It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
 
-=item C<copy>
+=item *
+
+C<copy>
 
 This magic only applies to tied arrays and hashes. It fires when you try to access or change their elements. It is available on your perl iff C<MGf_COPY> is true.
 
-=item C<dup>
+=item *
+
+C<dup>
 
 Invoked when the variable is cloned across threads. Currently not available.
 
-=item C<local>
+=item *
+
+C<local>
 
 When this magic is set on a variable, all subsequent localizations of the variable will trigger the callback. It is available on your perl iff C<MGf_LOCAL> is true.
 
@@ -79,19 +95,27 @@ The following actions only apply to hashes and are available iff C<VMG_UVAR> is 
 
 =over 4
 
-=item C<fetch>
+=item *
+
+C<fetch>
 
 This magic happens each time an element is fetched from the hash.
 
-=item C<store>
+=item *
+
+C<store>
 
 This one is called when an element is stored into the hash.
 
-=item C<exists>
+=item *
+
+C<exists>
 
 This magic fires when a key is tested for existence in the hash.
 
-=item C<delete>
+=item *
+
+C<delete>
 
 This last one triggers when a key is deleted in the hash, regardless of whether the key actually exists in it.
 
@@ -105,47 +129,41 @@ To prevent any clash between different magics defined with this module, an uniqu
 
 The places where magic is invoked have changed a bit through perl history. Here's a little list of the most recent ones.
 
-=head2 B<5.6.x>
-
 =over 4
 
-=item I<p14416> : 'copy' and 'dup' magic.
+=item *
 
-=back
+B<5.6.x>
 
-=head2 B<5.9.3>
+I<p14416> : 'copy' and 'dup' magic.
 
-=over 4
+=item *
 
-=item I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
+B<5.9.3>
 
-=item I<p26569> : 'local' magic.
+I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
 
-=back
+I<p26569> : 'local' magic.
 
-=head2 B<5.9.5>
+=item *
 
-=over 4
+B<5.9.5>
 
-=item I<p31064> : Meaningful 'uvar' magic.
+I<p31064> : Meaningful 'uvar' magic.
 
-=item I<p31473> : 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
+I<p31473> : 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
 
-=back
+=item *
 
-=head2 B<5.10.0>
+B<5.10.0>
 
-=over 4
+Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
 
-=item Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
+=item *
 
-=back
+B<5.11.x>
 
-=head2 B<5.11.x>
-
-=over 4
-
-=item I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
+I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
 
 =back
 
@@ -195,6 +213,10 @@ True for perls that don't call 'len' magic when taking the C<length> of a magica
 
 The perl patchlevel this module was built with, or C<0> for non-debugging perls.
 
+=head2 C<VMG_THREADSAFE>
+
+True iff this module could have been built with thread-safety features enabled.
+
 =head1 FUNCTIONS
 
 =cut
@@ -224,15 +246,21 @@ This function creates a 'wizard', an opaque type that holds the magic informatio
 
 =over 4
 
-=item C<sig>
+=item *
+
+C<sig>
 
 The numerical signature. If not specified or undefined, a random signature is generated. If the signature matches an already defined magic, then the existant magic object is returned.
 
-=item C<data>
+=item *
+
+C<data>
 
 A code reference to a private data constructor. It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it. C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
 
-=item C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
+=item *
+
+C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
 Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length. C<$_[2]> is the current key in C<copy>, C<fetch>, C<store>, C<exists> and C<delete> callbacks, although for C<copy> it may just be a copy of the actual key so it's useless to (for example) cast magic on it. C<copy> magic also receives the current element (i.e. the value) in C<$_[3]>.
 
@@ -253,7 +281,12 @@ sub wizard {
  push @cbs, 'dup'   if MGf_DUP;
  push @cbs, 'local' if MGf_LOCAL;
  push @cbs, qw/fetch store exists delete/ if VMG_UVAR;
- return _wizard(map $opts{$_}, @cbs);
+ my $ret = eval { _wizard(map $opts{$_}, @cbs) };
+ if (my $err = $@) {
+  $err =~ s/\sat\s+.*?\n//;
+  croak $err;
+ }
+ return $ret;
 }
 
 =head2 C<gensig>
@@ -316,7 +349,8 @@ our %EXPORT_TAGS    = (
  'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
                qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
                qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
-               qw/VMG_PERL_PATCHLEVEL/ ]
+               qw/VMG_PERL_PATCHLEVEL/,
+               qw/VMG_THREADSAFE/ ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
@@ -338,6 +372,8 @@ Copy tests need L<Tie::Array> (standard since perl 5.005) and L<Tie::Hash> (sinc
 Some uvar tests need L<Hash::Util::FieldHash> (standard since perl 5.009004).
 
 Glob tests need L<Symbol> (standard since perl 5.002).
+
+Threads tests need L<threads> and L<threads::shared>.
 
 =head1 SEE ALSO
 

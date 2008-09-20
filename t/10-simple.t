@@ -15,12 +15,12 @@ $args += 4 if VMG_UVAR;
 for (0 .. 20) {
  next if $_ == $args;
  eval { Variable::Magic::_wizard(('hlagh') x $_) };
- like($@, qr/Wrong\s+number\s+of\s+arguments/, '_wizard called directly with a wrong number of arguments croaks');
+ like($@, qr/Wrong\s+number\s+of\s+arguments\s+at\s+\Q$0\E/, '_wizard called directly with a wrong number of arguments croaks');
 }
 
 for (0 .. 3) {
  eval { wizard(('dong') x (2 * $_ + 1)) };
- like($@, qr/Wrong\s+number\s+of\s+arguments\s+for\s+wizard\(\)/, 'wizard called with an odd number of arguments croaks');
+ like($@, qr/Wrong\s+number\s+of\s+arguments\s+for\s+&?wizard\(\)\s+at\s+\Q$0\E/, 'wizard called with an odd number of arguments croaks');
 }
 
 my $sig = gensig;
@@ -49,7 +49,7 @@ is($@, '',      're-dispell from wrong sig doesn\'t croak');
 is($res, undef, 're-dispell from wrong sig doesn\'t return anything');
 
 $res = eval { dispell $a, undef };
-like($@, qr/Invalid\s+wizard\s+object/, 're-dispell from undef croaks');
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 're-dispell from undef croaks');
 is($res, undef, 're-dispell from undef doesn\'t return anything');
 
 $res = eval { dispell $a, $sig };
@@ -72,5 +72,5 @@ is($@, '',      'cast from obsolete signature doesn\'t croak');
 is($res, undef, 'cast from obsolete signature returns undef');
 
 $res = eval { cast $c, undef };
-like($@, qr/Invalid\s+numeric\s+signature/, 'cast from undef croaks');
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'cast from undef croaks');
 is($res, undef, 'cast from undef doesn\'t return anything');

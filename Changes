@@ -1,5 +1,13 @@
 Revision history for Variable-Magic
 
+0.20    2008-09-20 23:35 UTC
+        + Fix : The module is now thread safe. You can test if it had been
+                built with thread safety features enabled through the
+                VMG_THREADSAFE constant.
+        + Fix : Correct backtrace when wizard() croaks.
+        + Fix : 'cast $a, undef' should throw an 'invalid wizard' error instead
+                of an 'invalid signature'.
+
 0.19    2008-07-05 15:05 UTC
         + Add : The patchlevel with which the module has been built is now
                 exported with the VMG_PERL_PATCHLEVEL constant.
