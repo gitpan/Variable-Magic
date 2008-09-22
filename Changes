@@ -1,5 +1,11 @@
 Revision history for Variable-Magic
 
+0.21_01 2008-09-22 13:25 UTC
+        + Chg : Shrink the context data.
+        + Fix : Enable thread safety features for perls that just lack
+                MY_CXT_CLONE.
+        + Tst : Output threads and threads::shared versions in threads tests.
+
 0.20    2008-09-20 23:35 UTC
         + Fix : The module is now thread safe. You can test if it had been
                 built with thread safety features enabled through the

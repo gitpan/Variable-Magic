@@ -22,6 +22,10 @@ use Variable::Magic qw/wizard cast dispell getdata getsig VMG_THREADSAFE/;
 
 if (VMG_THREADSAFE) {
  plan tests => 3 + 2 * (2 * 8 + 2) + 2 * (2 * 5 + 2);
+ my $v = $threads::VERSION;
+ diag "Using threads $v" if defined $v;
+ $v = $threads::shared::VERSION;
+ diag "Using threads::shared $v" if defined $v;
  diag 'This will leak a few scalars';
 } else {
  plan skip_all => 'This Variable::Magic isn\'t thread safe';

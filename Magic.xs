@@ -47,14 +47,21 @@
 # define VMG_MULTIPLICITY 0
 #endif
 
-#if VMG_MULTIPLICITY && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && defined(MY_CXT_CLONE)
+#if VMG_MULTIPLICITY && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))
 # define VMG_THREADSAFE 1
+# ifndef MY_CXT_CLONE
+#  define MY_CXT_CLONE \
+    dMY_CXT_SV;                                                      \
+    my_cxt_t *my_cxtp = (my_cxt_t*)SvPVX(newSV(sizeof(my_cxt_t)-1)); \
+    Copy(INT2PTR(my_cxt_t*, SvUV(my_cxt_sv)), my_cxtp, 1, my_cxt_t); \
+    sv_setuv(my_cxt_sv, PTR2UV(my_cxtp))
+# endif
 #else
 # define VMG_THREADSAFE 0
 # undef  dMY_CXT
 # define dMY_CXT      dNOOP
 # undef  MY_CXT
-# define MY_CXT vmg_globaldata
+# define MY_CXT       vmg_globaldata
 # undef  START_MY_CXT
 # define START_MY_CXT STATIC my_cxt_t MY_CXT;
 # undef  MY_CXT_INIT
@@ -161,10 +168,7 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
-typedef struct {
- HV *wizz;
- U16 count;
-} my_cxt_t;
+typedef HV * my_cxt_t;
 
 START_MY_CXT
 
@@ -185,7 +189,7 @@ STATIC U16 vmg_gensig(pTHX) {
 
  do {
   sig = SIG_NBR * Drand01() + SIG_MIN;
- } while (hv_exists(MY_CXT.wizz, buf, sprintf(buf, "%u", sig)));
+ } while (hv_exists(MY_CXT, buf, sprintf(buf, "%u", sig)));
 
  return sig;
 }
@@ -648,9 +652,10 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
  w->owner = NULL;
 #endif /* VMG_MULTIPLICITY */
 
- dMY_CXT;
- if (hv_delete(MY_CXT.wizz, buf, sprintf(buf, "%u", w->sig), 0)) {
-  --MY_CXT.count;
+ {
+  dMY_CXT;
+  if (hv_delete(MY_CXT, buf, sprintf(buf, "%u", w->sig), 0) != wiz)
+   return 0;
  }
  SvFLAGS(wiz) |= SVf_BREAK;
  FREETMPS;
@@ -739,11 +744,11 @@ STATIC U16 vmg_wizard_sig(pTHX_ SV *wiz) {
   croak(vmg_invalid_wiz);
  }
 
- dMY_CXT;
-
- if (!hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0))
-  sig = 0;
-
+ {
+  dMY_CXT;
+  if (!hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))
+   sig = 0;
+ }
  return sig;
 }
 
@@ -766,10 +771,11 @@ STATIC SV *vmg_wizard_wiz(pTHX_ SV *wiz) {
   croak(vmg_invalid_wiz);
  }
 
- dMY_CXT;
-
- return (old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0))
-         ? *old : NULL;
+ {
+  dMY_CXT;
+  return (old = hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))
+          ? *old : NULL;
+ }
 }
 
 #define VMG_SET_CB(S, N)              \
@@ -843,9 +849,8 @@ BOOT:
 {
  HV *stash;
  MY_CXT_INIT;
- MY_CXT.wizz = newHV();
- hv_iterinit(MY_CXT.wizz); /* Allocate iterator */
- MY_CXT.count = 0;
+ MY_CXT = newHV();
+ hv_iterinit(MY_CXT); /* Allocate iterator */
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "SIG_MIN",   newSVuv(SIG_MIN));
  newCONSTSUB(stash, "SIG_MAX",   newSVuv(SIG_MAX));
@@ -869,22 +874,19 @@ CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  HV *hv;
- U16 count;
 CODE:
 #if VMG_THREADSAFE
  {
   HE *key;
   dMY_CXT;
-  count = MY_CXT.count;
   hv = newHV();
   hv_iterinit(hv); /* Allocate iterator */
-  hv_iterinit(MY_CXT.wizz);
-  while (key = hv_iternext(MY_CXT.wizz)) {
+  hv_iterinit(MY_CXT);
+  while ((key = hv_iternext(MY_CXT))) {
    STRLEN len;
    char *sig = HePV(key, len);
    SV *sv;
    MAGIC *mg;
-   MGWIZ *w;
    sv = MGWIZ2SV(vmg_wizard_clone(SV2MGWIZ(HeVAL(key))));
    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);
    mg->mg_private = SIG_WIZ;
@@ -894,8 +896,7 @@ CODE:
  }
  {
   MY_CXT_CLONE;
-  MY_CXT.wizz  = hv;
-  MY_CXT.count = count;
+  MY_CXT = hv;
  }
 #endif /* VMG_THREADSAFE */
 
@@ -933,12 +934,12 @@ CODE:
  if (SvOK(svsig)) {
   SV **old;
   sig = vmg_sv2sig(svsig);
-  if ((old = hv_fetch(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), 0))) {
+  if ((old = hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))) {
    ST(0) = sv_2mortal(newRV_inc(*old));
    XSRETURN(1);
   }
  } else {
-  if (MY_CXT.count >= SIG_NBR) { croak(vmg_toomanysigs); }
+  if (HvKEYS(MY_CXT) >= SIG_NBR) { croak(vmg_toomanysigs); }
   sig = vmg_gensig();
  }
  
@@ -984,8 +985,7 @@ CODE:
  mg->mg_private = SIG_WIZ;
  SvREADONLY_on(sv);
 
- hv_store(MY_CXT.wizz, buf, sprintf(buf, "%u", sig), sv, 0);
- ++MY_CXT.count;
+ hv_store(MY_CXT, buf, sprintf(buf, "%u", sig), sv, 0);
 
  RETVAL = newRV_noinc(sv);
 OUTPUT:
@@ -995,7 +995,7 @@ SV *gensig()
 PROTOTYPE:
 CODE:
  dMY_CXT;
- if (MY_CXT.count >= SIG_NBR) { croak(vmg_toomanysigs); }
+ if (HvKEYS(MY_CXT) >= SIG_NBR) { croak(vmg_toomanysigs); }
  RETVAL = newSVuv(vmg_gensig());
 OUTPUT:
  RETVAL
