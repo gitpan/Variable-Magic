@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Variable-Magic
-version:             0.21_01
+version:             0.21_02
 abstract:            Associate user-defined magic to variables from Perl.
 license:             perl
 author:              

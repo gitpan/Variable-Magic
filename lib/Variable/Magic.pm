@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.21_01
+Version 0.21_02
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.21_01';
+ $VERSION = '0.21_02';
 }
 
 =head1 SYNOPSIS

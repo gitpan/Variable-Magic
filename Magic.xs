@@ -548,6 +548,12 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  /* So that it can survive tmp cleanup in vmg_cb_call */
  SvREFCNT_inc(sv);
+#if !VMG_HAS_PERL_AND(32686, 5, 11, 0)
+ /* The previous magic tokens were freed but the magic chain wasn't updated, so
+  * if you access the sv from the callback the old deleted magics will trigger
+  * and cause memory misreads. Change 32686 solved it that way : */
+ SvMAGIC_set(sv, mg);
+#endif
  /* Perl_mg_free will get rid of the magic and decrement mg->mg_obj and
   * mg->mg_ptr reference count */
  return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_free, sv, mg->mg_obj);

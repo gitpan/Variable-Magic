@@ -1,5 +1,9 @@
 Revision history for Variable-Magic
 
+0.21_02 2008-09-28 23:10 UTC
+        + Fix : Hide previously deleted magic tokens in vmg_svt_free (Yuval
+                Kogman).
+
 0.21_01 2008-09-22 13:25 UTC
         + Chg : Shrink the context data.
         + Fix : Enable thread safety features for perls that just lack
