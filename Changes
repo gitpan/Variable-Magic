@@ -1,5 +1,10 @@
 Revision history for Variable-Magic
 
+0.22    2008-09-29 19:40 UTC
+        + Doc : Explain how magic differs from overloading.
+        + Fix : Disable thread safety for perl 5.8 on Windows. If you want it
+                enabled, reliable feedback is welcome.
+
 0.21_02 2008-09-28 23:10 UTC
         + Fix : Hide previously deleted magic tokens in vmg_svt_free (Yuval
                 Kogman).

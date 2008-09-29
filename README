@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.21_02
+    Version 0.22
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -16,10 +16,26 @@ SYNOPSIS
 
 DESCRIPTION
     Magic is Perl way of enhancing objects. This mechanism let the user add
-    extra data to any variable and overload syntaxical operations (such as
+    extra data to any variable and hook syntaxical operations (such as
     access, assignation or destruction) that can be applied to it. With this
     module, you can add your own magic to any variable without the pain of
     the C API.
+
+    Magic differs from tieing and overloading in several ways :
+
+    *   Magic isn't copied on assignation (as for blessed references) : you
+        attach it to variables, not values.
+
+    *   It doesn't replace the original semantics : magic callbacks trigger
+        before the original action take place, and can't prevent it to
+        happen.
+
+    *   It's mostly invisible at the Perl level : magical and non-magical
+        variables cannot be distinguished with "ref", "reftype" or another
+        trick.
+
+    *   It's notably faster, since perl's way of handling magic is lighter
+        by nature, and there's no need for any method resolution.
 
     The operations that can be overloaded are :
 

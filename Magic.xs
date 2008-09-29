@@ -38,13 +38,15 @@
 # define dNOOP
 #endif
 
-#if defined(MULTIPLICITY) || defined(PERL_IMPLICIT_CONTEXT)
-# define VMG_MULTIPLICITY 1
-# ifndef tTHX
-#  define tTHX PerlInterpreter*
+#ifndef VMG_MULTIPLICITY
+# if defined(MULTIPLICITY) || defined(PERL_IMPLICIT_CONTEXT)
+#  define VMG_MULTIPLICITY 1
+# else
+#  define VMG_MULTIPLICITY 0
 # endif
-#else
-# define VMG_MULTIPLICITY 0
+#endif
+#if VMG_MULTIPLICITY && !defined(tTHX)
+# define tTHX PerlInterpreter*
 #endif
 
 #if VMG_MULTIPLICITY && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))

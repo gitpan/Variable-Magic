@@ -37,6 +37,11 @@ if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.9.0) {
 }
 print $is_as ? "yes\n" : "no\n";
 
+# Threads, Windows and 5.8.x don't seem to be best friends
+if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+ push @DEFINES, '-DVMG_MULTIPLICITY=0';
+}
+
 @DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
 
 my $BUILD_REQUIRES = {

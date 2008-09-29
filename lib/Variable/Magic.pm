@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.21_02
+Version 0.22
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.21_02';
+ $VERSION = '0.22';
 }
 
 =head1 SYNOPSIS
@@ -35,7 +35,29 @@ BEGIN {
 
 =head1 DESCRIPTION
 
-Magic is Perl way of enhancing objects. This mechanism let the user add extra data to any variable and overload syntaxical operations (such as access, assignation or destruction) that can be applied to it. With this module, you can add your own magic to any variable without the pain of the C API.
+Magic is Perl way of enhancing objects. This mechanism let the user add extra data to any variable and hook syntaxical operations (such as access, assignation or destruction) that can be applied to it. With this module, you can add your own magic to any variable without the pain of the C API.
+
+Magic differs from tieing and overloading in several ways :
+
+=over 4
+
+=item *
+
+Magic isn't copied on assignation (as for blessed references) : you attach it to variables, not values.
+
+=item *
+
+It doesn't replace the original semantics : magic callbacks trigger before the original action take place, and can't prevent it to happen.
+
+=item *
+
+It's mostly invisible at the Perl level : magical and non-magical variables cannot be distinguished with C<ref>, C<reftype> or another trick.
+
+=item *
+
+It's notably faster, since perl's way of handling magic is lighter by nature, and there's no need for any method resolution.
+
+=back
 
 The operations that can be overloaded are :
 
