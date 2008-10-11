@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.22
+Version 0.23
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.22';
+ $VERSION = '0.23';
 }
 
 =head1 SYNOPSIS
@@ -407,7 +407,7 @@ L<perltie> and L<overload> for other ways of enhancing objects.
 
 Vincent Pit, C<< <perl at profvince.com> >>, L<http://www.profvince.com>.
 
-You can contact me by mail or on #perl @ FreeNode (vincent or Prof_Vince).
+You can contact me by mail or on C<irc.perl.org> (vincent).
 
 =head1 BUGS
 

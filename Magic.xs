@@ -72,7 +72,7 @@
 # define MY_CXT_CLONE NOOP
 #endif
 
-#if VMG_MULTIPLICITY
+#if VMG_THREADSAFE
 
 STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #define vmg_clone(P, O) vmg_clone(aTHX_ (P), (O))
@@ -83,7 +83,7 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
  return sv_dup(sv, &param);
 }
 
-#endif /* VMG_MULTIPLICITY */
+#endif /* VMG_THREADSAFE */
 
 /* --- Compatibility ------------------------------------------------------- */
 
@@ -318,7 +318,7 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  if (w->cb_copy)
   mg->mg_flags |= MGf_COPY;
 #endif /* MGf_COPY */
-#if MGf_DUP
+#if 0 /* MGf_DUP */
  if (w->cb_dup)
   mg->mg_flags |= MGf_DUP;
 #endif /* MGf_DUP */
@@ -677,7 +677,7 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
 #if MGf_COPY
  if (w->cb_copy  != NULL) { SvREFCNT_dec(SvRV(w->cb_copy)); }
 #endif /* MGf_COPY */
-#if MGf_DUP
+#if 0 /* MGf_DUP */
  if (w->cb_dup   != NULL) { SvREFCNT_dec(SvRV(w->cb_dup)); }
 #endif /* MGf_DUP */
 #if MGf_LOCAL
@@ -800,7 +800,7 @@ STATIC SV *vmg_wizard_wiz(pTHX_ SV *wiz) {
   w->cb_  ## N = NULL;                \
  }
 
-#if VMG_MULTIPLICITY
+#if VMG_THREADSAFE
 
 #define VMG_CLONE_CB(N) \
  z->cb_ ## N = (w->cb_ ## N) ? newRV_noinc(vmg_clone(SvRV(w->cb_ ## N), \
@@ -845,7 +845,7 @@ STATIC MGWIZ *vmg_wizard_clone(pTHX_ const MGWIZ *w) {
  return z;
 }
 
-#endif /* VMG_MULTIPLICITY */
+#endif /* VMG_THREADSAFE */
 
 /* --- XS ------------------------------------------------------------------ */
 

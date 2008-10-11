@@ -1,5 +1,8 @@
 Revision history for Variable-Magic
 
+0.23    2008-10-11 17:25 UTC
+        + Fix : Building on perls with multiplicity but not ithreads.
+
 0.22    2008-09-29 19:40 UTC
         + Doc : Explain how magic differs from overloading.
         + Fix : Disable thread safety for perl 5.8 on Windows. If you want it
