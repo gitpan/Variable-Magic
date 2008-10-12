@@ -1,5 +1,8 @@
 Revision history for Variable-Magic
 
+0.24    2008-10-12 14:55 UTC
+        + Fix : Really fix it.
+
 0.23    2008-10-11 17:25 UTC
         + Fix : Building on perls with multiplicity but not ithreads.
 

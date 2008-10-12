@@ -49,7 +49,7 @@
 # define tTHX PerlInterpreter*
 #endif
 
-#if VMG_MULTIPLICITY && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))
+#if VMG_MULTIPLICITY && defined(USE_ITHREADS) && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))
 # define VMG_THREADSAFE 1
 # ifndef MY_CXT_CLONE
 #  define MY_CXT_CLONE \
