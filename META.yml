@@ -1,19 +1,25 @@
 --- #YAML:1.0
-name:                Variable-Magic
-version:             0.24
-abstract:            Associate user-defined magic to variables from Perl.
-license:             perl
-author:              
+name:               Variable-Magic
+version:            0.25
+abstract:           Associate user-defined magic to variables from Perl.
+author:
     - Vincent Pit <perl@profvince.com>
-generated_by:        ExtUtils::MakeMaker version 6.42
-distribution_type:   module
-requires:     
-    Carp:                          0
-    Exporter:                      0
-    XSLoader:                      0
+license:            perl
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+requires:
+    Carp:      0
+    Exporter:  0
+    XSLoader:  0
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.48
 meta-spec:
-    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
-    version: 1.3
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4
 build_requires:
     Config:                        0
     ExtUtils::MakeMaker:           0

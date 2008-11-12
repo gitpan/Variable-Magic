@@ -1,5 +1,10 @@
 Revision history for Variable-Magic
 
+0.25    2008-11-12 19:40 UTC
+        + Fix : Compatibility with 5.8.9.
+        + Fix : Old Pod::Coverage don't ignore CLONE.
+        + Upd : META.yml spec updated to 1.4.
+
 0.24    2008-10-12 14:55 UTC
         + Fix : Really fix it.
 

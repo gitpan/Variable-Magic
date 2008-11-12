@@ -23,8 +23,8 @@ if (defined $pl && length $pl) {
 }
 
 my $is_as = 0;
-print "Checking if this is Windows ActiveState 5.8.x... ";
-if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.9.0) {
+print "Checking if this is Windows ActiveState 5.8.[78]... ";
+if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.8.9) {
  eval {
   require Win32;
   1;

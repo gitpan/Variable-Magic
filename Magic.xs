@@ -12,10 +12,6 @@
 
 #define __PACKAGE__ "Variable::Magic"
 
-#define PERL_VERSION_GE(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
-
-#define PERL_VERSION_LE(R, V, S) (PERL_REVISION < (R) || (PERL_REVISION == (R) && (PERL_VERSION < (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION <= (S))))))
-
 #ifndef VMG_PERL_PATCHLEVEL
 # ifdef PERL_PATCHNUM
 #  define VMG_PERL_PATCHLEVEL PERL_PATCHNUM
@@ -24,9 +20,11 @@
 # endif
 #endif
 
-#define VMG_HAS_PERL_OR(P, R, V, S) ((VMG_PERL_PATCHLEVEL >= (P)) || (!VMG_PERL_PATCHLEVEL && PERL_VERSION_GE((R), (V), (S))))
+#define VMG_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
 
-#define VMG_HAS_PERL_AND(P, R, V, S) (PERL_VERSION_GE((R), (V), (S)) && (!VMG_PERL_PATCHLEVEL || (VMG_PERL_PATCHLEVEL >= (P))))
+#define VMG_HAS_PERL_BRANCH(R, V, S) (PERL_REVISION == (R) && PERL_VERSION == (V) && PERL_SUBVERSION >= (S))
+
+#define VMG_HAS_PERL_MAINT(R, V, S, P) (PERL_REVISION == (R) && PERL_VERSION == (V) && (VMG_PERL_PATCHLEVEL >= (P) || (!VMG_PERL_PATCHLEVEL && PERL_SUBVERSION >= (S))))
 
 /* --- Threads and multiplicity -------------------------------------------- */
 
@@ -116,26 +114,26 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #endif
 
 /* uvar magic and Hash::Util::FieldHash were commited with p28419 */
-#if VMG_HAS_PERL_AND(28419, 5, 9, 4)
+#if VMG_HAS_PERL_MAINT(5, 9, 4, 28419) || VMG_HAS_PERL(5, 10, 0)
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
 #endif
 
-#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && VMG_HAS_PERL_OR(25854, 5, 9, 3)
+#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && (VMG_HAS_PERL_BRANCH(5, 8, 9) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0))
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
 #endif
 
 /* since 5.9.5 - see #43357 */
-#if VMG_HAS_PERL_OR(31473, 5, 9, 5)
+#if VMG_HAS_PERL_BRANCH(5, 8, 9) || VMG_HAS_PERL_MAINT(5, 9, 5, 31473) || VMG_HAS_PERL(5, 10, 0)
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
 #else
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
 #endif
 
-#if VMG_HAS_PERL_OR(32969, 5, 11, 0)
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 32969)
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
 #else
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
@@ -250,10 +248,10 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
 
  if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
  nsv = POPs;
-#if PERL_VERSION_LE(5, 8, 2)
- nsv = sv_newref(nsv); /* Workaround some bug in SvREFCNT_inc() */
-#else
+#if VMG_HAS_PERL(5, 8, 3)
  SvREFCNT_inc(nsv);    /* Or it will be destroyed in FREETMPS */
+#else
+ nsv = sv_newref(nsv); /* Workaround some bug in SvREFCNT_inc() */
 #endif
 
  PUTBACK;
@@ -550,7 +548,7 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  /* So that it can survive tmp cleanup in vmg_cb_call */
  SvREFCNT_inc(sv);
-#if !VMG_HAS_PERL_AND(32686, 5, 11, 0)
+#if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
  /* The previous magic tokens were freed but the magic chain wasn't updated, so
   * if you access the sv from the callback the old deleted magics will trigger
   * and cause memory misreads. Change 32686 solved it that way : */
@@ -563,7 +561,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 
 #if MGf_COPY
 STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
-# if VMG_HAS_PERL_AND(33256, 5, 11, 0)
+# if VMG_HAS_PERL_MAINT(5, 11, 0, 33256)
   I32 keylen
 # else
   int keylen
