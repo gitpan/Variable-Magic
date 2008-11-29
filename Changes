@@ -1,5 +1,9 @@
 Revision history for Variable-Magic
 
+0.26    2008-11-29 22:05 UTC
+        + Fix : Leaks of cloned coderefs that access lexicals.
+        + Fix : Building with maint-5.8 and blead (thanks Andreas Koenig).
+
 0.25    2008-11-12 19:40 UTC
         + Fix : Compatibility with 5.8.9.
         + Fix : Old Pod::Coverage don't ignore CLONE.

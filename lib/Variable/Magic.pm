@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.25
+Version 0.26
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.25';
+ $VERSION = '0.26';
 }
 
 =head1 SYNOPSIS
@@ -161,6 +161,14 @@ I<p14416> : 'copy' and 'dup' magic.
 
 =item *
 
+B<5.8.9>
+
+I<p28160> : Integration of I<p25854> (see below).
+
+I<p32542> : Integration of I<p31473> (see below).
+
+=item *
+
 B<5.9.3>
 
 I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
@@ -186,6 +194,8 @@ Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magi
 B<5.11.x>
 
 I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
+
+I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context. The C<push> part was already covered by I<p25854>.
 
 =back
 
@@ -222,6 +232,10 @@ When this constant is true, you can use the C<fetch,store,exists,delete> callbac
 =head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
 
 True for perls that don't call 'len' magic when you push an element in a magical array.
+
+=head2 C<VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID>
+
+True for perls that don't call 'len' magic when you unshift in void context an element in a magical array.
 
 =head2 C<VMG_COMPAT_ARRAY_UNDEF_CLEAR>
 
@@ -369,7 +383,7 @@ our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
  'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
-               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
                qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
                qw/VMG_PERL_PATCHLEVEL/,
                qw/VMG_THREADSAFE/ ]

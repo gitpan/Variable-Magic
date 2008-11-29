@@ -113,21 +113,29 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define MGf_LOCAL 0
 #endif
 
-/* uvar magic and Hash::Util::FieldHash were commited with p28419 */
+/* uvar magic and Hash::Util::FieldHash were commited with 28419 */
 #if VMG_HAS_PERL_MAINT(5, 9, 4, 28419) || VMG_HAS_PERL(5, 10, 0)
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
 #endif
 
-#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && (VMG_HAS_PERL_BRANCH(5, 8, 9) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0))
+/* Applied to dev-5.9 as 25854, integrated to maint-5.8 as 28160 */
+#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && (VMG_HAS_PERL_MAINT(5, 8, 9, 28160) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0))
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
 #else
 # define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
 #endif
 
-/* since 5.9.5 - see #43357 */
-#if VMG_HAS_PERL_BRANCH(5, 8, 9) || VMG_HAS_PERL_MAINT(5, 9, 5, 31473) || VMG_HAS_PERL(5, 10, 0)
+/* Applied to dev-5.11 as 34908 */
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 34908)
+# define VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID 1
+#else
+# define VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID 0
+#endif
+
+/* Applied to dev-5.9 as 31473 (see #43357), integrated to maint-5.8 as 32542 */
+#if VMG_HAS_PERL_MAINT(5, 8, 9, 32542) || VMG_HAS_PERL_MAINT(5, 9, 5, 31473) || VMG_HAS_PERL(5, 10, 0)
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 1
 #else
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
@@ -801,8 +809,8 @@ STATIC SV *vmg_wizard_wiz(pTHX_ SV *wiz) {
 #if VMG_THREADSAFE
 
 #define VMG_CLONE_CB(N) \
- z->cb_ ## N = (w->cb_ ## N) ? newRV_noinc(vmg_clone(SvRV(w->cb_ ## N), \
-                                           w->owner))                   \
+ z->cb_ ## N = (w->cb_ ## N) ? newRV_inc(vmg_clone(SvRV(w->cb_ ## N), \
+                                         w->owner))                   \
                              : NULL;
 
 STATIC MGWIZ *vmg_wizard_clone(pTHX_ const MGWIZ *w) {
@@ -867,6 +875,8 @@ BOOT:
  newCONSTSUB(stash, "VMG_UVAR",  newSVuv(VMG_UVAR));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN",
                     newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
+ newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID",
+                    newSVuv(VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNDEF_CLEAR",
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
  newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",

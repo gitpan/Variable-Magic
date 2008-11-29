@@ -26,7 +26,6 @@ if (VMG_THREADSAFE) {
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
  diag "Using threads::shared $v" if defined $v;
- diag 'This will leak a few scalars';
 } else {
  plan skip_all => 'This Variable::Magic isn\'t thread safe';
 }

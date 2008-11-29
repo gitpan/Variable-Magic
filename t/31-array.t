@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 21;
+use Test::More tests => 24;
 
-use Variable::Magic qw/wizard cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
+use Variable::Magic qw/wizard cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
 
 my @c = (0) x 12;
 my @x = (0) x 12;
@@ -66,15 +66,23 @@ check('array : assign new element');
 
 push @a, 'x';
 ++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
-check('array : push');
+check('array : push (void)');
+
+$b = push @a, 'x';
+++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
+check('array : push (scalar)');
 
 pop @a;
 ++$x[1]; ++$x[2];
 check('array : pop');
 
 unshift @a, 'x';
+++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID;
+check('array : unshift (void)');
+
+$b = unshift @a, 'x';
 ++$x[1]; ++$x[2];
-check('array : unshift');
+check('array : unshift (scalar)');
 
 shift @a;
 ++$x[1]; ++$x[2];
@@ -82,10 +90,14 @@ check('array : shift');
 
 $b = @a;
 ++$x[2];
-check('array : length');
+check('array : length @');
+
+$b = $#a;
+++$x[2];
+check('array : length $#');
 
 @a = map ord, @a; 
-$x[1] += 4; ++$x[2]; ++$x[3];
+$x[1] += 6; ++$x[2]; ++$x[3];
 check('array : map');
 
 @b = grep { defined && $_ >= ord('b') } @a;
@@ -93,7 +105,7 @@ check('array : map');
 check('array : grep');
 
 for (@a) { }
-$x[2] += 5;
+$x[2] += 7;
 check('array : for');
 
 {

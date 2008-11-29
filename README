@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.25
+    Version 0.26
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -123,6 +123,12 @@ PERL MAGIC HISTORY
 
         *p14416* : 'copy' and 'dup' magic.
 
+    *   5.8.9
+
+        *p28160* : Integration of *p25854* (see below).
+
+        *p32542* : Integration of *p31473* (see below).
+
     *   5.9.3
 
         *p25854* : 'len' magic is no longer called when pushing an element
@@ -147,6 +153,10 @@ PERL MAGIC HISTORY
 
         *p32969* : 'len' magic is no longer invoked when calling "length"
         with a magical scalar.
+
+        *p34908* : 'len' magic is no longer called when pushing / unshifting
+        an element into a magical array in void context. The "push" part was
+        already covered by *p25854*.
 
 CONSTANTS
   "SIG_MIN"
@@ -174,6 +184,10 @@ CONSTANTS
   "VMG_COMPAT_ARRAY_PUSH_NOLEN"
     True for perls that don't call 'len' magic when you push an element in a
     magical array.
+
+  "VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID"
+    True for perls that don't call 'len' magic when you unshift in void
+    context an element in a magical array.
 
   "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
     True for perls that call 'clear' magic when undefining magical arrays.
