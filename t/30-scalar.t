@@ -3,81 +3,46 @@
 use strict;
 use warnings;
 
-use Test::More tests => 13;
+use Test::More tests => 2 * 14 + 2 + 1;
 
-use Variable::Magic qw/wizard cast dispell/;
+use Variable::Magic qw/cast dispell/;
 
-my @c = (0) x 12;
-my @x = (0) x 12;
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
 
-sub check {
- is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
-    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
-    $_[0];
-}
-
-my $i = -1;
-my $wiz = wizard get   => sub { ++$c[0] },
-                 set   => sub { ++$c[1] },
-                 len   => sub { ++$c[2] },
-                 clear => sub { ++$c[3] },
-                 free  => sub { ++$c[4] },
-                 copy  => sub { ++$c[5] },
-                 dup   => sub { ++$c[6] },
-                 local => sub { ++$c[7] },
-                 fetch => sub { ++$c[8] },
-                 store => sub { ++$c[9] },
-                 'exists' => sub { ++$c[10] },
-                 'delete' => sub { ++$c[11] };
-check('scalar : create wizard');
+my $wiz = init
+        [ qw/get set len clear free copy dup local fetch store exists delete/ ],
+        'scalar';
 
 my $n = int rand 1000;
 my $a = $n;
 
-cast $a, $wiz;
-check('scalar : cast');
+check { cast $a, $wiz } { }, 'cast';
 
-my $b = $a;
-++$x[0];
-check('scalar : assign to');
+my $b;
+check { $b = $a } { get => 1 }, 'assign to';
+is $b, $n, 'scalar: assign to correctly';
 
-$b = "X${a}Y";
-++$x[0];
-check('scalar : interpolate');
+check { $b = "X${a}Y" } { get => 1 }, 'interpolate';
+is $b, "X${n}Y", 'scalar: interpolate correctly';
 
-$b = \$a;
-check('scalar : reference');
+check { $b = \$a } { }, 'reference';
 
-$a = 123;
-++$x[1];
-check('scalar : assign');
+check { $a = 123; () } { set => 1 }, 'assign to';
 
-++$a;
-++$x[0]; ++$x[1];
-check('scalar : increment');
+check { ++$a; () } { get => 1, set => 1 }, 'increment';
 
---$a;
-++$x[0]; ++$x[1];
-check('scalar : decrement');
+check { --$a; () } { get => 1, set => 1 }, 'decrement';
 
-$a *= 1.5;
-++$x[0]; ++$x[1];
-check('scalar : multiply');
+check { $a *= 1.5; () } { get => 1, set => 1 }, 'multiply in place';
 
-$a /= 1.5;
-++$x[0]; ++$x[1];
-check('scalar : divide');
+check { $a /= 1.5; () } { get => 1, set => 1 }, 'divide in place';
 
-{
+check {
  my $b = $n;
- cast $b, $wiz;
-}
-++$x[4];
-check('scalar : scope end');
+ check { cast $b, $wiz } { }, 'cast 2';
+} { free => 1 }, 'scope end';
 
-undef $a;
-++$x[1];
-check('scalar : undef');
+check { undef $a } { set => 1 }, 'undef';
 
-dispell $a, $wiz;
-check('scalar : dispell');
+check { dispell $a, $wiz } { }, 'dispell';

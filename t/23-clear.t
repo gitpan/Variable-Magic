@@ -3,28 +3,25 @@
 use strict;
 use warnings;
 
-use Test::More tests => 7;
+use Test::More tests => 2 * 5 + 2 + 1;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw/cast/;
 
-my $c = 0;
-my $wiz = wizard clear => sub { ++$c };
-is($c, 0, 'clear : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init 'clear', 'clear';
 
 my @a = qw/a b c/;
 
-cast @a, $wiz;
-is($c, 0, 'clear : cast array');
+check { cast @a, $wiz } { }, 'cast array';
 
-@a = ();
-is($c, 1,          'clear : clear array');
-ok(!defined $a[0], 'clear : clear array correctly');
+check { @a = () } { clear => 1 }, 'clear array';
+is_deeply \@a, [ ], 'clear: clear array correctly';
 
 my %h = (foo => 1, bar => 2);
 
-cast %h, $wiz;
-is($c, 1, 'clear : cast hash');
+check { cast %h, $wiz } { }, 'cast hash';
 
-%h = ();
-is($c, 2,      'clear : clear hash');
-ok(!(keys %h), 'clear : clear hash correctly');
+check { %h = () } { clear => 1 }, 'clear hash';
+is_deeply \%h, { }, 'clear: clear hash correctly';

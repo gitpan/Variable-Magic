@@ -60,6 +60,21 @@ sub build_req {
  return $build_req;
 }
 
+my $RESOURCES = {
+ 'repository' => 'http://git.profvince.com/perl/modules/Variable-Magic.git',
+ 'bugtracker' => 'http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic',
+};
+
+sub resources {
+ my $tometa = ' >> $(DISTVNAME)/META.yml;';
+ my $build_req = 'echo "resources:" ' . $tometa;
+ foreach my $res ( sort { lc $a cmp lc $b } keys %$RESOURCES ) {
+  my $val = $RESOURCES->{$res};
+  $build_req .= sprintf 'echo "    %-15s %s" %s', "$res:", $val, $tometa;
+ }
+ return $build_req;
+}
+
 WriteMakefile(
     NAME          => 'Variable::Magic',
     AUTHOR        => 'Vincent Pit <perl@profvince.com>',
@@ -75,7 +90,7 @@ WriteMakefile(
     },
     dist          => { 
         PREOP      => 'pod2text lib/Variable/Magic.pm > $(DISTVNAME)/README; '
-                      . build_req,
+                      . build_req . resources,
         COMPRESS   => 'gzip -9f', SUFFIX => 'gz'
     },
     clean         => { FILES => 'Variable-Magic-* *.gcov *.gcda *.gcno cover_db Debian_CPANTS.txt' },

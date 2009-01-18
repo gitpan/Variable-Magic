@@ -15,10 +15,17 @@ eval "use Hash::Util::FieldHash";
 if ($@) {
  plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction';
 } else {
- plan tests => 12;
+ plan tests => 2 * 5 + 7 + 1;
  my $v = $Hash::Util::FieldHash::VERSION;
  diag "Using Hash::Util::FieldHash $v" if defined $v;
 }
+
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init [ qw/fetch store/ ], 'huf';
+ok defined($wiz),       'huf: wizard with uvar is defined';
+is ref($wiz), 'SCALAR', 'huf: wizard with uvar is a scalar ref';
 
 Hash::Util::FieldHash::fieldhash(\my %h);
 
@@ -26,29 +33,20 @@ my $obj = { };
 bless $obj, 'Variable::Magic::Test::Mock';
 $h{$obj} = 5;
 
-my ($w, $c) = (undef, 0);
+my ($res) = check { cast %h, $wiz } { }, 'cast uvar magic on fieldhash';
+ok $res, 'huf: cast uvar magic on fieldhash succeeded';
 
-eval { $w = wizard fetch => sub { ++$c }, store => sub { --$c } };
-is($@, '',           'wizard with uvar doesn\'t croak');
-ok(defined $w,       'wizard with uvar is defined');
-is(ref $w, 'SCALAR', 'wizard with uvar is a scalar ref');
+my ($s) = check { $h{$obj} } { fetch => 1 }, 'fetch on magical fieldhash';
+is $s, 5, 'huf: fetch on magical fieldhash succeeded';
 
-my $res = eval { cast %h, $w };
-is($@, '', 'cast uvar magic on fieldhash doesn\'t croak');
-ok($res,   'cast uvar magic on fieldhash is valid');
+check { $h{$obj} = 7 } { store => 1 }, 'store on magical fieldhash';
+is $h{$obj}, 7, 'huf: store on magical fieldhash succeeded';
 
-my $s = $h{$obj};
-is($s, 5, 'fetch magic on fieldhash doesn\'t clobber');
-is($c, 1, 'fetch magic on fieldhash');
-
-$h{$obj} = 7;
-is($c, 0,       'store magic on fieldhash');
-is($h{$obj}, 7, 'store magic on fieldhash doesn\'t clobber'); # $c == 1
-
-$res = eval { dispell %h, $w };
-is($@, '', 'dispell uvar magic on fieldhash doesn\'t croak');
-ok($res,   'dispell uvar magic on fieldhash is valid');
+($res) = check { dispell %h, $wiz } { }, 'dispell uvar magic on fieldhash';
+ok $res, 'huf: dispell uvar magic on fieldhash succeeded';
 
 $h{$obj} = 11;
 $s = $h{$obj};
-is($s, 11, 'store/fetch on fieldhash after dispell still ok');
+is $s, 11, 'huf: store/fetch on fieldhash after dispell still ok';
+
+$Variable::Magic::TestWatcher::mg_end = { fetch => 1 };

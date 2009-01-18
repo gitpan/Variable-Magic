@@ -113,6 +113,10 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define MGf_LOCAL 0
 #endif
 
+#ifndef IN_PERL_COMPILETIME
+# define IN_PERL_COMPILETIME (PL_curcop == &PL_compiling)
+#endif
+
 /* uvar magic and Hash::Util::FieldHash were commited with 28419 */
 #if VMG_HAS_PERL_MAINT(5, 9, 4, 28419) || VMG_HAS_PERL(5, 10, 0)
 # define VMG_UVAR 1
@@ -121,10 +125,12 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #endif
 
 /* Applied to dev-5.9 as 25854, integrated to maint-5.8 as 28160 */
-#if !defined(VMG_COMPAT_ARRAY_PUSH_NOLEN) && (VMG_HAS_PERL_MAINT(5, 8, 9, 28160) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0))
-# define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
-#else
-# define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
+#ifndef VMG_COMPAT_ARRAY_PUSH_NOLEN
+# if VMG_HAS_PERL_MAINT(5, 8, 9, 28160) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0)
+#  define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
+# else
+#  define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
+# endif
 #endif
 
 /* Applied to dev-5.11 as 34908 */
@@ -155,7 +161,6 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
  const MAGIC* mg;
  sv_magic(sv, NULL, PERL_MAGIC_uvar, uf, len);
  /* uvar magic has set and get magic, hence this has set SVs_GMG and SVs_SMG. */
- PERL_UNUSED_CONTEXT;
  if ((mg = SvMAGIC(sv))) {
   SvRMAGICAL_off(sv);
   do {
@@ -236,6 +241,7 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
 #define vmg_data_new(C, S, A) vmg_data_new(aTHX_ (C), (S), (A))
  SV *nsv;
  I32 i, alen = (args == NULL) ? 0 : av_len(args);
+ I32 flags = G_SCALAR;
 
  dSP;
  int count;
@@ -250,7 +256,10 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
   PUSHs(*av_fetch(args, i, 0));
  PUTBACK;
 
- count = call_sv(ctor, G_SCALAR);
+ if (IN_PERL_COMPILETIME)
+  flags |= G_EVAL | G_KEEPERR;
+
+ count = call_sv(ctor, flags);
 
  SPAGAIN;
 
@@ -462,6 +471,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
  SV *svr;
  int ret;
  unsigned int i;
+ I32 flags = G_SCALAR;
 
  dSP;
  int count;
@@ -481,7 +491,10 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
  va_end(ap);
  PUTBACK;
 
- count = call_sv(cb, G_SCALAR);
+ if (IN_PERL_COMPILETIME)
+  flags |= G_EVAL | G_KEEPERR;
+
+ count = call_sv(cb, flags);
 
  SPAGAIN;
 
@@ -511,11 +524,14 @@ STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SV *svr;
- I32 len;
+ I32 len, has_array;
  U32 ret;
+ I32 flags = G_SCALAR;
 
  dSP;
  int count;
+
+ has_array = SvTYPE(sv) == SVt_PVAV;
 
  ENTER;
  SAVETMPS;
@@ -524,16 +540,19 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  EXTEND(SP, 3);
  PUSHs(sv_2mortal(newRV_inc(sv)));
  PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
- if (SvTYPE(sv) == SVt_PVAV) {
+ if (has_array) {
   len = av_len((AV *) sv) + 1;
   mPUSHi(len);
  } else {
-  len = 1;
+  len = 0;
   PUSHs(&PL_sv_undef);
  }
  PUTBACK;
 
- count = call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, G_SCALAR);
+ if (IN_PERL_COMPILETIME)
+  flags |= G_EVAL | G_KEEPERR;
+
+ count = call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, flags);
 
  SPAGAIN;
 
@@ -546,7 +565,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  FREETMPS;
  LEAVE;
 
- return ret - 1;
+ return has_array ? ret - 1 : ret;
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {

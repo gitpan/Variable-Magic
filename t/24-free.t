@@ -3,24 +3,24 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4;
+use Test::More tests => 2 * 5 + 1;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw/cast/;
 
-my $c = 0;
-my $wiz = wizard free => sub { ++$c };
-is($c, 0, 'free : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init 'free', 'free';
 
 my $n = int rand 1000;
 
-{
+check {
  my $a = $n;
-
- cast $a, $wiz;
- is($c, 0, 'free : cast');
-}
-is($c, 1, 'free : deletion at the end of the scope');
+ check { cast $a, $wiz } { }, 'cast';
+} { free => 1 }, 'deletion at the end of the scope';
 
 my $a = $n;
-undef $n;
-is($c, 1, 'free : explicit deletion with undef()');
+check { cast $a, $wiz } { }, 'cast 2';
+check { undef $a } { }, 'explicit deletion with undef()';
+
+$Variable::Magic::TestWatcher::mg_end = { free => 1 };

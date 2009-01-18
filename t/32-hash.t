@@ -3,102 +3,72 @@
 use strict;
 use warnings;
 
-use Test::More tests => 18;
+use Test::More tests => 2 * 18 + 5 + 1;
 
-use Variable::Magic qw/wizard cast dispell MGf_COPY VMG_UVAR/;
+use Variable::Magic qw/cast dispell MGf_COPY VMG_UVAR/;
 
-my @c = (0) x 12;
-my @x = (0) x 12;
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
 
-sub check {
- is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
-    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
-    $_[0];
-}
-
-my $wiz = wizard get   => sub { ++$c[0] },
-                 set   => sub { ++$c[1] },
-                 len   => sub { ++$c[2]; $_[2] },
-                 clear => sub { ++$c[3] },
-                 free  => sub { ++$c[4] },
-                 copy  => sub { ++$c[5] },
-                 dup   => sub { ++$c[6] },
-                 local => sub { ++$c[7] },
-                 fetch => sub { ++$c[8] },
-                 store => sub { ++$c[9] },
-                 'exists' => sub { ++$c[10] },
-                 'delete' => sub { ++$c[11] };
-check('hash : create wizard');
+my $wiz = init
+        [ qw/get set len free dup local fetch store exists delete/ ], # clear copy
+        'hash';
 
 my %n = map { $_ => int rand 1000 } qw/foo bar baz qux/;
-my %a = %n;
+my %h = %n;
 
-cast %a, $wiz;
-check('hash : cast');
+check { cast %h, $wiz } { }, 'cast';
 
-my $b = $a{foo};
-++$x[5] if MGf_COPY;
-++$x[8] if VMG_UVAR;
-check('hash : assign element to');
+my $s;
+check { $s = $h{foo} } +{ (fetch => 1) x VMG_UVAR },
+                       # (copy => 1) x MGf_COPY # if clear magic
+                       'assign element to';
+is $s, $n{foo}, 'hash: assign element to correctly';
 
-my %b = %a;
-check('hash : assign to');
+my %b;
+check { %b = %h } { }, 'assign to';
+is_deeply \%b, \%n, 'hash: assign to correctly';
 
-$b = "X%{a}Y";
-check('hash : interpolate');
+check { $s = \%h } { }, 'reference';
 
-$b = \%a;
-check('hash : reference');
+my @b;
+check { @b = @h{qw/bar qux/} }
+                  +{ (fetch => 2) x VMG_UVAR }, 'slice';
+                  # (copy => 2) x MGf_COPY # if clear magic
+is_deeply \@b, [ @n{qw/bar qux/} ], 'hash: slice correctly';
 
-my @b = @a{qw/bar qux/};
-$x[5] += 2 if MGf_COPY;
-$x[8] += 2 if VMG_UVAR;
-check('hash : slice');
+check { %h = (a => 1, d => 3); () }
+               +{ (store => 2) x VMG_UVAR },
+               # clear => 1, (copy => 2) x VMG_UVAR
+               'assign from list in void context';
 
-%a = (a => 1, d => 3);
-++$x[3];
-$x[5] += 2 if VMG_UVAR;
-$x[9] += 2 if VMG_UVAR;
-check('hash : assign from list');
+check { %h = map { $_ => 1 } qw/a b d/; }
+               +{ (exists => 3, store => 3) x VMG_UVAR },
+               # clear => 1, (copy => 3) x VMG_UVAR
+               'assign from map in list context';
 
-%a = map { $_ => 1 } qw/a b d/;
-++$x[3];
-$x[5] += 3 if VMG_UVAR;
-$x[9] += 3 if VMG_UVAR;
-check('hash : assign from map');
+check { $h{d} = 2; () } +{ (store => 1) x VMG_UVAR },
+                    'assign old element';
 
-$a{d} = 2;
-++$x[5] if MGf_COPY;
-++$x[9] if VMG_UVAR;
-check('hash : assign old element');
+check { $h{c} = 3; () } +{ (store => 1) x VMG_UVAR },
+                    # (copy => 1) x VMG_UVAR # maybe also if clear magic
+                    'assign new element';
 
-$a{c} = 3;
-++$x[5] if MGf_COPY;
-++$x[9] if VMG_UVAR;
-check('hash : assign new element');
+check { $s = %h } { }, 'buckets';
 
-$b = %a;
-check('hash : buckets');
+check { @b = keys %h } { }, 'keys';
+is_deeply [ sort @b ], [ qw/a b c d/ ], 'hash: keys correctly';
 
-@b = keys %a;
-check('hash : keys');
+check { @b = values %h } { }, 'values';
+is_deeply [ sort { $a <=> $b } @b ], [ 1, 1, 2, 3 ], 'hash: values correctly';
 
-@b = values %a;
-check('hash : values');
+check { while (my ($k, $v) = each %h) { } } { }, 'each';
 
-while (my ($k, $v) = each %a) { }
-check('hash : each');
-
-{
+check {
  my %b = %n;
- cast %b, $wiz;
-}
-++$x[4];
-check('hash : scope end');
+ check { cast %b, $wiz } { }, 'cast 2';
+} { free => 1 }, 'scope end';
 
-undef %a;
-++$x[3];
-check('hash : undef');
+check { undef %h } { }, 'undef'; # clear => 1
 
-dispell %a, $wiz;
-check('hash : dispel');
+check { dispell %h, $wiz } { }, 'dispell';

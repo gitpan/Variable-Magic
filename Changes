@@ -1,5 +1,12 @@
 Revision history for Variable-Magic
 
+0.27    2009-01-18 23:40 UTC
+        + Fix : Offset of 1 with len magic on scalars.
+        + Fix : Segfaults that seem to happen when one croak in a callback at
+                compile time (thanks Ash Berlin for the testcase).
+        + Upd : Resources in META.yml (Florian Ragwitz)
+        + Tst : Large cleanup resulting in a wider set of tested behaviours.
+
 0.26    2008-11-29 22:05 UTC
         + Fix : Leaks of cloned coderefs that access lexicals.
         + Fix : Building with maint-5.8 and blead (thanks Andreas Koenig).

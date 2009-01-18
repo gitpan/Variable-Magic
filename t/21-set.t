@@ -3,27 +3,26 @@
 use strict;
 use warnings;
 
-use Test::More tests => 8;
+use Test::More tests => 2 * 5 + 3 + 1;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw/cast/;
 
-my $c = 0;
-my $wiz = wizard set => sub { ++$c };
-is($c, 0, 'get : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init 'set', 'set';
 
 my $a = 0;
-cast $a, $wiz;
-is($c, 0, 'get : cast');
+
+check { cast $a, $wiz } { }, 'cast';
 
 my $n = int rand 1000;
-$a = $n;
-is($c, 1,  'set : assign');
-is($a, $n, 'set : assign correctly');
 
-++$a;
-is($c, 2,      'set : increment');
-is($a, $n + 1, 'set : increment correctly');
+check { $a = $n } { set => 1 }, 'assign';
+is $a, $n, 'set: assign correctly';
 
---$a;
-is($c, 3,  'set : decrement');
-is($a, $n, 'set : decrement correctly');
+check { ++$a } { set => 1 }, 'increment';
+is $a, $n + 1, 'set: increment correctly';
+
+check { --$a } { set => 1 }, 'decrement';
+is $a, $n, 'set: decrement correctly';

@@ -5,25 +5,22 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast MGf_LOCAL/;
+use Variable::Magic qw/cast MGf_LOCAL/;
 
 if (MGf_LOCAL) {
- plan tests => 5;
+ plan tests => 2 * 3 + 1 + 1;
 } else {
  plan skip_all => 'No local magic for this perl';
 }
 
-my $c = 0;
-my $wiz = wizard 'local' => sub { ++$c };
-is($c, 0, 'local : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
 
-local $a = int rand 1000;
-my $res = cast $a, $wiz;
-ok($res,  'local : cast succeeded');
-is($c, 0, 'local : cast didn\'t triggered the callback');
+my $wiz = init 'local', 'local';
 
-{
- local $a;
- is($c, 1, 'local : localized');
-}
-is($c, 1, 'local : end of local scope');
+our $a = int rand 1000;
+
+my $res = check { cast $a, $wiz } { }, 'cast';
+ok $res, 'local: cast succeeded';
+
+check { local $a } { local => 1 }, 'localized';

@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.26
+Version 0.27
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.26';
+ $VERSION = '0.27';
 }
 
 =head1 SYNOPSIS
@@ -35,7 +35,9 @@ BEGIN {
 
 =head1 DESCRIPTION
 
-Magic is Perl way of enhancing objects. This mechanism let the user add extra data to any variable and hook syntaxical operations (such as access, assignation or destruction) that can be applied to it. With this module, you can add your own magic to any variable without the pain of the C API.
+Magic is Perl way of enhancing objects.
+This mechanism let the user add extra data to any variable and hook syntaxical operations (such as access, assignation or destruction) that can be applied to it.
+With this module, you can add your own magic to any variable without the pain of the C API.
 
 Magic differs from tieing and overloading in several ways :
 
@@ -79,41 +81,50 @@ This one is triggered each time the value of the variable changes (includes arra
 
 C<len>
 
-This magic is a little special : it is called when the 'size' or the 'length' of the variable has to be known by Perl. Typically, it's the magic involved when an array is evaluated in scalar context, but also on array assignation and loops (C<for>, C<map> or C<grep>). The callback has then to return the length as an integer.
+This magic is a little special : it is called when the 'size' or the 'length' of the variable has to be known by Perl.
+Typically, it's the magic involved when an array is evaluated in scalar context, but also on array assignation and loops (C<for>, C<map> or C<grep>).
+The callback has then to return the length as an integer.
 
 =item *
 
 C<clear>
 
-This magic is invoked when the variable is reset, such as when an array is emptied. Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
+This magic is invoked when the variable is reset, such as when an array is emptied.
+Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
 
 =item *
 
 C<free>
 
-This one can be considered as an object destructor. It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
+This one can be considered as an object destructor.
+It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
 
 =item *
 
 C<copy>
 
-This magic only applies to tied arrays and hashes. It fires when you try to access or change their elements. It is available on your perl iff C<MGf_COPY> is true.
+This magic only applies to tied arrays and hashes.
+It fires when you try to access or change their elements.
+It is available on your perl iff C<MGf_COPY> is true.
 
 =item *
 
 C<dup>
 
-Invoked when the variable is cloned across threads. Currently not available.
+Invoked when the variable is cloned across threads.
+Currently not available.
 
 =item *
 
 C<local>
 
-When this magic is set on a variable, all subsequent localizations of the variable will trigger the callback. It is available on your perl iff C<MGf_LOCAL> is true.
+When this magic is set on a variable, all subsequent localizations of the variable will trigger the callback.
+It is available on your perl iff C<MGf_LOCAL> is true.
 
 =back
 
-The following actions only apply to hashes and are available iff C<VMG_UVAR> is true. They are referred to as C<uvar> magics.
+The following actions only apply to hashes and are available iff C<VMG_UVAR> is true.
+They are referred to as C<uvar> magics.
 
 =over 4
 
@@ -149,7 +160,8 @@ To prevent any clash between different magics defined with this module, an uniqu
 
 =head1 PERL MAGIC HISTORY
 
-The places where magic is invoked have changed a bit through perl history. Here's a little list of the most recent ones.
+The places where magic is invoked have changed a bit through perl history.
+Here's a little list of the most recent ones.
 
 =over 4
 
@@ -181,7 +193,8 @@ B<5.9.5>
 
 I<p31064> : Meaningful 'uvar' magic.
 
-I<p31473> : 'clear' magic wasn't invoked when undefining an array. The bug is fixed as of this version.
+I<p31473> : 'clear' magic wasn't invoked when undefining an array.
+The bug is fixed as of this version.
 
 =item *
 
@@ -195,7 +208,8 @@ B<5.11.x>
 
 I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
 
-I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context. The C<push> part was already covered by I<p25854>.
+I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context.
+The C<push> part was already covered by I<p25854>.
 
 =back
 
@@ -278,7 +292,8 @@ BEGIN {
            exists => sub { my ($ref, $data, $key) = @_; ... },
            delete => sub { my ($ref, $data, $key) = @_; ... }
 
-This function creates a 'wizard', an opaque type that holds the magic information. It takes a list of keys / values as argument, whose keys can be :
+This function creates a 'wizard', an opaque type that holds the magic information.
+It takes a list of keys / values as argument, whose keys can be :
 
 =over 4
 
@@ -286,19 +301,31 @@ This function creates a 'wizard', an opaque type that holds the magic informatio
 
 C<sig>
 
-The numerical signature. If not specified or undefined, a random signature is generated. If the signature matches an already defined magic, then the existant magic object is returned.
+The numerical signature.
+If not specified or undefined, a random signature is generated.
+If the signature matches an already defined magic, then the existant magic object is returned.
 
 =item *
 
 C<data>
 
-A code reference to a private data constructor. It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it. C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
+A code reference to a private data constructor.
+It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it.
+C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
 
 =item *
 
 C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
-Code references to corresponding magic callbacks. You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked. In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied). In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length. C<$_[2]> is the current key in C<copy>, C<fetch>, C<store>, C<exists> and C<delete> callbacks, although for C<copy> it may just be a copy of the actual key so it's useless to (for example) cast magic on it. C<copy> magic also receives the current element (i.e. the value) in C<$_[3]>.
+Code references to corresponding magic callbacks.
+You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked.
+In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied).
+In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length.
+C<$_[2]> is the current key in C<copy>, C<fetch>, C<store>, C<exists> and C<delete> callbacks, although for C<copy> it may just be a copy of the actual key so it's useless to (for example) cast magic on it.
+C<copy> magic also receives the current element (i.e. the value) in C<$_[3]>.
+
+All the callbacks are expected to return an integer, which is passed straight to the perl magic API.
+However, only the return value of the C<len> callback currently holds a meaning.
 
 =back
 
@@ -327,7 +354,8 @@ sub wizard {
 
 =head2 C<gensig>
 
-With this tool, you can manually generate random magic signature between SIG_MIN and SIG_MAX inclusive. That's the way L</wizard> creates them when no signature is supplied.
+With this tool, you can manually generate random magic signature between SIG_MIN and SIG_MAX inclusive.
+That's the way L</wizard> creates them when no signature is supplied.
 
     # Generate a signature
     my $sig = gensig;
@@ -345,7 +373,11 @@ This accessor returns the magic signature of this wizard.
 
     cast [$@%&*]var, [$wiz|$sig], ...
 
-This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic. You can also supply the numeric signature C<$sig> instead of C<$wiz>. It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied). All extra arguments specified after C<$wiz> are passed to the private data constructor. If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignored.
+This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic.
+You can also supply the numeric signature C<$sig> instead of C<$wiz>.
+It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
+All extra arguments specified after C<$wiz> are passed to the private data constructor.
+If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignored.
 
     # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
     my $x;
@@ -355,7 +387,8 @@ This function associates C<$wiz> magic to the variable supplied, without overwri
 
     getdata [$@%&*]var, [$wiz|$sig]
 
-This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable. C<undef> is returned when no such magic or data is found, or when C<$sig> does not represent a current valid magic object.
+This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable.
+C<undef> is returned when no such magic or data is found, or when C<$sig> does not represent a current valid magic object.
 
     # Get the attached data.
     my $data = getdata $x, $wiz or die 'no such magic or magic has no data';
@@ -364,16 +397,20 @@ This accessor fetches the private data associated with the magic C<$wiz> (or the
 
     dispell [$@%&*]variable, [$wiz|$sig]
 
-The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable. You can also pass the magic signature C<$sig> as the second argument. True is returned on success, C<0> on error or when no magic represented by C<$wiz> could be found in the variable, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
+The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable.
+You can also pass the magic signature C<$sig> as the second argument.
+True is returned on success, C<0> on error or when no magic represented by C<$wiz> could be found in the variable, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
 
     # Dispell now. If $wiz isn't a signature, undef can't be returned.
     die 'no such magic or error' unless dispell $x, $wiz;
 
 =head1 EXPORT
 
-The functions L</wizard>, L</gensig>, L</getsig>, L</cast>, L</getdata> and L</dispell> are only exported on request. All of them are exported by the tags C<':funcs'> and C<':all'>.
+The functions L</wizard>, L</gensig>, L</getsig>, L</cast>, L</getdata> and L</dispell> are only exported on request.
+All of them are exported by the tags C<':funcs'> and C<':all'>.
 
-The constants L</SIG_MIN>, L</SIG_MAX>, L</SIG_NBR>, L</MGf_COPY>, L</MGf_DUP>, L</MGf_LOCAL> and L</VMG_UVAR> are also only exported on request. They are all exported by the tags C<':consts'> and C<':all'>.
+The constants L</SIG_MIN>, L</SIG_MAX>, L</SIG_NBR>, L</MGf_COPY>, L</MGf_DUP>, L</MGf_LOCAL> and L</VMG_UVAR> are also only exported on request.
+They are all exported by the tags C<':consts'> and C<':all'>.
 
 =cut
 
@@ -393,9 +430,12 @@ $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
 
 =head1 CAVEATS
 
-If you store a magic object in the private data slot, the magic won't be accessible by L</getdata> since it's not copied by assignation. The only way to address this would be to return a reference.
+If you store a magic object in the private data slot, the magic won't be accessible by L</getdata> since it's not copied by assignation.
+The only way to address this would be to return a reference.
 
 If you define a wizard with a C<free> callback and cast it on itself, this destructor won't be called because the wizard will be destroyed first.
+
+Using C<get> and C<clear> magics on hashes may cause segfaults.
 
 =head1 DEPENDENCIES
 
@@ -437,7 +477,7 @@ Tests code coverage report is available at L<http://www.profvince.com/perl/cover
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2007-2008 Vincent Pit, all rights reserved.
+Copyright 2007-2009 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

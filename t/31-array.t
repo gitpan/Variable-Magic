@@ -3,121 +3,79 @@
 use strict;
 use warnings;
 
-use Test::More tests => 24;
+use Test::More tests => 2 * 25 + 9 + 1;
 
-use Variable::Magic qw/wizard cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
+use Variable::Magic qw/cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
 
-my @c = (0) x 12;
-my @x = (0) x 12;
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
 
-sub check {
- is join(':', map { (defined) ? $_ : 'u' } @c[0 .. 11]),
-    join(':', map { (defined) ? $_ : 'u' } @x[0 .. 11]),
-    $_[0];
-}
-
-my $wiz = wizard get   => sub { ++$c[0] },
-                 set   => sub { ++$c[1] },
-                 len   => sub { ++$c[2]; $_[2] },
-                 clear => sub { ++$c[3] },
-                 free  => sub { ++$c[4] },
-                 copy  => sub { ++$c[5] },
-                 dup   => sub { ++$c[6] },
-                 local => sub { ++$c[7] },
-                 fetch => sub { ++$c[8] },
-                 store => sub { ++$c[9] },
-                 'exists' => sub { ++$c[10] },
-                 'delete' => sub { ++$c[11] };
-check('array : create wizard');
+my $wiz = init
+        [ qw/get set len clear free copy dup local fetch store exists delete/ ],
+        'array';
 
 my @n = map { int rand 1000 } 1 .. 5;
 my @a = @n;
 
-cast @a, $wiz;
-check('array : cast');
+check { cast @a, $wiz } { }, 'cast';
 
-my $b = $a[2];
-check('array : assign element to');
+my $b;
+check { $b = $a[2] } { }, 'assign element to';
+is $b, $n[2], 'array: assign element to correctly';
 
-my @b = @a;
-++$x[2];
-check('array : assign to');
+my @b;
+check { @b = @a } { len => 1 }, 'assign to';
+is_deeply \@b, \@n, 'array: assign to correctly';
 
-$b = "X@{a}Y";
-++$x[2];
-check('array : interpolate');
+check { $b = "X@{a}Y" } { len => 1 }, 'interpolate';
+is $b, "X@{n}Y", 'array: interpolate correctly';
 
-$b = \@a;
-check('array : reference');
+check { $b = \@a } { }, 'reference';
 
-@b = @a[2 .. 4];
-check('array : slice');
+check { @b = @a[2 .. 4] } { }, 'slice';
+is_deeply \@b, [ @n[2 .. 4] ], 'array: slice correctly';
 
-@a = qw/a b d/;
-$x[1] += 3; ++$x[3];
-check('array : assign');
+check { @a = qw/a b d/ } { set => 3, clear => 1 }, 'assign';
 
-$a[2] = 'c';
-check('array : assign old element');
+check { $a[2] = 'c' } { }, 'assign old element';
 
-$a[3] = 'd';
-++$x[1];
-check('array : assign new element');
+check { $a[3] = 'd' } { set => 1 }, 'assign new element';
 
-push @a, 'x';
-++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
-check('array : push (void)');
+check { push @a, 'x'; () }
+          { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN },'push (void)';
+check { $b = push @a, 'y' }
+       { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN }, 'push (scalar)';
 
-$b = push @a, 'x';
-++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_PUSH_NOLEN;
-check('array : push (scalar)');
+check { $b = pop @a } { set => 1, len => 1 }, 'pop';
+is $b, 'y', 'array: pop correctly';
 
-pop @a;
-++$x[1]; ++$x[2];
-check('array : pop');
+check { unshift @a, 'z'; () }
+                { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID },
+                'unshift (void)';
 
-unshift @a, 'x';
-++$x[1]; ++$x[2] unless VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID;
-check('array : unshift (void)');
+check { $b = unshift @a, 't' } { set => 1, len => 1 }, 'unshift (scalar)';
 
-$b = unshift @a, 'x';
-++$x[1]; ++$x[2];
-check('array : unshift (scalar)');
+check { $b = shift @a } { set => 1, len => 1 }, 'shift';
+is $b, 't', 'array: shift correctly';
 
-shift @a;
-++$x[1]; ++$x[2];
-check('array : shift');
+check { $b = @a } { len => 1 }, 'length @';
+is $b, 6, 'array: length @ correctly';
 
-$b = @a;
-++$x[2];
-check('array : length @');
+check { $b = $#a } { len => 1 }, 'length $#';
+is $b, 5, 'array: length $# correctly';
 
-$b = $#a;
-++$x[2];
-check('array : length $#');
+check { my $i; @a = map ++$i, @a; () } { set => 6, len => 1, clear => 1}, 'map';
 
-@a = map ord, @a; 
-$x[1] += 6; ++$x[2]; ++$x[3];
-check('array : map');
+check { @b = grep { $_ >= 4 } @a } { len => 1 }, 'grep';
+is_deeply \@b, [ 4 .. 6 ], 'array: grep correctly';
 
-@b = grep { defined && $_ >= ord('b') } @a;
-++$x[2];
-check('array : grep');
+check { 1 for @a } { len => 6 + 1 }, 'for';
 
-for (@a) { }
-$x[2] += 7;
-check('array : for');
-
-{
+check {
  my @b = @n;
- cast @b, $wiz;
-}
-++$x[4];
-check('array : scope end');
+ check { cast @b, $wiz } { }, 'cast 2';
+} { free => 1 }, 'scope end';
 
-undef @a;
-++$x[3] if VMG_COMPAT_ARRAY_UNDEF_CLEAR;
-check('array : undef');
+check { undef @a } +{ (clear => 1) x VMG_COMPAT_ARRAY_UNDEF_CLEAR }, 'undef';
 
-dispell @a, $wiz;
-check('array : dispel');
+check { dispell @a, $wiz } { }, 'dispell';

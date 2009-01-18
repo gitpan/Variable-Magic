@@ -3,24 +3,23 @@
 use strict;
 use warnings;
 
-use Test::More tests => 6;
+use Test::More tests => 2 * 4 + 2 + 1;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw/cast/;
 
-my $c = 0;
-my $wiz = wizard get => sub { ++$c };
-is($c, 0, 'get : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init 'get', 'get';
 
 my $n = int rand 1000;
 my $a = $n;
 
-cast $a, $wiz;
-is($c, 0, 'get : cast');
+check { cast $a, $wiz } { }, 'cast';
 
-my $b = $a;
-is($c, 1,  'get : assign to');
-is($b, $n, 'get : assign to correctly');
+my $b;
+check { $b = $a } { get => 1 }, 'assign to';
+is $b, $n, 'get: assign to correctly';
 
-$b = "X${a}Y";
-is($c, 2,        'get : interpolate');
-is($b, "X${n}Y", 'get : interpolate correctly');
+check { $b = "X${a}Y" } { get => 1 }, 'interpolate';
+is $b, "X${n}Y", 'get: interpolate correctly';

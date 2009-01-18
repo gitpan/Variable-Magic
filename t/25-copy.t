@@ -5,83 +5,74 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast MGf_COPY/;
+use Variable::Magic qw/cast MGf_COPY/;
 
 if (MGf_COPY) {
- plan tests => 1 + 8 + 14;
+ plan tests => 2 + (2 * 5 + 3) + (2 * 9 + 6) + 1;
 } else {
- plan skip_all => 'No copy magic for this perl' if !MGf_COPY;
+ plan skip_all => 'No copy magic for this perl';
 }
 
-my $c = 0;
-my $wiz = wizard 'copy' => sub { ++$c };
-is($c, 0, 'copy : create wizard');
+use lib 't/lib';
+use Variable::Magic::TestWatcher;
+
+my $wiz = init 'copy', 'copy';
 
 SKIP: {
  eval "use Tie::Array";
- skip 'Tie::Array required to test copy magic on arrays', 8 if $@;
+ skip 'Tie::Array required to test copy magic on arrays', 2 * 5 + 3 if $@;
  diag "Using Tie::Array $Tie::Array::VERSION" if defined $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
  @a = (1 .. 10);
 
- my $res = cast @a, $wiz;
- ok($res,  'copy : cast on array succeeded');
- is($c, 0, 'copy : cast on array didn\'t triggered the callback');
+ my $res = check { cast @a, $wiz } { }, 'cast on tied array';
+ ok $res, 'copy: cast on tied array succeeded';
 
- $a[3] = 13;
- is($c, 1, 'copy : callback triggers on array store');
+ check { $a[3] = 13 } { copy => 1 }, 'tied array store';
 
- my $s = $a[3];
- is($c, 2,  'copy : callback triggers on array fetch');
- is($s, 13, 'copy : array fetch is correct');
+ my $s;
+ check { $s = $a[3] } { copy => 1 }, 'tied array fetch';
+ is $s, 13, 'copy: tied array fetch correctly';
 
- $s = exists $a[3];
- is($c, 3, 'copy : callback triggers on array exists');
- ok($s,    'copy : array exists is correct');
+ check { $s = exists $a[3] } { copy => 1 }, 'tied array exists';
+ ok $s, 'copy: tied array exists correctly';
 
- undef @a;
- is($c, 3, 'copy : callback doesn\'t trigger on array undef');
+ check { undef @a } { }, 'tied array undef';
 }
 
 SKIP: {
  eval "use Tie::Hash";
- skip 'Tie::Hash required to test copy magic on hashes', 14 if $@;
+ skip 'Tie::Hash required to test copy magic on hashes' => 2 * 9 + 6 if $@;
  diag "Using Tie::Hash $Tie::Hash::VERSION" if defined $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';
  %h = (a => 1, b => 2, c => 3);
 
- $c = 0;
- my $res = cast %h, $wiz;
- ok($res,  'copy : cast on hash succeeded');
- is($c, 0, 'copy : cast on hash didn\'t triggered the callback');
+ my $res = check { cast %h, $wiz } { }, 'cast on tied hash';
+ ok $res, 'copy: cast on tied hash succeeded';
 
- $h{b} = 7;
- is($c, 1, 'copy : callback triggers on hash store');
+ check { $h{b} = 7 } { copy => 1 }, 'tied hash store';
 
- my $s = $h{c};
- is($c, 2, 'copy : callback triggers on hash fetch');
- is($s, 3, 'copy : hash fetch is correct');
+ my $s;
+ check { $s = $h{c} } { copy => 1 }, 'tied hash fetch';
+ is $s, 3, 'copy: tied hash fetch correctly';
 
- $s = exists $h{a};
- is($c, 3, 'copy : callback triggers on hash exists');
- ok($s,    'copy : hash exists is correct');
+ check { $s = exists $h{a} } { copy => 1 }, 'tied hash exists';
+ ok $s, 'copy: tied hash exists correctly';
 
- $s = delete $h{b};
- is($c, 4, 'copy : callback triggers on hash delete');
- is($s, 7, 'copy : hash delete is correct');
+ check { $s = delete $h{b} } { copy => 1 }, 'tied hash delete';
+ is $s, 7, 'copy: tied hash delete correctly';
 
- my ($k, $v) = each %h;
- is($c, 5, 'copy : callback triggers on hash each');
+ check { my ($k, $v) = each %h } { copy => 1 }, 'tied hash each';
 
- my @k = keys %h;
- is($c, 5, 'copy : callback doesn\'t trigger on hash keys');
+ my @k;
+ check { @k = keys %h } { }, 'tied hash keys';
+ is_deeply [ sort @k ], [ qw/a c/ ], 'copy: tied hash keys correctly';
 
- my @v = values %h;
- is(scalar @v, 2, 'copy : two values in the hash');
- is($c, 7,        'copy : callback triggers on hash values');
+ my @v;
+ check { @v = values %h } { copy => 2 }, 'tied hash values';
+ is_deeply [ sort { $a <=> $b } @v ], [ 1, 3 ], 'copy: tied hash values correctly';
 
- undef %h;
- is($c, 7, 'copy : callback doesn\'t trigger on hash undef');
+ check { undef %h } { }, 'tied hash undef';
 }
