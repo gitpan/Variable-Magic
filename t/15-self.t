@@ -50,4 +50,9 @@ my $c = 0;
  ok($res,   're-re-cast on self is valid');
 }
 
+if ((defined $ENV{PERL_DESTRUCT_LEVEL} and $ENV{PERL_DESTRUCT_LEVEL} >= 3)
+    or eval "use Perl::Destruct::Level level => 3; 1") {
+ diag 'Test global destruction';
+}
+
 # is($c, 0, 'magic destructor is called');

@@ -31,7 +31,6 @@ if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.8.9) {
  } and do {
   if (defined &Win32::BuildNumber) {
    $is_as = 1;
-   push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=1';
   }
  }
 }

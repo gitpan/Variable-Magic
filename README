@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.27
+    Version 0.28
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -206,19 +206,20 @@ CONSTANTS
 
 FUNCTIONS
   "wizard"
-        wizard sig    => ...,
-               data   => sub { ... },
-               get    => sub { my ($ref, $data) = @_; ... },
-               set    => sub { my ($ref, $data) = @_; ... },
-               len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
-               clear  => sub { my ($ref, $data) = @_; ... },
-               free   => sub { my ($ref, $data) = @_, ... },
-               copy   => sub { my ($ref, $data, $key, $elt) = @_; ... },
-               local  => sub { my ($ref, $data) = @_; ... },
-               fetch  => sub { my ($ref, $data, $key) = @_; ... },
-               store  => sub { my ($ref, $data, $key) = @_; ... },
-               exists => sub { my ($ref, $data, $key) = @_; ... },
-               delete => sub { my ($ref, $data, $key) = @_; ... }
+        wizard sig      => ...,
+               data     => sub { ... },
+               get      => sub { my ($ref, $data) = @_; ... },
+               set      => sub { my ($ref, $data) = @_; ... },
+               len      => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
+               clear    => sub { my ($ref, $data) = @_; ... },
+               free     => sub { my ($ref, $data) = @_, ... },
+               copy     => sub { my ($ref, $data, $key, $elt) = @_; ... },
+               local    => sub { my ($ref, $data) = @_; ... },
+               fetch    => sub { my ($ref, $data, $key) = @_; ... },
+               store    => sub { my ($ref, $data, $key) = @_; ... },
+               exists   => sub { my ($ref, $data, $key) = @_; ... },
+               delete   => sub { my ($ref, $data, $key) = @_; ... },
+               copy_key => $bool
 
     This function creates a 'wizard', an opaque type that holds the magic
     information. It takes a list of keys / values as argument, whose keys
@@ -241,17 +242,36 @@ FUNCTIONS
     *   "get", "set", "len", "clear", "free", "copy", "local", "fetch",
         "store", "exists" and "delete"
 
-        Code references to corresponding magic callbacks. You don't have to
-        specify all of them : the magic associated with undefined entries
+        Code references to the corresponding magic callbacks. You don't have
+        to specify all of them : the magic associated with undefined entries
         simply won't be hooked. In those callbacks, $_[0] is always a
         reference to the magic object and $_[1] is always the private data
-        (or "undef" when no private data constructor was supplied). In the
-        special case of "len" magic and when the variable is an array, $_[2]
-        contains its normal length. $_[2] is the current key in "copy",
-        "fetch", "store", "exists" and "delete" callbacks, although for
-        "copy" it may just be a copy of the actual key so it's useless to
-        (for example) cast magic on it. "copy" magic also receives the
-        current element (i.e. the value) in $_[3].
+        (or "undef" when no private data constructor was supplied). Other
+        arguments are specific to the magic hooked :
+
+        -       "len"
+
+                When the variable is an array, $_[2] contains the normal
+                length. The callback is also expected to return the new
+                scalar or array length.
+
+        -       "copy"
+
+                $_[2] is a either a copy or an alias of the current key,
+                which means that it is useless to try to change or cast
+                magic on it. $_[3] is an alias to the current element (i.e.
+                the value).
+
+        -       "fetch", "store", "exists" and "delete"
+
+                $_[2] is an alias to the current key. Nothing prevents you
+                from changing it, but be aware that there lurk dangerous
+                side effects. For example, it may righteously be readonly if
+                the key was a bareword. You can get a copy instead by
+                passing "copy_key => 1" to "wizard", which allows you to
+                safely assign to $_[2] in order to e.g. redirect the action
+                to another key. This however has a little performance
+                drawback because of the copy.
 
         All the callbacks are expected to return an integer, which is passed
         straight to the perl magic API. However, only the return value of
@@ -334,8 +354,6 @@ CAVEATS
     If you define a wizard with a "free" callback and cast it on itself,
     this destructor won't be called because the wizard will be destroyed
     first.
-
-    Using "get" and "clear" magics on hashes may cause segfaults.
 
 DEPENDENCIES
     perl 5.7.3.

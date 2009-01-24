@@ -1,5 +1,18 @@
 Revision history for Variable-Magic
 
+0.28    2009-01-24 17:05 UTC
+        + Add : The 'copy_key' option to wizard(), that enables the safe edition
+                of $_[2] in uvar callbacks to redirect actions to another key.
+        + Fix : Exception objects thrown from callbacks at compile time were not
+                available in $@.
+        + Fix : free callbacks triggered during global destruction could lead to
+                segfaults because the wizard was already freed.
+        + Fix : Refcount of scalars with free callback.
+        + Fix : Segfaults when using get or uvar magic simultaneously with clear
+                magic.
+        + Doc : The documentation about what the callbacks take and should
+                return is now somewhat clearer.
+
 0.27    2009-01-18 23:40 UTC
         + Fix : Offset of 1 with len magic on scalars.
         + Fix : Segfaults that seem to happen when one croak in a callback at

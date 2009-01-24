@@ -89,6 +89,10 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define Newx(v, n, c) New(0, v, n, c)
 #endif
 
+#ifndef NewOp
+# define NewOp(m, var, c, type) Newz(m, var, c, type)
+#endif
+
 #ifndef SvMAGIC_set
 # define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
 #endif
@@ -99,6 +103,10 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 
 #ifndef PERL_MAGIC_ext
 # define PERL_MAGIC_ext '~'
+#endif
+
+#ifndef PERL_MAGIC_tied
+# define PERL_MAGIC_tied 'P'
 #endif
 
 #ifndef MGf_COPY
@@ -115,6 +123,16 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 
 #ifndef IN_PERL_COMPILETIME
 # define IN_PERL_COMPILETIME (PL_curcop == &PL_compiling)
+#endif
+
+#if VMG_HAS_PERL(5, 10, 0) || defined(PL_parser)
+# ifndef PL_error_count
+#  define PL_error_count PL_parser->error_count
+# endif
+#else
+# ifndef PL_error_count
+#  define PL_error_count PL_Ierror_count
+# endif
 #endif
 
 /* uvar magic and Hash::Util::FieldHash were commited with 28419 */
@@ -241,10 +259,8 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
 #define vmg_data_new(C, S, A) vmg_data_new(aTHX_ (C), (S), (A))
  SV *nsv;
  I32 i, alen = (args == NULL) ? 0 : av_len(args);
- I32 flags = G_SCALAR;
 
  dSP;
- int count;
 
  ENTER;
  SAVETMPS;
@@ -256,21 +272,15 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, AV *args) {
   PUSHs(*av_fetch(args, i, 0));
  PUTBACK;
 
- if (IN_PERL_COMPILETIME)
-  flags |= G_EVAL | G_KEEPERR;
-
- count = call_sv(ctor, flags);
+ call_sv(ctor, G_SCALAR);
 
  SPAGAIN;
-
- if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
  nsv = POPs;
 #if VMG_HAS_PERL(5, 8, 3)
  SvREFCNT_inc(nsv);    /* Or it will be destroyed in FREETMPS */
 #else
  nsv = sv_newref(nsv); /* Workaround some bug in SvREFCNT_inc() */
 #endif
-
  PUTBACK;
 
  FREETMPS;
@@ -342,8 +352,11 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
   mg->mg_flags |= MGf_LOCAL;
 #endif /* MGf_LOCAL */
 
+ if (SvTYPE(sv) < SVt_PVHV)
+  goto done;
+
 #if VMG_UVAR
- if (w->uvar && SvTYPE(sv) >= SVt_PVHV) {
+ if (w->uvar) {
   MAGIC *prevmagic;
   int add_uvar = 1;
   struct ufuncs uf[2];
@@ -371,15 +384,20 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
     uf[1] = *olduf;
     vmg_uvar_del(sv, prevmagic, mg, moremagic);
    }
-  }
+  } else if (w->cb_get)
+   SvGMAGICAL_off(sv);
 
   if (add_uvar) {
    vmg_sv_magicuvar(sv, (const char *) &uf, sizeof(uf));
   }
 
  }
+#else
+ if (w->cb_get)
+  SvGMAGICAL_off(sv);
 #endif /* VMG_UVAR */
 
+done:
  return 1;
 }
 
@@ -466,15 +484,18 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 
 /* ... svt callbacks ....................................................... */
 
-STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
+#define VMG_CB_CALL_ARGS_MASK 15
+#define VMG_CB_CALL_EVAL      16
+
+STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
  va_list ap;
  SV *svr;
  int ret;
  unsigned int i;
- I32 flags = G_SCALAR;
+ unsigned int args = flags & VMG_CB_CALL_ARGS_MASK;
+ unsigned int eval = flags & VMG_CB_CALL_EVAL ? G_EVAL : 0;
 
  dSP;
- int count;
 
  ENTER;
  SAVETMPS;
@@ -483,7 +504,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
  EXTEND(SP, args + 2);
  PUSHs(sv_2mortal(newRV_inc(sv)));
  PUSHs(data ? data : &PL_sv_undef);
- va_start(ap, args);
+ va_start(ap, flags);
  for (i = 0; i < args; ++i) {
   SV *sva = va_arg(ap, SV *);
   PUSHs(sva ? sva : &PL_sv_undef);
@@ -491,17 +512,13 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
  va_end(ap);
  PUTBACK;
 
- if (IN_PERL_COMPILETIME)
-  flags |= G_EVAL | G_KEEPERR;
-
- count = call_sv(cb, flags);
+ call_sv(cb, G_SCALAR | eval);
 
  SPAGAIN;
-
- if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
+ if (eval && IN_PERL_COMPILETIME && SvTRUE(ERRSV))
+  ++PL_error_count;
  svr = POPs;
  ret = SvOK(svr) ? SvIV(svr) : 0;
-
  PUTBACK;
 
  FREETMPS;
@@ -511,6 +528,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int args, ...) {
 }
 
 #define vmg_cb_call1(I, S, D)         vmg_cb_call(aTHX_ (I), (S), (D), 0)
+#define vmg_cb_call1e(I, S, D)        vmg_cb_call(aTHX_ (I), (S), (D), VMG_CB_CALL_EVAL)
 #define vmg_cb_call2(I, S, D, S2)     vmg_cb_call(aTHX_ (I), (S), (D), 1, (S2))
 #define vmg_cb_call3(I, S, D, S2, S3) vmg_cb_call(aTHX_ (I), (S), (D), 2, (S2), (S3))
 
@@ -526,7 +544,6 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SV *svr;
  I32 len, has_array;
  U32 ret;
- I32 flags = G_SCALAR;
 
  dSP;
  int count;
@@ -549,17 +566,11 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  }
  PUTBACK;
 
- if (IN_PERL_COMPILETIME)
-  flags |= G_EVAL | G_KEEPERR;
-
- count = call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, flags);
+ count = call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, G_SCALAR);
 
  SPAGAIN;
-
- if (count != 1) { croak("Callback needs to return 1 scalar\n"); }
  svr = POPs;
  ret = SvOK(svr) ? SvUV(svr) : len;
-
  PUTBACK;
 
  FREETMPS;
@@ -573,17 +584,32 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
+ SV *wiz = (SV *) mg->mg_ptr;
+ int ret = 0;
+
+ /* This may happen in global destruction */
+ if (SvTYPE(wiz) == SVTYPEMASK)
+  return 0;
+
  /* So that it can survive tmp cleanup in vmg_cb_call */
  SvREFCNT_inc(sv);
+
 #if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
  /* The previous magic tokens were freed but the magic chain wasn't updated, so
   * if you access the sv from the callback the old deleted magics will trigger
   * and cause memory misreads. Change 32686 solved it that way : */
  SvMAGIC_set(sv, mg);
 #endif
+
  /* Perl_mg_free will get rid of the magic and decrement mg->mg_obj and
   * mg->mg_ptr reference count */
- return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_free, sv, mg->mg_obj);
+ ret = vmg_cb_call1e(SV2MGWIZ(wiz)->cb_free, sv, mg->mg_obj);
+
+ /* Calling SvREFCNT_dec() will trigger destructors in an infinite loop, so
+  * we have to rely on SvREFCNT() being a lvalue. Heck, even the core does it */
+ --SvREFCNT(sv);
+
+ return ret;
 }
 
 #if MGf_COPY
@@ -626,15 +652,21 @@ STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
 #endif /* MGf_LOCAL */
 
 #if VMG_UVAR
+STATIC OP *vmg_pp_resetuvar(pTHX) {
+ SvRMAGICAL_on(cSVOP_sv);
+ return NORMAL;
+}
+
 STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
  struct ufuncs *uf;
- MAGIC *mg;
- SV *key = NULL;
+ MAGIC *mg, *umg;
+ SV *key = NULL, *newkey = NULL;
+ int tied = 0;
 
- mg  = mg_find(sv, PERL_MAGIC_uvar);
- /* mg can't be NULL or we wouldn't be there. */
- key = mg->mg_obj;
- uf  = (struct ufuncs *) mg->mg_ptr;
+ umg = mg_find(sv, PERL_MAGIC_uvar);
+ /* umg can't be NULL or we wouldn't be there. */
+ key = umg->mg_obj;
+ uf  = (struct ufuncs *) umg->mg_ptr;
 
  if (uf[1].uf_val != NULL) { uf[1].uf_val(aTHX_ action, sv); }
  if (uf[1].uf_set != NULL) { uf[1].uf_set(aTHX_ action, sv); }
@@ -642,11 +674,25 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
  action &= HV_FETCH_ISSTORE | HV_FETCH_ISEXISTS | HV_FETCH_LVALUE | HV_DELETE;
  for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
   MGWIZ *w;
-  if ((mg->mg_type != PERL_MAGIC_ext)
-   || (mg->mg_private < SIG_MIN)
-   || (mg->mg_private > SIG_MAX)) { continue; }
+  switch (mg->mg_type) {
+   case PERL_MAGIC_ext:
+    break;
+   case PERL_MAGIC_tied:
+    ++tied;
+    continue;
+   default:
+    continue;
+  }
+  if (mg->mg_private < SIG_MIN || mg->mg_private > SIG_MAX)
+   continue;
   w = SV2MGWIZ(mg->mg_ptr);
-  if (!w->uvar) { continue; }
+  switch (w->uvar) {
+   case 0:
+    continue;
+   case 2:
+    if (!newkey)
+     newkey = key = umg->mg_obj = sv_2mortal(newSVsv(umg->mg_obj));
+  }
   switch (action) {
    case 0:
     if (w->cb_fetch)  { vmg_cb_call2(w->cb_fetch,  sv, mg->mg_obj, key); }
@@ -665,6 +711,25 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   }
  }
 
+ if (SvRMAGICAL(sv) && !tied) {
+  /* Temporarily hide the RMAGICAL flag of the hash so it isn't wrongly
+   * mistaken for a tied hash by the rest of hv_common. It will be reset by
+   * the op_ppaddr of a new fake op injected between the current and the next
+   * one. */
+  OP *o = PL_op;
+  if (!o->op_next || o->op_next->op_ppaddr != vmg_pp_resetuvar) {
+   SVOP *svop;
+   NewOp(1101, svop, 1, SVOP);
+   svop->op_type   = OP_STUB;
+   svop->op_ppaddr = vmg_pp_resetuvar;
+   svop->op_next   = o->op_next;
+   svop->op_flags  = 0;
+   svop->op_sv     = sv;
+   o->op_next      = (OP *) svop;
+  }
+  SvRMAGICAL_off(sv);
+ }
+
  return 0;
 }
 #endif /* VMG_UVAR */
@@ -675,7 +740,7 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
  char buf[8];
  MGWIZ *w;
 
- if (PL_dirty) /* during global destruction, the context is already freed */
+ if (PL_dirty) /* During global destruction, the context is already freed */
   return 0;
 
  w = SV2MGWIZ(wiz);
@@ -739,7 +804,6 @@ STATIC MGVTBL vmg_wizard_vtbl = {
 };
 
 STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
-STATIC const char vmg_invalid_sv[]     = "Invalid variable";
 STATIC const char vmg_invalid_sig[]    = "Invalid numeric signature";
 STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
 STATIC const char vmg_toomanysigs[]    = "Too many magic signatures used";
@@ -961,7 +1025,7 @@ CODE:
               + 1
 #endif /* MGf_LOCAL */
 #if VMG_UVAR
-              + 4
+              + 5
 #endif /* VMG_UVAR */
               ) { croak(vmg_wrongargnum); }
 
@@ -1004,16 +1068,17 @@ CODE:
  VMG_SET_CB(ST(i++), store);
  VMG_SET_CB(ST(i++), exists);
  VMG_SET_CB(ST(i++), delete);
+ cb = ST(i++);
+ if (w->cb_fetch || w->cb_store || w->cb_exists || w->cb_delete)
+  w->uvar = SvTRUE(cb) ? 2 : 1;
+ else
+  w->uvar = 0;
 #endif /* VMG_UVAR */
 #if VMG_MULTIPLICITY
  w->owner = aTHX;
 #endif /* VMG_MULTIPLICITY */
-
- w->vtbl = t;
- w->sig  = sig;
-#if VMG_UVAR
- w->uvar = (w->cb_fetch || w->cb_store || w->cb_exists || w->cb_delete);
-#endif /* VMG_UVAR */
+ w->vtbl  = t;
+ w->sig   = sig;
 
  sv = MGWIZ2SV(w);
  mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);

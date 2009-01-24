@@ -19,14 +19,13 @@ my $a = $n;
 
 check { cast $a, $wiz } { }, 'cast';
 
-my $b;
-check { $b = $a } { get => 1 }, 'assign to';
+my $b = check { $a } { get => 1 }, 'assign to';
 is $b, $n, 'scalar: assign to correctly';
 
-check { $b = "X${a}Y" } { get => 1 }, 'interpolate';
+$b = check { "X${a}Y" } { get => 1 }, 'interpolate';
 is $b, "X${n}Y", 'scalar: interpolate correctly';
 
-check { $b = \$a } { }, 'reference';
+$b = check { \$a } { }, 'reference';
 
 check { $a = 123; () } { set => 1 }, 'assign to';
 

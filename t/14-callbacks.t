@@ -54,7 +54,7 @@ is_deeply(\@callers, [
  @callers = ();
  my $u = $b;
  is_deeply(\@callers, [
-  [ 'main', $0, __LINE__-2 ]
+  [ 'main', $0, __LINE__-2 ],
  ], 'caller into callback into block returns the right thing');
 }
 
@@ -62,6 +62,5 @@ is_deeply(\@callers, [
 eval { my $u = $b };
 is($@, '', 'caller into callback doesn\'t croak');
 is_deeply(\@callers, [
- [ 'main', $0, __LINE__-3 ],
- [ 'main', $0, __LINE__-4 ],
+ ([ 'main', $0, __LINE__-3 ]) x 2,
 ], 'caller into callback into eval returns the right thing');

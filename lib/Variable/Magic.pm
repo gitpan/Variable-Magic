@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.27
+Version 0.28
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.27';
+ $VERSION = '0.28';
 }
 
 =head1 SYNOPSIS
@@ -278,19 +278,20 @@ BEGIN {
 
 =head2 C<wizard>
 
-    wizard sig    => ...,
-           data   => sub { ... },
-           get    => sub { my ($ref, $data) = @_; ... },
-           set    => sub { my ($ref, $data) = @_; ... },
-           len    => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
-           clear  => sub { my ($ref, $data) = @_; ... },
-           free   => sub { my ($ref, $data) = @_, ... },
-           copy   => sub { my ($ref, $data, $key, $elt) = @_; ... },
-           local  => sub { my ($ref, $data) = @_; ... },
-           fetch  => sub { my ($ref, $data, $key) = @_; ... },
-           store  => sub { my ($ref, $data, $key) = @_; ... },
-           exists => sub { my ($ref, $data, $key) = @_; ... },
-           delete => sub { my ($ref, $data, $key) = @_; ... }
+    wizard sig      => ...,
+           data     => sub { ... },
+           get      => sub { my ($ref, $data) = @_; ... },
+           set      => sub { my ($ref, $data) = @_; ... },
+           len      => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
+           clear    => sub { my ($ref, $data) = @_; ... },
+           free     => sub { my ($ref, $data) = @_, ... },
+           copy     => sub { my ($ref, $data, $key, $elt) = @_; ... },
+           local    => sub { my ($ref, $data) = @_; ... },
+           fetch    => sub { my ($ref, $data, $key) = @_; ... },
+           store    => sub { my ($ref, $data, $key) = @_; ... },
+           exists   => sub { my ($ref, $data, $key) = @_; ... },
+           delete   => sub { my ($ref, $data, $key) = @_; ... },
+           copy_key => $bool
 
 This function creates a 'wizard', an opaque type that holds the magic information.
 It takes a list of keys / values as argument, whose keys can be :
@@ -317,12 +318,38 @@ C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra a
 
 C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
-Code references to corresponding magic callbacks.
+Code references to the corresponding magic callbacks.
 You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked.
 In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied).
-In the special case of C<len> magic and when the variable is an array, C<$_[2]> contains its normal length.
-C<$_[2]> is the current key in C<copy>, C<fetch>, C<store>, C<exists> and C<delete> callbacks, although for C<copy> it may just be a copy of the actual key so it's useless to (for example) cast magic on it.
-C<copy> magic also receives the current element (i.e. the value) in C<$_[3]>.
+Other arguments are specific to the magic hooked :
+
+=over 8
+
+=item -
+
+C<len>
+
+When the variable is an array, C<$_[2]> contains the normal length.
+The callback is also expected to return the new scalar or array length.
+
+=item -
+
+C<copy>
+
+C<$_[2]> is a either a copy or an alias of the current key, which means that it is useless to try to change or cast magic on it.
+C<$_[3]> is an alias to the current element (i.e. the value).
+
+=item -
+
+C<fetch>, C<store>, C<exists> and C<delete>
+
+C<$_[2]> is an alias to the current key.
+Nothing prevents you from changing it, but be aware that there lurk dangerous side effects.
+For example, it may righteously be readonly if the key was a bareword.
+You can get a copy instead by passing C<< copy_key => 1 >> to L</wizard>, which allows you to safely assign to C<$_[2]> in order to e.g. redirect the action to another key.
+This however has a little performance drawback because of the copy.
+
+=back
 
 All the callbacks are expected to return an integer, which is passed straight to the perl magic API.
 However, only the return value of the C<len> callback currently holds a meaning.
@@ -339,12 +366,12 @@ However, only the return value of the C<len> callback currently holds a meaning.
 sub wizard {
  croak 'Wrong number of arguments for wizard()' if @_ % 2;
  my %opts = @_;
- my @cbs  = qw/sig data get set len clear free/;
- push @cbs, 'copy'  if MGf_COPY;
- push @cbs, 'dup'   if MGf_DUP;
- push @cbs, 'local' if MGf_LOCAL;
- push @cbs, qw/fetch store exists delete/ if VMG_UVAR;
- my $ret = eval { _wizard(map $opts{$_}, @cbs) };
+ my @keys  = qw/sig data get set len clear free/;
+ push @keys, 'copy'  if MGf_COPY;
+ push @keys, 'dup'   if MGf_DUP;
+ push @keys, 'local' if MGf_LOCAL;
+ push @keys, qw/fetch store exists delete copy_key/ if VMG_UVAR;
+ my $ret = eval { _wizard(map $opts{$_}, @keys) };
  if (my $err = $@) {
   $err =~ s/\sat\s+.*?\n//;
   croak $err;
@@ -434,8 +461,6 @@ If you store a magic object in the private data slot, the magic won't be accessi
 The only way to address this would be to return a reference.
 
 If you define a wizard with a C<free> callback and cast it on itself, this destructor won't be called because the wizard will be destroyed first.
-
-Using C<get> and C<clear> magics on hashes may cause segfaults.
 
 =head1 DEPENDENCIES
 

@@ -41,11 +41,18 @@ sub check (&;$$) {
  my $code = shift;
  my $exp  = _types shift;
  my $desc = shift;
+ my $want = wantarray;
+ my @ret;
  local %mg = ();
- my @ret = eval { $code->() };
+ local $Test::Builder::Level = ($Test::Builder::Level || 0) + 1;
+ if (defined $want and not $want) { # scalar context
+  $ret[0] = eval { $code->() };
+ } else {
+  @ret = eval { $code->() };
+ }
  is        $@,   '',   $prefix . $desc . ' doesn\'t croak';
  is_deeply \%mg, $exp, $prefix . $desc . ' triggers magic correctly';
- return @ret;
+ return $want ? @ret : $ret[0];
 }
 
 our $mg_end;

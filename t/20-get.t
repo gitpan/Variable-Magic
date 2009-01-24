@@ -17,9 +17,8 @@ my $a = $n;
 
 check { cast $a, $wiz } { }, 'cast';
 
-my $b;
-check { $b = $a } { get => 1 }, 'assign to';
+my $b = check { $a } { get => 1 }, 'assign to';
 is $b, $n, 'get: assign to correctly';
 
-check { $b = "X${a}Y" } { get => 1 }, 'interpolate';
+$b = check { "X${a}Y" } { get => 1 }, 'interpolate';
 is $b, "X${n}Y", 'get: interpolate correctly';

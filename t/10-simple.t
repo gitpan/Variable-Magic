@@ -11,7 +11,7 @@ my $args = 7;
 ++$args if MGf_COPY;
 ++$args if MGf_DUP;
 ++$args if MGf_LOCAL;
-$args += 4 if VMG_UVAR;
+$args += 5 if VMG_UVAR;
 for (0 .. 20) {
  next if $_ == $args;
  eval { Variable::Magic::_wizard(('hlagh') x $_) };

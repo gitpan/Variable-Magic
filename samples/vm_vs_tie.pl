@@ -12,20 +12,39 @@ use Benchmark qw/cmpthese/;
 
 die 'Your perl does not support the nice uvar magic of 5.10.*' unless VMG_UVAR;
 
-my @a = ('a' .. 'z');
-
 tie my %t, 'Tie::StdHash';
-$t{$a[$_]} = $_ for 0 .. $#a;
+$t{a} = 1;
 
-my $wiz = wizard fetch => sub { 0 }, store => sub { 0 };
+my $wiz = wizard fetch  => sub { 0 },
+                 store  => sub { 0 },
+                 exists => sub { 0 },
+                 delete => sub { 0 };
 my %v;
-$v{$a[$_]} = $_ for 0 .. $#a;
 cast %v, $wiz;
-
-my $x = 0;
+$v{a} = 2;
 
 print "Using Variable::Magic ", $Variable::Magic::VERSION, "\n";
-cmpthese -3, {
- 'tie'  => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $t{$x}; $t{$y} = $a },
- 'v::m' => sub { my ($x, $y) = map @a[$x++ % @a], 1 .. 2; my $a = $v{$x}; $v{$y} = $a }
+
+print "Fetch:\n";
+cmpthese -1, {
+ 'tie'  => sub { $t{a} },
+ 'v::m' => sub { $v{a} }
+};
+
+print "Store:\n";
+cmpthese -1, {
+ 'tie'  => sub { $t{a} = 2 },
+ 'v::m' => sub { $v{a} = 2 }
+};
+
+print "Exists:\n";
+cmpthese -1, {
+ 'tie'  => sub { exists $t{a} },
+ 'v::m' => sub { exists $v{a} }
+};
+
+print "Delete/store:\n";
+cmpthese -1, {
+ 'tie'  => sub { delete $t{a}; $t{a} = 3 },
+ 'v::m' => sub { delete $v{a}; $v{a} = 3 }
 };
