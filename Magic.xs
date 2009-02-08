@@ -325,6 +325,7 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  MAGIC *mg = NULL, *moremagic = NULL;
  MGWIZ *w;
  SV *data;
+ U32 oldgmg = SvGMAGICAL(sv);
 
  w = SV2MGWIZ(wiz);
 
@@ -355,10 +356,18 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  if (SvTYPE(sv) < SVt_PVHV)
   goto done;
 
+ /* The GMAGICAL flag only says that a hash is tied or has uvar magic - get
+  * magic is actually never called for them. If the GMAGICAL flag was off before
+  * calling sv_magicext(), the hash isn't tied and has no uvar magic. If it's
+  * now on, then this wizard has get magic. Hence we can work around the
+  * get/clear shortcoming by turning the GMAGICAL flag off. If the current magic
+  * has uvar callbacks, it will be turned back on later. */
+ if (!oldgmg && SvGMAGICAL(sv))
+  SvGMAGICAL_off(sv);
+
 #if VMG_UVAR
  if (w->uvar) {
   MAGIC *prevmagic;
-  int add_uvar = 1;
   struct ufuncs uf[2];
 
   uf[0].uf_val   = vmg_svt_val;
@@ -377,24 +386,19 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
   if (mg) { /* Found another uvar magic. */
    struct ufuncs *olduf = (struct ufuncs *) mg->mg_ptr;
    if (olduf->uf_val == vmg_svt_val) {
-    /* It's our uvar magic, nothing to do. */
-    add_uvar = 0;
+    /* It's our uvar magic, nothing to do. oldgmg was true. */
+    goto done;
    } else {
     /* It's another uvar magic, backup it and replace it by ours. */
     uf[1] = *olduf;
     vmg_uvar_del(sv, prevmagic, mg, moremagic);
    }
-  } else if (w->cb_get)
-   SvGMAGICAL_off(sv);
-
-  if (add_uvar) {
-   vmg_sv_magicuvar(sv, (const char *) &uf, sizeof(uf));
   }
 
+  vmg_sv_magicuvar(sv, (const char *) &uf, sizeof(uf));
+  /* Our hash now carries uvar magic. The uvar/clear shortcoming has to be
+   * handled by our uvar callback. */
  }
-#else
- if (w->cb_get)
-  SvGMAGICAL_off(sv);
 #endif /* VMG_UVAR */
 
 done:
@@ -542,13 +546,10 @@ STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SV *svr;
- I32 len, has_array;
- U32 ret;
+ U32 len, ret;
+ svtype t = SvTYPE(sv);
 
  dSP;
- int count;
-
- has_array = SvTYPE(sv) == SVt_PVAV;
 
  ENTER;
  SAVETMPS;
@@ -557,16 +558,24 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  EXTEND(SP, 3);
  PUSHs(sv_2mortal(newRV_inc(sv)));
  PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
- if (has_array) {
+ if (t < SVt_PVAV) {
+  STRLEN l;
+  U8 *s = (U8 *) SvPV_const(sv, l);
+  if (DO_UTF8(sv))
+   len = utf8_length(s, s + l);
+  else
+   len = l;
+  mPUSHu(len);
+ } else if (t == SVt_PVAV) {
   len = av_len((AV *) sv) + 1;
-  mPUSHi(len);
+  mPUSHu(len);
  } else {
   len = 0;
   PUSHs(&PL_sv_undef);
  }
  PUTBACK;
 
- count = call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, G_SCALAR);
+ call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, G_SCALAR);
 
  SPAGAIN;
  svr = POPs;
@@ -576,7 +585,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  FREETMPS;
  LEAVE;
 
- return has_array ? ret - 1 : ret;
+ return t == SVt_PVAV ? ret - 1 : ret;
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
@@ -591,7 +600,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (SvTYPE(wiz) == SVTYPEMASK)
   return 0;
 
- /* So that it can survive tmp cleanup in vmg_cb_call */
+ /* So that it survives the temp cleanup in vmg_cb_call */
  SvREFCNT_inc(sv);
 
 #if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
@@ -601,14 +610,14 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  SvMAGIC_set(sv, mg);
 #endif
 
- /* Perl_mg_free will get rid of the magic and decrement mg->mg_obj and
-  * mg->mg_ptr reference count */
  ret = vmg_cb_call1e(SV2MGWIZ(wiz)->cb_free, sv, mg->mg_obj);
 
  /* Calling SvREFCNT_dec() will trigger destructors in an infinite loop, so
   * we have to rely on SvREFCNT() being a lvalue. Heck, even the core does it */
  --SvREFCNT(sv);
 
+ /* Perl_mg_free will get rid of the magic and decrement mg->mg_obj and
+  * mg->mg_ptr reference count */
  return ret;
 }
 
@@ -691,7 +700,7 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
     continue;
    case 2:
     if (!newkey)
-     newkey = key = umg->mg_obj = sv_2mortal(newSVsv(umg->mg_obj));
+     newkey = key = umg->mg_obj = sv_mortalcopy(umg->mg_obj);
   }
   switch (action) {
    case 0:
@@ -968,13 +977,14 @@ BOOT:
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));
 }
 
+#if VMG_THREADSAFE
+
 void
 CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  HV *hv;
 CODE:
-#if VMG_THREADSAFE
  {
   HE *key;
   dMY_CXT;
@@ -997,6 +1007,7 @@ CODE:
   MY_CXT_CLONE;
   MY_CXT = hv;
  }
+
 #endif /* VMG_THREADSAFE */
 
 SV *_wizard(...)

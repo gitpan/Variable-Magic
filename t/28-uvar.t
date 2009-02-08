@@ -105,7 +105,7 @@ for my $i (1 .. 2) {
 
 for my $i (1 .. 2) {
  eval { $h3{b} = 5 + $i };
- is $@, '',                    "uvar: change readonly key in store croaks ($i)";
+ is        $@,   '',    "uvar: change readonly key in store doesn't croak ($i)";
  is_deeply \%h3, { a => 3, b => 5, c => 5 + $i },
-                             "uvar: change readonly key in store correcty ($i)";
+                        "uvar: change readonly key in store correcty ($i)";
 }

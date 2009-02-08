@@ -1,4 +1,4 @@
-use 5.007003;
+use 5.008;
 
 use strict;
 use warnings;
@@ -43,54 +43,46 @@ if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
 
 @DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
 
-my $BUILD_REQUIRES = {
- 'Config'              => 0,
- 'ExtUtils::MakeMaker' => 0,
- 'Test::More'          => 0,
-};
+my $dist = 'Variable-Magic';
 
-sub build_req {
- my $tometa = ' >> $(DISTVNAME)/META.yml;';
- my $build_req = 'echo "build_requires:" ' . $tometa;
- foreach my $mod ( sort { lc $a cmp lc $b } keys %$BUILD_REQUIRES ) {
-  my $ver = $BUILD_REQUIRES->{$mod};
-  $build_req .= sprintf 'echo "    %-30s %s" %s', "$mod:", $ver, $tometa;
- }
- return $build_req;
-}
-
-my $RESOURCES = {
- 'repository' => 'http://git.profvince.com/perl/modules/Variable-Magic.git',
- 'bugtracker' => 'http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic',
-};
-
-sub resources {
- my $tometa = ' >> $(DISTVNAME)/META.yml;';
- my $build_req = 'echo "resources:" ' . $tometa;
- foreach my $res ( sort { lc $a cmp lc $b } keys %$RESOURCES ) {
-  my $val = $RESOURCES->{$res};
-  $build_req .= sprintf 'echo "    %-15s %s" %s', "$res:", $val, $tometa;
- }
- return $build_req;
-}
+my %META = (
+ configure_requires => {
+  'Config'              => 0,
+  'ExtUtils::MakeMaker' => 0,
+ },
+ build_requires => {
+  'Config'              => 0,
+  'ExtUtils::MakeMaker' => 0,
+  'Test::More'          => 0,
+ },
+ resources => {
+  bugtracker => "http://rt.cpan.org/NoAuth/ReportBug.html?Queue=$dist",
+  homepage   => "http://search.cpan.org/dist/$dist/",
+  license    => 'http://dev.perl.org/licenses/',
+  repository => "http://git.profvince.com/perl/modules/$dist.git",
+ },
+);
 
 WriteMakefile(
-    NAME          => 'Variable::Magic',
-    AUTHOR        => 'Vincent Pit <perl@profvince.com>',
-    LICENSE       => 'perl',
-    VERSION_FROM  => 'lib/Variable/Magic.pm',
-    ABSTRACT_FROM => 'lib/Variable/Magic.pm',
-    PL_FILES      => {},
+    NAME             => 'Variable::Magic',
+    AUTHOR           => 'Vincent Pit <perl@profvince.com>',
+    LICENSE          => 'perl',
+    VERSION_FROM     => 'lib/Variable/Magic.pm',
+    ABSTRACT_FROM    => 'lib/Variable/Magic.pm',
+    PL_FILES         => {},
     @DEFINES,
-    PREREQ_PM     => {
+    PREREQ_PM        => {
         'Carp'     => 0,
         'Exporter' => 0,
         'XSLoader' => 0
     },
-    dist          => { 
-        PREOP      => 'pod2text lib/Variable/Magic.pm > $(DISTVNAME)/README; '
-                      . build_req . resources,
-        COMPRESS   => 'gzip -9f', SUFFIX => 'gz'
+    MIN_PERL_VERSION => 5.008,
+    META_MERGE       => \%META,
+    dist             => {
+        PREOP    => 'pod2text lib/Variable/Magic.pm > $(DISTVNAME)/README',
+        COMPRESS => 'gzip -9f', SUFFIX => 'gz'
     },
-    clean         => { FILES => 'Variable-Magic-* *.gcov *.gcda *.gcno cover_db Debian_CPANTS.txt' },
+    clean            => {
+        FILES => "$dist-* *.gcov *.gcda *.gcno cover_db Debian_CPANTS.txt"
+    },
 );

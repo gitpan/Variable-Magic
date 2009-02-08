@@ -1,5 +1,15 @@
 Revision history for Variable-Magic
 
+0.29    2009-02-08 11:10 UTC
+        + Add : Set $_[2] to the default length for len magic on scalars.
+        + Chg : Perl 5.8 is required.
+        + Chg : The CLONE method will no longer be defined for non-threaded
+                perls.
+        + Doc : Nits.
+        + Fix : The logic for turning off the GMAGICAL flag on hashes when no
+                uvar magic is involved could do nasty things on tied hashes.
+        + Upd : More resources in META.yml.
+
 0.28    2009-01-24 17:05 UTC
         + Add : The 'copy_key' option to wizard(), that enables the safe edition
                 of $_[2] in uvar callbacks to redirect actions to another key.

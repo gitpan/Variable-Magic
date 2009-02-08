@@ -1,6 +1,6 @@
 package Variable::Magic;
 
-use 5.007003;
+use 5.008;
 
 use strict;
 use warnings;
@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.28
+Version 0.29
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.28';
+ $VERSION = '0.29';
 }
 
 =head1 SYNOPSIS
@@ -325,21 +325,21 @@ Other arguments are specific to the magic hooked :
 
 =over 8
 
-=item -
+=item *
 
 C<len>
 
-When the variable is an array, C<$_[2]> contains the normal length.
-The callback is also expected to return the new scalar or array length.
+When the variable is an array or a scalar, C<$_[2]> contains the non-magical length.
+The callback can return the new scalar or array length to use, or C<undef> to default to the normal length.
 
-=item -
+=item *
 
 C<copy>
 
 C<$_[2]> is a either a copy or an alias of the current key, which means that it is useless to try to change or cast magic on it.
 C<$_[3]> is an alias to the current element (i.e. the value).
 
-=item -
+=item *
 
 C<fetch>, C<store>, C<exists> and C<delete>
 
@@ -464,7 +464,7 @@ If you define a wizard with a C<free> callback and cast it on itself, this destr
 
 =head1 DEPENDENCIES
 
-L<perl> 5.7.3.
+L<perl> 5.8.
 
 L<Carp> (standard since perl 5), L<XSLoader> (standard since perl 5.006).
 
