@@ -97,8 +97,12 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
 #endif
 
-#ifndef mPUSHi
-# define mPUSHi(I) PUSHs(sv_2mortal(newSViv(I)))
+#ifndef mPUSHu
+# define mPUSHu(U) PUSHs(sv_2mortal(newSVuv(U)))
+#endif
+
+#ifndef SvPV_const
+# define SvPV_const SvPV
 #endif
 
 #ifndef PERL_MAGIC_ext
@@ -229,8 +233,11 @@ STATIC U16 vmg_gensig(pTHX) {
 
 typedef struct {
  MGVTBL *vtbl;
+
  U16 sig;
- U16 uvar;
+ U8 uvar;
+ U8 opinfo;
+
  SV *cb_data;
  SV *cb_get, *cb_set, *cb_len, *cb_clear, *cb_free;
 #if MGf_COPY
@@ -486,20 +493,76 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
  return 1;
 }
 
+/* ... OP info ............................................................. */
+
+#define VMG_OP_INFO_NAME   1
+#define VMG_OP_INFO_OBJECT 2
+
+STATIC STRLEN *vmg_op_name_len = NULL;
+
+STATIC HV *vmg_b__op_stash = NULL;
+
+STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo) {
+#define vmg_op_info_init(W) vmg_op_info_init(aTHX_ (W))
+ switch (opinfo) {
+  case VMG_OP_INFO_NAME:
+   if (!vmg_op_name_len) {
+    OPCODE t;
+    Newx(vmg_op_name_len, MAXO, STRLEN);
+    for (t = 0; t < OP_max; ++t)
+     vmg_op_name_len[t] = strlen(PL_op_name[t]);
+   }
+   break;
+  case VMG_OP_INFO_OBJECT:
+   if (!vmg_b__op_stash) {
+    require_pv("B.pm");
+    vmg_b__op_stash = gv_stashpv("B::OP", 1);
+   }
+   break;
+  default:
+   break;
+ }
+}
+
+STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
+#define vmg_op_info(W) vmg_op_info(aTHX_ (W))
+ if (!PL_op)
+  return &PL_sv_undef;
+
+ switch (opinfo) {
+  case VMG_OP_INFO_NAME: {
+   OPCODE t = PL_op->op_type;
+   return sv_2mortal(newSVpvn(PL_op_name[t], vmg_op_name_len[t]));
+  }
+  case VMG_OP_INFO_OBJECT:
+   return sv_bless(sv_2mortal(newRV_noinc(newSViv(PTR2IV(PL_op)))),
+                              vmg_b__op_stash);
+  default:
+   break;
+ }
+
+ return &PL_sv_undef;
+}
+
 /* ... svt callbacks ....................................................... */
 
-#define VMG_CB_CALL_ARGS_MASK 15
-#define VMG_CB_CALL_EVAL      16
+#define VMG_CB_CALL_ARGS_MASK  15
+#define VMG_CB_CALL_ARGS_SHIFT 4
+#define VMG_CB_CALL_OPINFO     (VMG_OP_INFO_NAME|VMG_OP_INFO_OBJECT)
+#define VMG_CB_CALL_EVAL       4
 
 STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
  va_list ap;
  SV *svr;
  int ret;
- unsigned int i;
- unsigned int args = flags & VMG_CB_CALL_ARGS_MASK;
- unsigned int eval = flags & VMG_CB_CALL_EVAL ? G_EVAL : 0;
+ unsigned int i, args, opinfo, eval;
 
  dSP;
+
+ args    = flags & VMG_CB_CALL_ARGS_MASK;
+ flags >>= VMG_CB_CALL_ARGS_SHIFT;
+ opinfo  = flags & VMG_CB_CALL_OPINFO;
+ eval    = flags & VMG_CB_CALL_EVAL ? G_EVAL : 0;
 
  ENTER;
  SAVETMPS;
@@ -514,6 +577,8 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
   PUSHs(sva ? sva : &PL_sv_undef);
  }
  va_end(ap);
+ if (opinfo)
+  XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
  call_sv(cb, G_SCALAR | eval);
@@ -531,21 +596,29 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
  return ret;
 }
 
-#define vmg_cb_call1(I, S, D)         vmg_cb_call(aTHX_ (I), (S), (D), 0)
-#define vmg_cb_call1e(I, S, D)        vmg_cb_call(aTHX_ (I), (S), (D), VMG_CB_CALL_EVAL)
-#define vmg_cb_call2(I, S, D, S2)     vmg_cb_call(aTHX_ (I), (S), (D), 1, (S2))
-#define vmg_cb_call3(I, S, D, S2, S3) vmg_cb_call(aTHX_ (I), (S), (D), 2, (S2), (S3))
+#define vmg_cb_call1(I, S, D) \
+        vmg_cb_call(aTHX_ (I), (S), (D), (flags << VMG_CB_CALL_ARGS_SHIFT))
+#define vmg_cb_call2(I, S, D, S2) \
+        vmg_cb_call(aTHX_ (I), (S), (D), ((flags << VMG_CB_CALL_ARGS_SHIFT) | 1), (S2))
+#define vmg_cb_call3(I, S, D, S2, S3) \
+        vmg_cb_call(aTHX_ (I), (S), (D), ((flags << VMG_CB_CALL_ARGS_SHIFT) | 2), (S2), (S3))
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_get, sv, mg->mg_obj);
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int flags = w->opinfo;
+ return vmg_cb_call1(w->cb_get, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_set, sv, mg->mg_obj);
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int flags = w->opinfo;
+ return vmg_cb_call1(w->cb_set, sv, mg->mg_obj);
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  SV *svr;
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int opinfo = w->opinfo;
  U32 len, ret;
  svtype t = SvTYPE(sv);
 
@@ -573,9 +646,11 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
   len = 0;
   PUSHs(&PL_sv_undef);
  }
+ if (opinfo)
+  XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- call_sv(SV2MGWIZ(mg->mg_ptr)->cb_len, G_SCALAR);
+ call_sv(w->cb_len, G_SCALAR);
 
  SPAGAIN;
  svr = POPs;
@@ -589,16 +664,23 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
- return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_clear, sv, mg->mg_obj);
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int flags = w->opinfo;
+ return vmg_cb_call1(w->cb_clear, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
- SV *wiz = (SV *) mg->mg_ptr;
+ const MGWIZ *w;
+ unsigned int flags;
  int ret = 0;
 
- /* This may happen in global destruction */
- if (SvTYPE(wiz) == SVTYPEMASK)
+ /* Don't even bother if we are in global destruction - the wizard is prisoner
+  * of circular references and we are way beyond user realm */
+ if (PL_dirty)
   return 0;
+
+ w = SV2MGWIZ(mg->mg_ptr);
+ flags = w->opinfo | VMG_CB_CALL_EVAL;
 
  /* So that it survives the temp cleanup in vmg_cb_call */
  SvREFCNT_inc(sv);
@@ -610,7 +692,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  SvMAGIC_set(sv, mg);
 #endif
 
- ret = vmg_cb_call1e(SV2MGWIZ(wiz)->cb_free, sv, mg->mg_obj);
+ ret = vmg_cb_call1(w->cb_free, sv, mg->mg_obj);
 
  /* Calling SvREFCNT_dec() will trigger destructors in an infinite loop, so
   * we have to rely on SvREFCNT() being a lvalue. Heck, even the core does it */
@@ -630,6 +712,8 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
 # endif
  ) {
  SV *keysv;
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int flags = w->opinfo;
  int ret;
 
  if (keylen == HEf_SVKEY) {
@@ -638,7 +722,7 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
   keysv = newSVpvn(key, keylen);
  }
 
- ret = vmg_cb_call3(SV2MGWIZ(mg->mg_ptr)->cb_copy, sv, mg->mg_obj, keysv, nsv);
+ ret = vmg_cb_call3(w->cb_copy, sv, mg->mg_obj, keysv, nsv);
 
  if (keylen != HEf_SVKEY) {
   SvREFCNT_dec(keysv);
@@ -656,7 +740,9 @@ STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
 
 #if MGf_LOCAL
 STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
- return vmg_cb_call1(SV2MGWIZ(mg->mg_ptr)->cb_local, nsv, mg->mg_obj);
+ const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+ unsigned int flags = w->opinfo;
+ return vmg_cb_call1(w->cb_local, nsv, mg->mg_obj);
 }
 #endif /* MGf_LOCAL */
 
@@ -682,7 +768,8 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
 
  action &= HV_FETCH_ISSTORE | HV_FETCH_ISEXISTS | HV_FETCH_LVALUE | HV_DELETE;
  for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
-  MGWIZ *w;
+  const MGWIZ *w;
+  unsigned int flags;
   switch (mg->mg_type) {
    case PERL_MAGIC_ext:
     break;
@@ -695,6 +782,7 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   if (mg->mg_private < SIG_MIN || mg->mg_private > SIG_MAX)
    continue;
   w = SV2MGWIZ(mg->mg_ptr);
+  flags = w->opinfo;
   switch (w->uvar) {
    case 0:
     continue;
@@ -935,10 +1023,11 @@ STATIC MGWIZ *vmg_wizard_clone(pTHX_ const MGWIZ *w) {
  VMG_CLONE_CB(exists);
  VMG_CLONE_CB(delete);
 #endif /* VMG_UVAR */
- z->owner = aTHX;
- z->vtbl  = t;
- z->sig   = w->sig;
- z->uvar  = w->uvar;
+ z->owner  = aTHX;
+ z->vtbl   = t;
+ z->sig    = w->sig;
+ z->uvar   = w->uvar;
+ z->opinfo = w->opinfo;
 
  return z;
 }
@@ -975,6 +1064,8 @@ BOOT:
                     newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
  newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));
+ newCONSTSUB(stash, "VMG_OP_INFO_NAME",    newSVuv(VMG_OP_INFO_NAME));
+ newCONSTSUB(stash, "VMG_OP_INFO_OBJECT",  newSVuv(VMG_OP_INFO_OBJECT));
 }
 
 #if VMG_THREADSAFE
@@ -1025,7 +1116,7 @@ PREINIT:
 CODE:
  dMY_CXT;
 
- if (items != 7
+ if (items != 8
 #if MGf_COPY
               + 1
 #endif /* MGf_COPY */
@@ -1057,6 +1148,10 @@ CODE:
  Newx(w, 1, MGWIZ);
 
  VMG_SET_CB(ST(i++), data);
+ cb = ST(i++);
+ w->opinfo = SvOK(cb) ? SvUV(cb) : 0;
+ if (w->opinfo)
+  vmg_op_info_init(w->opinfo);
  VMG_SET_SVT_CB(ST(i++), get);
  VMG_SET_SVT_CB(ST(i++), set);
  VMG_SET_SVT_CB(ST(i++), len);
@@ -1169,3 +1264,13 @@ CODE:
  RETVAL = newSVuv(vmg_dispell(SvRV(sv), sig));
 OUTPUT:
  RETVAL
+
+void
+_cleanup()
+PROTOTYPE:
+PPCODE:
+ if (vmg_op_name_len) {
+  Safefree(vmg_op_name_len);
+  vmg_op_name_len = NULL;
+ }
+ XSRETURN(0);

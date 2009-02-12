@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.29
+Version 0.30
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.29';
+ $VERSION = '0.30';
 }
 
 =head1 SYNOPSIS
@@ -267,6 +267,14 @@ The perl patchlevel this module was built with, or C<0> for non-debugging perls.
 
 True iff this module could have been built with thread-safety features enabled.
 
+=head2 C<VMG_OP_INFO_NAME>
+
+Value to pass with C<op_info> to get the current op name in the magic callbacks.
+
+=head2 C<VMG_OP_INFO_OBJECT>
+
+Value to pass with C<op_info> to get a C<B::OP> object representing the current op in the magic callbacks.
+
 =head1 FUNCTIONS
 
 =cut
@@ -280,18 +288,19 @@ BEGIN {
 
     wizard sig      => ...,
            data     => sub { ... },
-           get      => sub { my ($ref, $data) = @_; ... },
-           set      => sub { my ($ref, $data) = @_; ... },
-           len      => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
-           clear    => sub { my ($ref, $data) = @_; ... },
-           free     => sub { my ($ref, $data) = @_, ... },
-           copy     => sub { my ($ref, $data, $key, $elt) = @_; ... },
-           local    => sub { my ($ref, $data) = @_; ... },
-           fetch    => sub { my ($ref, $data, $key) = @_; ... },
-           store    => sub { my ($ref, $data, $key) = @_; ... },
-           exists   => sub { my ($ref, $data, $key) = @_; ... },
-           delete   => sub { my ($ref, $data, $key) = @_; ... },
-           copy_key => $bool
+           get      => sub { my ($ref, $data [, $op]) = @_; ... },
+           set      => sub { my ($ref, $data [, $op]) = @_; ... },
+           len      => sub { my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen; },
+           clear    => sub { my ($ref, $data [, $op]) = @_; ... },
+           free     => sub { my ($ref, $data [, $op]) = @_, ... },
+           copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
+           local    => sub { my ($ref, $data [, $op]) = @_; ... },
+           fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+           store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+           exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+           delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+           copy_key => $bool,
+           op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ]
 
 This function creates a 'wizard', an opaque type that holds the magic information.
 It takes a list of keys / values as argument, whose keys can be :
@@ -321,6 +330,10 @@ C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>
 Code references to the corresponding magic callbacks.
 You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked.
 In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied).
+
+Moreover, when you pass C<< op_info => $num >> to C<wizard>, the last element of C<@_> will be the current op name if C<$num == VMG_OP_INFO_NAME> and a C<B::OP> object representing the current op if C<$num == VMG_OP_INFO_OBJECT>.
+Both have a performance hit, but just getting the name is lighter than getting the op object.
+
 Other arguments are specific to the magic hooked :
 
 =over 8
@@ -366,7 +379,7 @@ However, only the return value of the C<len> callback currently holds a meaning.
 sub wizard {
  croak 'Wrong number of arguments for wizard()' if @_ % 2;
  my %opts = @_;
- my @keys  = qw/sig data get set len clear free/;
+ my @keys = qw/sig data op_info get set len clear free/;
  push @keys, 'copy'  if MGf_COPY;
  push @keys, 'dup'   if MGf_DUP;
  push @keys, 'local' if MGf_LOCAL;
@@ -410,6 +423,15 @@ If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignor
     my $x;
     die 'error' unless cast $x, $wiz;
 
+The C<var> argument can be an array or hash value.
+Magic for those behaves like for any other scalar, except that it is dispelled when the entry is deleted from the container.
+For example, if you want to call C<POSIX::tzset> each time the C<'TZ'> environment variable is changed in C<%ENV>, you can use :
+
+    use POSIX;
+    cast $ENV{TZ}, wizard set => sub { POSIX::tzset(); () };
+
+If you want to overcome the possible deletion of the C<'TZ'> entry, you have no choice but to rely on C<store> uvar magic.
+
 =head2 C<getdata>
 
     getdata [$@%&*]var, [$wiz|$sig]
@@ -446,14 +468,18 @@ use base qw/Exporter/;
 our @EXPORT         = ();
 our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
- 'consts' => [ qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
-               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
-               qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
+ 'consts' => [
+               qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
                qw/VMG_PERL_PATCHLEVEL/,
-               qw/VMG_THREADSAFE/ ]
+               qw/VMG_THREADSAFE/,
+               qw/VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/
+             ]
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
+
+END { _cleanup() }
 
 =head1 CAVEATS
 

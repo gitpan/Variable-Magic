@@ -7,7 +7,7 @@ use Test::More tests => 46;
 
 use Variable::Magic qw/wizard gensig getsig cast dispell MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/;
 
-my $args = 7;
+my $args = 8;
 ++$args if MGf_COPY;
 ++$args if MGf_DUP;
 ++$args if MGf_LOCAL;

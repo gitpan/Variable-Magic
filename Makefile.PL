@@ -51,6 +51,7 @@ my %META = (
   'ExtUtils::MakeMaker' => 0,
  },
  build_requires => {
+  'Carp'                => 0,
   'Config'              => 0,
   'ExtUtils::MakeMaker' => 0,
   'Test::More'          => 0,

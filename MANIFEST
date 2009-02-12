@@ -32,6 +32,7 @@ t/31-array.t
 t/32-hash.t
 t/33-code.t
 t/34-glob.t
+t/35-stash.t
 t/40-threads.t
 t/41-clone.t
 t/90-boilerplate.t

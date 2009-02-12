@@ -48,7 +48,8 @@ is $b, 'd', 'array: delete correctly';
 $b = check { @a } { len => 1 }, 'length @';
 is $b, 3, 'array: length @ correctly';
 
-$b = check { $#a } { len => 1 }, 'length $#';
+# $b has to be set inside the block for the test to pass on 5.8.3 and lower
+check { $b = $#a } { len => 1 }, 'length $#';
 is $b, 2, 'array: length $# correctly';
 
 check { push @a, 'x'; () }

@@ -1,5 +1,16 @@
 Revision history for Variable-Magic
 
+0.30    2009-02-12 17:05 UTC
+        + Add : You can now get in all the callbacks either the name or a B::OP
+                object representing the current op if you pass the new 'op_info'
+                option to wizard() with respective values VMG_OP_INFO_NAME and
+                VMG_OP_INFO_OBJECT.
+        + Doc : Document magic on array/hashes values.
+        + Fix : Completely skip free callbacks during global destruction.
+        + Tst : Tests now pass again on 5.8.3 and lower (they were broken since
+                0.27).
+        + Tst : Test magic on symbol table and on array/hash values.
+
 0.29    2009-02-08 11:10 UTC
         + Add : Set $_[2] to the default length for len magic on scalars.
         + Chg : Perl 5.8 is required.

@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.29
+    Version 0.30
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -204,22 +204,31 @@ CONSTANTS
     True iff this module could have been built with thread-safety features
     enabled.
 
+  "VMG_OP_INFO_NAME"
+    Value to pass with "op_info" to get the current op name in the magic
+    callbacks.
+
+  "VMG_OP_INFO_OBJECT"
+    Value to pass with "op_info" to get a "B::OP" object representing the
+    current op in the magic callbacks.
+
 FUNCTIONS
   "wizard"
         wizard sig      => ...,
                data     => sub { ... },
-               get      => sub { my ($ref, $data) = @_; ... },
-               set      => sub { my ($ref, $data) = @_; ... },
-               len      => sub { my ($ref, $data, $len) = @_; ... ; return $newlen; },
-               clear    => sub { my ($ref, $data) = @_; ... },
-               free     => sub { my ($ref, $data) = @_, ... },
-               copy     => sub { my ($ref, $data, $key, $elt) = @_; ... },
-               local    => sub { my ($ref, $data) = @_; ... },
-               fetch    => sub { my ($ref, $data, $key) = @_; ... },
-               store    => sub { my ($ref, $data, $key) = @_; ... },
-               exists   => sub { my ($ref, $data, $key) = @_; ... },
-               delete   => sub { my ($ref, $data, $key) = @_; ... },
-               copy_key => $bool
+               get      => sub { my ($ref, $data [, $op]) = @_; ... },
+               set      => sub { my ($ref, $data [, $op]) = @_; ... },
+               len      => sub { my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen; },
+               clear    => sub { my ($ref, $data [, $op]) = @_; ... },
+               free     => sub { my ($ref, $data [, $op]) = @_, ... },
+               copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
+               local    => sub { my ($ref, $data [, $op]) = @_; ... },
+               fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+               store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+               exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+               delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+               copy_key => $bool,
+               op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ]
 
     This function creates a 'wizard', an opaque type that holds the magic
     information. It takes a list of keys / values as argument, whose keys
@@ -246,8 +255,15 @@ FUNCTIONS
         to specify all of them : the magic associated with undefined entries
         simply won't be hooked. In those callbacks, $_[0] is always a
         reference to the magic object and $_[1] is always the private data
-        (or "undef" when no private data constructor was supplied). Other
-        arguments are specific to the magic hooked :
+        (or "undef" when no private data constructor was supplied).
+
+        Moreover, when you pass "op_info => $num" to "wizard", the last
+        element of @_ will be the current op name if "$num ==
+        VMG_OP_INFO_NAME" and a "B::OP" object representing the current op
+        if "$num == VMG_OP_INFO_OBJECT". Both have a performance hit, but
+        just getting the name is lighter than getting the op object.
+
+        Other arguments are specific to the magic hooked :
 
         *       "len"
 
@@ -314,6 +330,18 @@ FUNCTIONS
         # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
         my $x;
         die 'error' unless cast $x, $wiz;
+
+    The "var" argument can be an array or hash value. Magic for those
+    behaves like for any other scalar, except that it is dispelled when the
+    entry is deleted from the container. For example, if you want to call
+    "POSIX::tzset" each time the 'TZ' environment variable is changed in
+    %ENV, you can use :
+
+        use POSIX;
+        cast $ENV{TZ}, wizard set => sub { POSIX::tzset(); () };
+
+    If you want to overcome the possible deletion of the 'TZ' entry, you
+    have no choice but to rely on "store" uvar magic.
 
   "getdata"
         getdata [$@%&*]var, [$wiz|$sig]
