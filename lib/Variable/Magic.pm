@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.30
+Version 0.31
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.30';
+ $VERSION = '0.31';
 }
 
 =head1 SYNOPSIS
@@ -36,28 +36,49 @@ BEGIN {
 =head1 DESCRIPTION
 
 Magic is Perl way of enhancing objects.
-This mechanism let the user add extra data to any variable and hook syntaxical operations (such as access, assignation or destruction) that can be applied to it.
-With this module, you can add your own magic to any variable without the pain of the C API.
+This mechanism lets the user add extra data to any variable and hook syntaxical operations (such as access, assignment or destruction) that can be applied to it.
+With this module, you can add your own magic to any variable without having to write a single line of XS.
 
-Magic differs from tieing and overloading in several ways :
+You'll realize that these magic variables look a lot like tied variables.
+It's not surprising, as tied variables are implemented as a special kind of magic, just like any 'irregular' Perl variable : scalars like C<$!>, C<$(> or C<$^W>, the C<%ENV> and C<%SIG> hashes, the C<@ISA> array,  C<vec()> and C<substr()> lvalues, L<thread::shared> variables...
+They all share the same underlying C API, and this module gives you direct access to it.
+
+Still, the magic made available by this module differs from tieing and overloading in several ways :
 
 =over 4
 
 =item *
 
-Magic isn't copied on assignation (as for blessed references) : you attach it to variables, not values.
+It isn't copied on assignment.
+
+You attach it to variables, not values (as for blessed references).
 
 =item *
 
-It doesn't replace the original semantics : magic callbacks trigger before the original action take place, and can't prevent it to happen.
+It doesn't replace the original semantics.
+
+Magic callbacks trigger before the original action take place, and can't prevent it to happen.
+This makes catching individual events easier than with C<tie>, where you have to provide fallbacks methods for all actions by usually inheriting from the correct C<Tie::Std*> class and overriding individual methods in your own class.
 
 =item *
 
-It's mostly invisible at the Perl level : magical and non-magical variables cannot be distinguished with C<ref>, C<reftype> or another trick.
+It's type-agnostic.
+
+The same magic can be applied on scalars, arrays, hashes, subs or globs.
+But the same hook (see below for a list) may trigger differently depending on the the type of the variable.
 
 =item *
 
-It's notably faster, since perl's way of handling magic is lighter by nature, and there's no need for any method resolution.
+It's mostly invisible at the Perl level.
+
+Magical and non-magical variables cannot be distinguished with C<ref>, C<tied> or another trick.
+
+=item *
+
+It's notably faster.
+
+Mainly because perl's way of handling magic is lighter by nature, and because there's no need for any method resolution.
+Also, since you don't have to reimplement all the variable semantics, you only pay for what you actually use.
 
 =back
 
@@ -82,7 +103,7 @@ This one is triggered each time the value of the variable changes (includes arra
 C<len>
 
 This magic is a little special : it is called when the 'size' or the 'length' of the variable has to be known by Perl.
-Typically, it's the magic involved when an array is evaluated in scalar context, but also on array assignation and loops (C<for>, C<map> or C<grep>).
+Typically, it's the magic involved when an array is evaluated in scalar context, but also on array assignment and loops (C<for>, C<map> or C<grep>).
 The callback has then to return the length as an integer.
 
 =item *
@@ -157,123 +178,6 @@ This last one triggers when a key is deleted in the hash, regardless of whether 
 You can refer to the tests to have more insight of where the different magics are invoked.
 
 To prevent any clash between different magics defined with this module, an unique numerical signature is attached to each kind of magic (i.e. each set of callbacks for magic operations).
-
-=head1 PERL MAGIC HISTORY
-
-The places where magic is invoked have changed a bit through perl history.
-Here's a little list of the most recent ones.
-
-=over 4
-
-=item *
-
-B<5.6.x>
-
-I<p14416> : 'copy' and 'dup' magic.
-
-=item *
-
-B<5.8.9>
-
-I<p28160> : Integration of I<p25854> (see below).
-
-I<p32542> : Integration of I<p31473> (see below).
-
-=item *
-
-B<5.9.3>
-
-I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
-
-I<p26569> : 'local' magic.
-
-=item *
-
-B<5.9.5>
-
-I<p31064> : Meaningful 'uvar' magic.
-
-I<p31473> : 'clear' magic wasn't invoked when undefining an array.
-The bug is fixed as of this version.
-
-=item *
-
-B<5.10.0>
-
-Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
-
-=item *
-
-B<5.11.x>
-
-I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
-
-I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context.
-The C<push> part was already covered by I<p25854>.
-
-=back
-
-=head1 CONSTANTS
-
-=head2 C<SIG_MIN>
-
-The minimum integer used as a signature for user-defined magic.
-
-=head2 C<SIG_MAX>
-
-The maximum integer used as a signature for user-defined magic.
-
-=head2 C<SIG_NBR>
-
-    SIG_NBR = SIG_MAX - SIG_MIN + 1
-
-=head2 C<MGf_COPY>
-
-Evaluates to true iff the 'copy' magic is available.
-
-=head2 C<MGf_DUP>
-
-Evaluates to true iff the 'dup' magic is available.
-
-=head2 C<MGf_LOCAL>
-
-Evaluates to true iff the 'local' magic is available.
-
-=head2 C<VMG_UVAR>
-
-When this constant is true, you can use the C<fetch,store,exists,delete> callbacks on hashes.
-
-=head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
-
-True for perls that don't call 'len' magic when you push an element in a magical array.
-
-=head2 C<VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID>
-
-True for perls that don't call 'len' magic when you unshift in void context an element in a magical array.
-
-=head2 C<VMG_COMPAT_ARRAY_UNDEF_CLEAR>
-
-True for perls that call 'clear' magic when undefining magical arrays.
-
-=head2 C<VMG_COMPAT_SCALAR_LENGTH_NOLEN>
-
-True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
-
-=head2 C<VMG_PERL_PATCHLEVEL>
-
-The perl patchlevel this module was built with, or C<0> for non-debugging perls.
-
-=head2 C<VMG_THREADSAFE>
-
-True iff this module could have been built with thread-safety features enabled.
-
-=head2 C<VMG_OP_INFO_NAME>
-
-Value to pass with C<op_info> to get the current op name in the magic callbacks.
-
-=head2 C<VMG_OP_INFO_OBJECT>
-
-Value to pass with C<op_info> to get a C<B::OP> object representing the current op in the magic callbacks.
 
 =head1 FUNCTIONS
 
@@ -453,13 +357,129 @@ True is returned on success, C<0> on error or when no magic represented by C<$wi
     # Dispell now. If $wiz isn't a signature, undef can't be returned.
     die 'no such magic or error' unless dispell $x, $wiz;
 
+=head1 CONSTANTS
+
+=head2 C<SIG_MIN>
+
+The minimum integer used as a signature for user-defined magic.
+
+=head2 C<SIG_MAX>
+
+The maximum integer used as a signature for user-defined magic.
+
+=head2 C<SIG_NBR>
+
+    SIG_NBR = SIG_MAX - SIG_MIN + 1
+
+=head2 C<MGf_COPY>
+
+Evaluates to true iff the 'copy' magic is available.
+
+=head2 C<MGf_DUP>
+
+Evaluates to true iff the 'dup' magic is available.
+
+=head2 C<MGf_LOCAL>
+
+Evaluates to true iff the 'local' magic is available.
+
+=head2 C<VMG_UVAR>
+
+When this constant is true, you can use the C<fetch,store,exists,delete> callbacks on hashes.
+
+=head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
+
+True for perls that don't call 'len' magic when you push an element in a magical array.
+
+=head2 C<VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID>
+
+True for perls that don't call 'len' magic when you unshift in void context an element in a magical array.
+
+=head2 C<VMG_COMPAT_ARRAY_UNDEF_CLEAR>
+
+True for perls that call 'clear' magic when undefining magical arrays.
+
+=head2 C<VMG_COMPAT_SCALAR_LENGTH_NOLEN>
+
+True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
+
+=head2 C<VMG_PERL_PATCHLEVEL>
+
+The perl patchlevel this module was built with, or C<0> for non-debugging perls.
+
+=head2 C<VMG_THREADSAFE>
+
+True iff this module could have been built with thread-safety features enabled.
+
+=head2 C<VMG_OP_INFO_NAME>
+
+Value to pass with C<op_info> to get the current op name in the magic callbacks.
+
+=head2 C<VMG_OP_INFO_OBJECT>
+
+Value to pass with C<op_info> to get a C<B::OP> object representing the current op in the magic callbacks.
+
+=head1 PERL MAGIC HISTORY
+
+The places where magic is invoked have changed a bit through perl history.
+Here's a little list of the most recent ones.
+
+=over 4
+
+=item *
+
+B<5.6.x>
+
+I<p14416> : 'copy' and 'dup' magic.
+
+=item *
+
+B<5.8.9>
+
+I<p28160> : Integration of I<p25854> (see below).
+
+I<p32542> : Integration of I<p31473> (see below).
+
+=item *
+
+B<5.9.3>
+
+I<p25854> : 'len' magic is no longer called when pushing an element into a magic array.
+
+I<p26569> : 'local' magic.
+
+=item *
+
+B<5.9.5>
+
+I<p31064> : Meaningful 'uvar' magic.
+
+I<p31473> : 'clear' magic wasn't invoked when undefining an array.
+The bug is fixed as of this version.
+
+=item *
+
+B<5.10.0>
+
+Since C<PERL_MAGIC_uvar> is uppercased, C<hv_magic_check()> triggers 'copy' magic on hash stores for (non-tied) hashes that also have 'uvar' magic.
+
+=item *
+
+B<5.11.x>
+
+I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magical scalar.
+
+I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context.
+The C<push> part was already covered by I<p25854>.
+
+=back
+
 =head1 EXPORT
 
 The functions L</wizard>, L</gensig>, L</getsig>, L</cast>, L</getdata> and L</dispell> are only exported on request.
 All of them are exported by the tags C<':funcs'> and C<':all'>.
 
-The constants L</SIG_MIN>, L</SIG_MAX>, L</SIG_NBR>, L</MGf_COPY>, L</MGf_DUP>, L</MGf_LOCAL> and L</VMG_UVAR> are also only exported on request.
-They are all exported by the tags C<':consts'> and C<':all'>.
+All the constants are also only exported on request, either individually or by the tags C<':consts'> and C<':all'>.
 
 =cut
 
@@ -479,11 +499,9 @@ our %EXPORT_TAGS    = (
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
 
-END { _cleanup() }
-
 =head1 CAVEATS
 
-If you store a magic object in the private data slot, the magic won't be accessible by L</getdata> since it's not copied by assignation.
+If you store a magic object in the private data slot, the magic won't be accessible by L</getdata> since it's not copied by assignment.
 The only way to address this would be to return a reference.
 
 If you define a wizard with a C<free> callback and cast it on itself, this destructor won't be called because the wizard will be destroyed first.

@@ -18,10 +18,10 @@ use threads::shared;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE/;
+use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
 
 if (VMG_THREADSAFE) {
- plan tests => 2 * (2 * 16 + 1) + 2 * (2 * 11 + 1);
+ plan tests => 2 * (4 * 18 + 1) + 2 * (4 * 13 + 1);
  my $v = $threads::VERSION;
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
@@ -34,14 +34,21 @@ my $destroyed : shared = 0;
 my $sig = undef;
 
 sub try {
- my ($dispell) = @_;
+ my ($dispell, $op_info) = @_;
  my $tid = threads->tid();
  my $c   = 0;
  my $wiz = eval {
-  wizard get  => sub { ++$c },
-         data => sub { $_[1] + $tid },
-         free => sub { ++$destroyed },
-         sig  => $sig;
+  wizard data    => sub { $_[1] + $tid },
+         sig     => $sig,
+         get     => sub { ++$c; 0 },
+         set     => sub {
+                     my $name = $_[-1];
+                     $name = $name->name if $op_info == VMG_OP_INFO_OBJECT;
+                     is $name, 'sassign', "opname for op_info $op_info in thread $tid is correct";
+                     0
+                    },
+         free    => sub { ++$destroyed; 0 },
+         op_info => $op_info
  };
  is($@,     '',    "wizard in thread $tid doesn't croak");
  isnt($wiz, undef, "wizard in thread $tid is defined");
@@ -59,6 +66,8 @@ sub try {
  is($@, '',       "getdata in thread $tid doesn't croak");
  is($d, 5 + $tid, "getdata in thread $tid returns the right thing");
  is($c, 1,        "getdata in thread $tid doesn't trigger magic");
+ eval { $a = 9 };
+ is($@, '', "set in thread $tid (check opname) doesn't croak");
  if ($dispell) {
   $res = eval { dispell $a, $wiz };
   is($@, '', "dispell in thread $tid doesn't croak");
@@ -66,28 +75,18 @@ sub try {
   undef $b;
   eval { $b = $a };
   is($@, '', "get in thread $tid after dispell doesn't croak");
-  is($b, 3,  "get in thread $tid after dispell returns the right thing");
+  is($b, 9,  "get in thread $tid after dispell returns the right thing");
   is($c, 1,  "get in thread $tid after dispell doesn't trigger magic");
  }
  return; # Ugly if not here
 }
 
 for my $dispell (1, 0) {
- $destroyed = 0;
- $sig = undef;
-
- my @t = map { threads->create(\&try, $dispell) } 1 .. 2;
- $t[0]->join;
- $t[1]->join;
-
- is($destroyed, (1 - $dispell) * 2, 'destructors');
-
- $destroyed = 0;
- $sig = Variable::Magic::gensig();
-
- @t = map { threads->create(\&try, $dispell) } 1 .. 2;
- $t[0]->join;
- $t[1]->join;
-
- is($destroyed, (1 - $dispell) * 2, 'destructors');
+ for my $sig (undef, Variable::Magic::gensig()) {
+  $destroyed = 0;
+  my @t = map { threads->create(\&try, $dispell, $_) }
+                               (VMG_OP_INFO_NAME) x 2, (VMG_OP_INFO_OBJECT) x 2;
+  $_->join for @t;
+  is($destroyed, (1 - $dispell) * 4, 'destructors');
+ }
 }

@@ -203,7 +203,10 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
-typedef HV * my_cxt_t;
+typedef struct {
+ HV *wizards;
+ HV *b__op_stash;
+} my_cxt_t;
 
 START_MY_CXT
 
@@ -224,7 +227,7 @@ STATIC U16 vmg_gensig(pTHX) {
 
  do {
   sig = SIG_NBR * Drand01() + SIG_MIN;
- } while (hv_exists(MY_CXT, buf, sprintf(buf, "%u", sig)));
+ } while (hv_exists(MY_CXT.wizards, buf, sprintf(buf, "%u", sig)));
 
  return sig;
 }
@@ -498,27 +501,28 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 #define VMG_OP_INFO_NAME   1
 #define VMG_OP_INFO_OBJECT 2
 
-STATIC STRLEN *vmg_op_name_len = NULL;
-
-STATIC HV *vmg_b__op_stash = NULL;
+STATIC U32           vmg_op_name_init      = 0;
+STATIC unsigned char vmg_op_name_len[MAXO] = { 0 };
 
 STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo) {
 #define vmg_op_info_init(W) vmg_op_info_init(aTHX_ (W))
  switch (opinfo) {
   case VMG_OP_INFO_NAME:
-   if (!vmg_op_name_len) {
+   if (!vmg_op_name_init) {
     OPCODE t;
-    Newx(vmg_op_name_len, MAXO, STRLEN);
     for (t = 0; t < OP_max; ++t)
      vmg_op_name_len[t] = strlen(PL_op_name[t]);
+    vmg_op_name_init = 1;
    }
    break;
-  case VMG_OP_INFO_OBJECT:
-   if (!vmg_b__op_stash) {
+  case VMG_OP_INFO_OBJECT: {
+   dMY_CXT;
+   if (!MY_CXT.b__op_stash) {
     require_pv("B.pm");
-    vmg_b__op_stash = gv_stashpv("B::OP", 1);
+    MY_CXT.b__op_stash = gv_stashpv("B::OP", 1);
    }
    break;
+  }
   default:
    break;
  }
@@ -534,9 +538,11 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
    OPCODE t = PL_op->op_type;
    return sv_2mortal(newSVpvn(PL_op_name[t], vmg_op_name_len[t]));
   }
-  case VMG_OP_INFO_OBJECT:
+  case VMG_OP_INFO_OBJECT: {
+   dMY_CXT;
    return sv_bless(sv_2mortal(newRV_noinc(newSViv(PTR2IV(PL_op)))),
-                              vmg_b__op_stash);
+                              MY_CXT.b__op_stash);
+  }
   default:
    break;
  }
@@ -546,32 +552,37 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
 
 /* ... svt callbacks ....................................................... */
 
+#define VMG_CB_CALL_SET_RET(D) \
+ {            \
+  SV *svr;    \
+  SPAGAIN;    \
+  svr = POPs; \
+  ret = SvOK(svr) ? SvIV(svr) : (D); \
+  PUTBACK;    \
+ }
+
 #define VMG_CB_CALL_ARGS_MASK  15
 #define VMG_CB_CALL_ARGS_SHIFT 4
 #define VMG_CB_CALL_OPINFO     (VMG_OP_INFO_NAME|VMG_OP_INFO_OBJECT)
-#define VMG_CB_CALL_EVAL       4
 
-STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
+STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
  va_list ap;
- SV *svr;
  int ret;
- unsigned int i, args, opinfo, eval;
+ unsigned int i, args, opinfo;
 
  dSP;
 
  args    = flags & VMG_CB_CALL_ARGS_MASK;
  flags >>= VMG_CB_CALL_ARGS_SHIFT;
  opinfo  = flags & VMG_CB_CALL_OPINFO;
- eval    = flags & VMG_CB_CALL_EVAL ? G_EVAL : 0;
 
  ENTER;
  SAVETMPS;
 
  PUSHMARK(SP);
- EXTEND(SP, args + 2);
+ EXTEND(SP, args + 1);
  PUSHs(sv_2mortal(newRV_inc(sv)));
- PUSHs(data ? data : &PL_sv_undef);
- va_start(ap, flags);
+ va_start(ap, sv);
  for (i = 0; i < args; ++i) {
   SV *sva = va_arg(ap, SV *);
   PUSHs(sva ? sva : &PL_sv_undef);
@@ -581,14 +592,9 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- call_sv(cb, G_SCALAR | eval);
+ call_sv(cb, G_SCALAR);
 
- SPAGAIN;
- if (eval && IN_PERL_COMPILETIME && SvTRUE(ERRSV))
-  ++PL_error_count;
- svr = POPs;
- ret = SvOK(svr) ? SvIV(svr) : 0;
- PUTBACK;
+ VMG_CB_CALL_SET_RET(0);
 
  FREETMPS;
  LEAVE;
@@ -596,27 +602,24 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, SV *sv, SV *data, unsigned int flags, ...){
  return ret;
 }
 
-#define vmg_cb_call1(I, S, D) \
-        vmg_cb_call(aTHX_ (I), (S), (D), (flags << VMG_CB_CALL_ARGS_SHIFT))
-#define vmg_cb_call2(I, S, D, S2) \
-        vmg_cb_call(aTHX_ (I), (S), (D), ((flags << VMG_CB_CALL_ARGS_SHIFT) | 1), (S2))
-#define vmg_cb_call3(I, S, D, S2, S3) \
-        vmg_cb_call(aTHX_ (I), (S), (D), ((flags << VMG_CB_CALL_ARGS_SHIFT) | 2), (S2), (S3))
+#define vmg_cb_call1(I, F, S, A1) \
+        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 1), (S), (A1))
+#define vmg_cb_call2(I, F, S, A1, A2) \
+        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 2), (S), (A1), (A2))
+#define vmg_cb_call3(I, F, S, A1, A2, A3) \
+        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 3), (S), (A1), (A2), (A3))
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
- unsigned int flags = w->opinfo;
- return vmg_cb_call1(w->cb_get, sv, mg->mg_obj);
+ return vmg_cb_call1(w->cb_get, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
- unsigned int flags = w->opinfo;
- return vmg_cb_call1(w->cb_set, sv, mg->mg_obj);
+ return vmg_cb_call1(w->cb_set, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
- SV *svr;
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
  unsigned int opinfo = w->opinfo;
  U32 len, ret;
@@ -652,10 +655,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 
  call_sv(w->cb_len, G_SCALAR);
 
- SPAGAIN;
- svr = POPs;
- ret = SvOK(svr) ? SvUV(svr) : len;
- PUTBACK;
+ VMG_CB_CALL_SET_RET(len);
 
  FREETMPS;
  LEAVE;
@@ -665,14 +665,15 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
- unsigned int flags = w->opinfo;
- return vmg_cb_call1(w->cb_clear, sv, mg->mg_obj);
+ return vmg_cb_call1(w->cb_clear, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w;
- unsigned int flags;
+ unsigned int had_err, has_err, flags = G_SCALAR | G_EVAL;
  int ret = 0;
+
+ dSP;
 
  /* Don't even bother if we are in global destruction - the wizard is prisoner
   * of circular references and we are way beyond user realm */
@@ -680,9 +681,8 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
   return 0;
 
  w = SV2MGWIZ(mg->mg_ptr);
- flags = w->opinfo | VMG_CB_CALL_EVAL;
 
- /* So that it survives the temp cleanup in vmg_cb_call */
+ /* So that it survives the temp cleanup below */
  SvREFCNT_inc(sv);
 
 #if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
@@ -692,7 +692,40 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  SvMAGIC_set(sv, mg);
 #endif
 
- ret = vmg_cb_call1(w->cb_free, sv, mg->mg_obj);
+ ENTER;
+ SAVETMPS;
+
+ PUSHMARK(SP);
+ EXTEND(SP, 2);
+ PUSHs(sv_2mortal(newRV_inc(sv)));
+ PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
+ if (w->opinfo)
+  XPUSHs(vmg_op_info(w->opinfo));
+ PUTBACK;
+
+ had_err = SvTRUE(ERRSV);
+ if (had_err)
+  flags |= G_KEEPERR;
+
+ call_sv(w->cb_free, flags);
+
+ has_err = SvTRUE(ERRSV);
+ if (IN_PERL_COMPILETIME && !had_err && has_err)
+  ++PL_error_count;
+
+ VMG_CB_CALL_SET_RET(0);
+
+ FREETMPS;
+ LEAVE;
+
+ if (has_err) {
+  /* Get the eval context that was pushed by call_sv, and fake an entry for the
+   * namesv, as die_where will need it to be non NULL later */
+  PERL_CONTEXT *cx = cxstack + cxstack_ix + 1;
+  if (!cx->blk_eval.old_namesv)
+   cx->blk_eval.old_namesv
+                 = sv_2mortal(newSVpvn_share("Variable/Magic/DUMMY.pm", 23, 0));
+ }
 
  /* Calling SvREFCNT_dec() will trigger destructors in an infinite loop, so
   * we have to rely on SvREFCNT() being a lvalue. Heck, even the core does it */
@@ -713,7 +746,6 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
  ) {
  SV *keysv;
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
- unsigned int flags = w->opinfo;
  int ret;
 
  if (keylen == HEf_SVKEY) {
@@ -722,7 +754,7 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
   keysv = newSVpvn(key, keylen);
  }
 
- ret = vmg_cb_call3(w->cb_copy, sv, mg->mg_obj, keysv, nsv);
+ ret = vmg_cb_call3(w->cb_copy, w->opinfo, sv, mg->mg_obj, keysv, nsv);
 
  if (keylen != HEf_SVKEY) {
   SvREFCNT_dec(keysv);
@@ -741,8 +773,7 @@ STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
 #if MGf_LOCAL
 STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
  const MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
- unsigned int flags = w->opinfo;
- return vmg_cb_call1(w->cb_local, nsv, mg->mg_obj);
+ return vmg_cb_call1(w->cb_local, w->opinfo, nsv, mg->mg_obj);
 }
 #endif /* MGf_LOCAL */
 
@@ -769,7 +800,6 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
  action &= HV_FETCH_ISSTORE | HV_FETCH_ISEXISTS | HV_FETCH_LVALUE | HV_DELETE;
  for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
   const MGWIZ *w;
-  unsigned int flags;
   switch (mg->mg_type) {
    case PERL_MAGIC_ext:
     break;
@@ -782,7 +812,6 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   if (mg->mg_private < SIG_MIN || mg->mg_private > SIG_MAX)
    continue;
   w = SV2MGWIZ(mg->mg_ptr);
-  flags = w->opinfo;
   switch (w->uvar) {
    case 0:
     continue;
@@ -792,18 +821,22 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   }
   switch (action) {
    case 0:
-    if (w->cb_fetch)  { vmg_cb_call2(w->cb_fetch,  sv, mg->mg_obj, key); }
+    if (w->cb_fetch)
+     vmg_cb_call2(w->cb_fetch, w->opinfo, sv, mg->mg_obj, key);
     break;
    case HV_FETCH_ISSTORE:
    case HV_FETCH_LVALUE:
    case (HV_FETCH_ISSTORE|HV_FETCH_LVALUE):
-    if (w->cb_store)  { vmg_cb_call2(w->cb_store,  sv, mg->mg_obj, key); }
+    if (w->cb_store)
+     vmg_cb_call2(w->cb_store, w->opinfo, sv, mg->mg_obj, key);
     break;
    case HV_FETCH_ISEXISTS:
-    if (w->cb_exists) { vmg_cb_call2(w->cb_exists, sv, mg->mg_obj, key); }
+    if (w->cb_exists)
+     vmg_cb_call2(w->cb_exists, w->opinfo, sv, mg->mg_obj, key);
     break;
    case HV_DELETE:
-    if (w->cb_delete) { vmg_cb_call2(w->cb_delete, sv, mg->mg_obj, key); }
+    if (w->cb_delete)
+     vmg_cb_call2(w->cb_delete, w->opinfo, sv, mg->mg_obj, key);
     break;
   }
  }
@@ -849,7 +882,7 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
 
  {
   dMY_CXT;
-  if (hv_delete(MY_CXT, buf, sprintf(buf, "%u", w->sig), 0) != wiz)
+  if (hv_delete(MY_CXT.wizards, buf, sprintf(buf, "%u", w->sig), 0) != wiz)
    return 0;
  }
  SvFLAGS(wiz) |= SVf_BREAK;
@@ -905,6 +938,7 @@ STATIC const char vmg_invalid_sig[]    = "Invalid numeric signature";
 STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
 STATIC const char vmg_toomanysigs[]    = "Too many magic signatures used";
 STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
+STATIC const char vmg_globstorefail[]  = "Couldn't store global wizard information";
 
 STATIC U16 vmg_sv2sig(pTHX_ SV *sv) {
 #define vmg_sv2sig(S) vmg_sv2sig(aTHX_ (S))
@@ -940,7 +974,7 @@ STATIC U16 vmg_wizard_sig(pTHX_ SV *wiz) {
 
  {
   dMY_CXT;
-  if (!hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))
+  if (!hv_fetch(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), 0))
    sig = 0;
  }
  return sig;
@@ -967,7 +1001,7 @@ STATIC SV *vmg_wizard_wiz(pTHX_ SV *wiz) {
 
  {
   dMY_CXT;
-  return (old = hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))
+  return (old = hv_fetch(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), 0))
           ? *old : NULL;
  }
 }
@@ -1044,8 +1078,9 @@ BOOT:
 {
  HV *stash;
  MY_CXT_INIT;
- MY_CXT = newHV();
- hv_iterinit(MY_CXT); /* Allocate iterator */
+ MY_CXT.wizards = newHV();
+ hv_iterinit(MY_CXT.wizards); /* Allocate iterator */
+ MY_CXT.b__op_stash = NULL;
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "SIG_MIN",   newSVuv(SIG_MIN));
  newCONSTSUB(stash, "SIG_MAX",   newSVuv(SIG_MAX));
@@ -1075,28 +1110,35 @@ CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  HV *hv;
+ U32 had_b__op_stash = 0;
 CODE:
  {
   HE *key;
   dMY_CXT;
   hv = newHV();
   hv_iterinit(hv); /* Allocate iterator */
-  hv_iterinit(MY_CXT);
-  while ((key = hv_iternext(MY_CXT))) {
+  hv_iterinit(MY_CXT.wizards);
+  while ((key = hv_iternext(MY_CXT.wizards))) {
    STRLEN len;
    char *sig = HePV(key, len);
    SV *sv;
+   const MGWIZ *w;
    MAGIC *mg;
-   sv = MGWIZ2SV(vmg_wizard_clone(SV2MGWIZ(HeVAL(key))));
+   w  = SV2MGWIZ(HeVAL(key));
+   w  = vmg_wizard_clone(w);
+   sv = MGWIZ2SV(w);
    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);
    mg->mg_private = SIG_WIZ;
    SvREADONLY_on(sv);
-   hv_store(hv, sig, len, sv, HeHASH(key));
+   if (!hv_store(hv, sig, len, sv, HeHASH(key))) croak("%s during CLONE", vmg_globstorefail);
   }
+  if (MY_CXT.b__op_stash)
+   had_b__op_stash = 1;
  }
  {
   MY_CXT_CLONE;
-  MY_CXT = hv;
+  MY_CXT.wizards     = hv;
+  MY_CXT.b__op_stash = had_b__op_stash ? gv_stashpv("B::OP", 1) : NULL;
  }
 
 #endif /* VMG_THREADSAFE */
@@ -1135,12 +1177,12 @@ CODE:
  if (SvOK(svsig)) {
   SV **old;
   sig = vmg_sv2sig(svsig);
-  if ((old = hv_fetch(MY_CXT, buf, sprintf(buf, "%u", sig), 0))) {
+  if ((old = hv_fetch(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), 0))) {
    ST(0) = sv_2mortal(newRV_inc(*old));
    XSRETURN(1);
   }
  } else {
-  if (HvKEYS(MY_CXT) >= SIG_NBR) { croak(vmg_toomanysigs); }
+  if (HvKEYS(MY_CXT.wizards) >= SIG_NBR) { croak(vmg_toomanysigs); }
   sig = vmg_gensig();
  }
  
@@ -1191,7 +1233,7 @@ CODE:
  mg->mg_private = SIG_WIZ;
  SvREADONLY_on(sv);
 
- hv_store(MY_CXT, buf, sprintf(buf, "%u", sig), sv, 0);
+ if (!hv_store(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), sv, 0)) croak(vmg_globstorefail);
 
  RETVAL = newRV_noinc(sv);
 OUTPUT:
@@ -1201,7 +1243,7 @@ SV *gensig()
 PROTOTYPE:
 CODE:
  dMY_CXT;
- if (HvKEYS(MY_CXT) >= SIG_NBR) { croak(vmg_toomanysigs); }
+ if (HvKEYS(MY_CXT.wizards) >= SIG_NBR) { croak(vmg_toomanysigs); }
  RETVAL = newSVuv(vmg_gensig());
 OUTPUT:
  RETVAL
@@ -1239,12 +1281,13 @@ CODE:
 OUTPUT:
  RETVAL
 
-SV *getdata(SV *sv, SV *wiz)
+void
+getdata(SV *sv, SV *wiz)
 PROTOTYPE: \[$@%&*]$
 PREINIT:
  SV *data;
  U16 sig;
-CODE:
+PPCODE:
  sig = vmg_wizard_sig(wiz);
  if (!sig)
   XSRETURN_UNDEF;
@@ -1264,13 +1307,3 @@ CODE:
  RETVAL = newSVuv(vmg_dispell(SvRV(sv), sig));
 OUTPUT:
  RETVAL
-
-void
-_cleanup()
-PROTOTYPE:
-PPCODE:
- if (vmg_op_name_len) {
-  Safefree(vmg_op_name_len);
-  vmg_op_name_len = NULL;
- }
- XSRETURN(0);

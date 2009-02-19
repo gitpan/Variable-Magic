@@ -1,5 +1,16 @@
 Revision history for Variable-Magic
 
+0.31    2009-02-19 23:50 UTC
+        + Doc : A somewhat better introduction. The FUNCTION section was moved
+                before CONSTANTS and HISTORY since it's more important. And
+                'assignation' is really 'assignment', says Ricardo. :)
+        + Fix : The op_info features are now thread safe.
+        + Fix : Segfaults that occured when trying to get the op name during
+                global destruction.
+        + Fix : Segfaults and wrong "Unknown error" exceptions that happened
+                when dieing in require caused a free callback to fire.
+                Thanks Florian Ragwitz for reporting.
+
 0.30    2009-02-12 17:05 UTC
         + Add : You can now get in all the callbacks either the name or a B::OP
                 object representing the current op if you pass the new 'op_info'

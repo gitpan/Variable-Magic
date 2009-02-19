@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 7;
+use Test::More tests => 8 + 1;
 
 use Variable::Magic qw/wizard cast/;
 
@@ -74,3 +74,8 @@ eval q{BEGIN {
 }};
 
 like $@, qr/pepperoni/, 'die in len callback in BEGIN';
+
+use lib 't/lib';
+eval "use Variable::Magic::TestDieRequired";
+
+like $@, qr/turnip/, 'die in required with localized hash gets the right error message';

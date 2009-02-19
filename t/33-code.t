@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 2 * 10 + 9 + 1;
+use Test::More tests => 2 * 12 + 11 + 1;
 
 use Variable::Magic qw/cast dispell/;
 
@@ -42,5 +42,17 @@ check { $r->() } { }, 'call reference';
 is $y, 1, 'code: call reference succeeded';
 is $x, 2, 'code: call reference didn\'t called the previous code';
 
+my $z = 0;
+check {
+ no warnings 'redefine';
+ *hlagh = sub { ++$z }
+} { }, 'redefining sub 2';
+
+check { hlagh() } { }, 'call without arguments 2';
+is $z, 1, 'code: call without arguments 2 succeeded';
+is $y, 1, 'code: call without arguments 2 didn\'t called the previous code';
+
 check { dispell &hlagh, $wiz } { }, 'dispell';
-is $y, 1, 'code: dispell didn\'t called code';
+is $z, 1, 'code: dispell didn\'t called code';
+
+$Variable::Magic::TestWatcher::mg_end = { free => 1 };

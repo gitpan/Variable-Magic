@@ -18,10 +18,10 @@ use threads::shared;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast dispell getdata getsig VMG_THREADSAFE/;
+use Variable::Magic qw/wizard cast dispell getdata getsig VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
 
 if (VMG_THREADSAFE) {
- plan tests => 3 + 2 * (2 * 8 + 2) + 2 * (2 * 5 + 2);
+ plan tests => 2 * 3 + 4 * (2 * 10 + 2) + 4 * (2 * 7 + 2);
  my $v = $threads::VERSION;
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
@@ -32,19 +32,32 @@ if (VMG_THREADSAFE) {
 
 my $destroyed : shared = 0;
 my $c         : shared = 0;
-my $wiz = eval {
- wizard get  => sub { ++$c },
-        data => sub { $_[1] + threads->tid() },
-        free => sub { ++$destroyed }
-};
-is($@,     '',    "wizard in main thread doesn't croak");
-isnt($wiz, undef, "wizard in main thread is defined");
-is($c,     0,     "wizard in main thread doesn't trigger magic");
 
-my $sig;
+sub spawn_wiz {
+ my ($op_info) = @_;
+
+ my $wiz = eval {
+  wizard data    => sub { $_[1] + threads->tid() },
+         get     => sub { ++$c; 0 },
+         set     => sub {
+                     my $name = $_[-1];
+                     $name = $name->name if $op_info == VMG_OP_INFO_OBJECT;
+                     my $tid = threads->tid();
+                     is $name, 'sassign', "opname for op_info $op_info in thread $tid is correct";
+                     0
+                    },
+         free    => sub { ++$destroyed; 0 },
+         op_info => $op_info
+ };
+ is($@,     '',    "wizard with op_info $op_info in main thread doesn't croak");
+ isnt($wiz, undef, "wizard with op_info $op_info in main thread is defined");
+ is($c,     0,     "wizard with op_info $op_info in main thread doesn't trigger magic");
+
+ return $wiz;
+}
 
 sub try {
- my ($dispell) = @_;
+ my ($dispell, $sig) = @_;
  my $tid = threads->tid();
  my $a   = 3;
  my $res = eval { cast $a, $sig, sub { 5 }->() };
@@ -56,37 +69,31 @@ sub try {
  my $d = eval { getdata $a, $sig };
  is($@, '',       "getdata in thread $tid doesn't croak");
  is($d, 5 + $tid, "getdata in thread $tid returns the right thing");
+ eval { $a = 9 };
+ is($@, '', "set in thread $tid (check opname) doesn't croak");
  if ($dispell) {
   $res = eval { dispell $a, $sig };
   is($@, '', "dispell in thread $tid doesn't croak");
   undef $b;
   eval { $b = $a };
   is($@, '', "get in thread $tid after dispell doesn't croak");
-  is($b, 3,  "get in thread $tid after dispell returns the right thing");
+  is($b, 9,  "get in thread $tid after dispell returns the right thing");
  }
  return; # Ugly if not here
 }
 
+my $wiz_name = spawn_wiz VMG_OP_INFO_NAME;
+my $wiz_obj  = spawn_wiz VMG_OP_INFO_OBJECT;
+
 for my $dispell (1, 0) {
- $c = 0;
- $destroyed = 0;
- $sig = $wiz;
+ for my $sig ($wiz_name, getsig($wiz_name), $wiz_obj, getsig($wiz_obj)) {
+  $c = 0;
+  $destroyed = 0;
 
- my @t = map { threads->create(\&try, $dispell) } 1 .. 2;
- $t[0]->join;
- $t[1]->join;
+  my @t = map { threads->create(\&try, $dispell, $sig) } 1 .. 2;
+  $_->join for @t;
 
- is($c, 2, "get triggered twice");
- is($destroyed, (1 - $dispell) * 2, 'destructors');
-
- $c = 0;
- $destroyed = 0;
- $sig = getsig $wiz;
-
- @t = map { threads->create(\&try, $dispell) } 1 .. 2;
- $t[0]->join;
- $t[1]->join;
-
- is($c, 2, "get triggered twice");
- is($destroyed, (1 - $dispell) * 2, 'destructors');
+  is($c, 2, "get triggered twice");
+  is($destroyed, (1 - $dispell) * 2, 'destructors');
+ }
 }

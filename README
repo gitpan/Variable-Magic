@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.30
+    Version 0.31
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast dispell/;
@@ -15,27 +15,51 @@ SYNOPSIS
         $a = 3           # (nothing)
 
 DESCRIPTION
-    Magic is Perl way of enhancing objects. This mechanism let the user add
+    Magic is Perl way of enhancing objects. This mechanism lets the user add
     extra data to any variable and hook syntaxical operations (such as
-    access, assignation or destruction) that can be applied to it. With this
-    module, you can add your own magic to any variable without the pain of
-    the C API.
+    access, assignment or destruction) that can be applied to it. With this
+    module, you can add your own magic to any variable without having to
+    write a single line of XS.
 
-    Magic differs from tieing and overloading in several ways :
+    You'll realize that these magic variables look a lot like tied
+    variables. It's not surprising, as tied variables are implemented as a
+    special kind of magic, just like any 'irregular' Perl variable : scalars
+    like $!, $( or $^W, the %ENV and %SIG hashes, the @ISA array, "vec()"
+    and "substr()" lvalues, thread::shared variables... They all share the
+    same underlying C API, and this module gives you direct access to it.
 
-    *   Magic isn't copied on assignation (as for blessed references) : you
-        attach it to variables, not values.
+    Still, the magic made available by this module differs from tieing and
+    overloading in several ways :
 
-    *   It doesn't replace the original semantics : magic callbacks trigger
-        before the original action take place, and can't prevent it to
-        happen.
+    *   It isn't copied on assignment.
 
-    *   It's mostly invisible at the Perl level : magical and non-magical
-        variables cannot be distinguished with "ref", "reftype" or another
-        trick.
+        You attach it to variables, not values (as for blessed references).
 
-    *   It's notably faster, since perl's way of handling magic is lighter
-        by nature, and there's no need for any method resolution.
+    *   It doesn't replace the original semantics.
+
+        Magic callbacks trigger before the original action take place, and
+        can't prevent it to happen. This makes catching individual events
+        easier than with "tie", where you have to provide fallbacks methods
+        for all actions by usually inheriting from the correct "Tie::Std*"
+        class and overriding individual methods in your own class.
+
+    *   It's type-agnostic.
+
+        The same magic can be applied on scalars, arrays, hashes, subs or
+        globs. But the same hook (see below for a list) may trigger
+        differently depending on the the type of the variable.
+
+    *   It's mostly invisible at the Perl level.
+
+        Magical and non-magical variables cannot be distinguished with
+        "ref", "tied" or another trick.
+
+    *   It's notably faster.
+
+        Mainly because perl's way of handling magic is lighter by nature,
+        and because there's no need for any method resolution. Also, since
+        you don't have to reimplement all the variable semantics, you only
+        pay for what you actually use.
 
     The operations that can be overloaded are :
 
@@ -54,7 +78,7 @@ DESCRIPTION
         This magic is a little special : it is called when the 'size' or the
         'length' of the variable has to be known by Perl. Typically, it's
         the magic involved when an array is evaluated in scalar context, but
-        also on array assignation and loops ("for", "map" or "grep"). The
+        also on array assignment and loops ("for", "map" or "grep"). The
         callback has then to return the length as an integer.
 
     *   "clear"
@@ -114,103 +138,6 @@ DESCRIPTION
     To prevent any clash between different magics defined with this module,
     an unique numerical signature is attached to each kind of magic (i.e.
     each set of callbacks for magic operations).
-
-PERL MAGIC HISTORY
-    The places where magic is invoked have changed a bit through perl
-    history. Here's a little list of the most recent ones.
-
-    *   5.6.x
-
-        *p14416* : 'copy' and 'dup' magic.
-
-    *   5.8.9
-
-        *p28160* : Integration of *p25854* (see below).
-
-        *p32542* : Integration of *p31473* (see below).
-
-    *   5.9.3
-
-        *p25854* : 'len' magic is no longer called when pushing an element
-        into a magic array.
-
-        *p26569* : 'local' magic.
-
-    *   5.9.5
-
-        *p31064* : Meaningful 'uvar' magic.
-
-        *p31473* : 'clear' magic wasn't invoked when undefining an array.
-        The bug is fixed as of this version.
-
-    *   5.10.0
-
-        Since "PERL_MAGIC_uvar" is uppercased, "hv_magic_check()" triggers
-        'copy' magic on hash stores for (non-tied) hashes that also have
-        'uvar' magic.
-
-    *   5.11.x
-
-        *p32969* : 'len' magic is no longer invoked when calling "length"
-        with a magical scalar.
-
-        *p34908* : 'len' magic is no longer called when pushing / unshifting
-        an element into a magical array in void context. The "push" part was
-        already covered by *p25854*.
-
-CONSTANTS
-  "SIG_MIN"
-    The minimum integer used as a signature for user-defined magic.
-
-  "SIG_MAX"
-    The maximum integer used as a signature for user-defined magic.
-
-  "SIG_NBR"
-        SIG_NBR = SIG_MAX - SIG_MIN + 1
-
-  "MGf_COPY"
-    Evaluates to true iff the 'copy' magic is available.
-
-  "MGf_DUP"
-    Evaluates to true iff the 'dup' magic is available.
-
-  "MGf_LOCAL"
-    Evaluates to true iff the 'local' magic is available.
-
-  "VMG_UVAR"
-    When this constant is true, you can use the "fetch,store,exists,delete"
-    callbacks on hashes.
-
-  "VMG_COMPAT_ARRAY_PUSH_NOLEN"
-    True for perls that don't call 'len' magic when you push an element in a
-    magical array.
-
-  "VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID"
-    True for perls that don't call 'len' magic when you unshift in void
-    context an element in a magical array.
-
-  "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
-    True for perls that call 'clear' magic when undefining magical arrays.
-
-  "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
-    True for perls that don't call 'len' magic when taking the "length" of a
-    magical scalar.
-
-  "VMG_PERL_PATCHLEVEL"
-    The perl patchlevel this module was built with, or 0 for non-debugging
-    perls.
-
-  "VMG_THREADSAFE"
-    True iff this module could have been built with thread-safety features
-    enabled.
-
-  "VMG_OP_INFO_NAME"
-    Value to pass with "op_info" to get the current op name in the magic
-    callbacks.
-
-  "VMG_OP_INFO_OBJECT"
-    Value to pass with "op_info" to get a "B::OP" object representing the
-    current op in the magic callbacks.
 
 FUNCTIONS
   "wizard"
@@ -366,18 +293,114 @@ FUNCTIONS
         # Dispell now. If $wiz isn't a signature, undef can't be returned.
         die 'no such magic or error' unless dispell $x, $wiz;
 
+CONSTANTS
+  "SIG_MIN"
+    The minimum integer used as a signature for user-defined magic.
+
+  "SIG_MAX"
+    The maximum integer used as a signature for user-defined magic.
+
+  "SIG_NBR"
+        SIG_NBR = SIG_MAX - SIG_MIN + 1
+
+  "MGf_COPY"
+    Evaluates to true iff the 'copy' magic is available.
+
+  "MGf_DUP"
+    Evaluates to true iff the 'dup' magic is available.
+
+  "MGf_LOCAL"
+    Evaluates to true iff the 'local' magic is available.
+
+  "VMG_UVAR"
+    When this constant is true, you can use the "fetch,store,exists,delete"
+    callbacks on hashes.
+
+  "VMG_COMPAT_ARRAY_PUSH_NOLEN"
+    True for perls that don't call 'len' magic when you push an element in a
+    magical array.
+
+  "VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID"
+    True for perls that don't call 'len' magic when you unshift in void
+    context an element in a magical array.
+
+  "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
+    True for perls that call 'clear' magic when undefining magical arrays.
+
+  "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
+    True for perls that don't call 'len' magic when taking the "length" of a
+    magical scalar.
+
+  "VMG_PERL_PATCHLEVEL"
+    The perl patchlevel this module was built with, or 0 for non-debugging
+    perls.
+
+  "VMG_THREADSAFE"
+    True iff this module could have been built with thread-safety features
+    enabled.
+
+  "VMG_OP_INFO_NAME"
+    Value to pass with "op_info" to get the current op name in the magic
+    callbacks.
+
+  "VMG_OP_INFO_OBJECT"
+    Value to pass with "op_info" to get a "B::OP" object representing the
+    current op in the magic callbacks.
+
+PERL MAGIC HISTORY
+    The places where magic is invoked have changed a bit through perl
+    history. Here's a little list of the most recent ones.
+
+    *   5.6.x
+
+        *p14416* : 'copy' and 'dup' magic.
+
+    *   5.8.9
+
+        *p28160* : Integration of *p25854* (see below).
+
+        *p32542* : Integration of *p31473* (see below).
+
+    *   5.9.3
+
+        *p25854* : 'len' magic is no longer called when pushing an element
+        into a magic array.
+
+        *p26569* : 'local' magic.
+
+    *   5.9.5
+
+        *p31064* : Meaningful 'uvar' magic.
+
+        *p31473* : 'clear' magic wasn't invoked when undefining an array.
+        The bug is fixed as of this version.
+
+    *   5.10.0
+
+        Since "PERL_MAGIC_uvar" is uppercased, "hv_magic_check()" triggers
+        'copy' magic on hash stores for (non-tied) hashes that also have
+        'uvar' magic.
+
+    *   5.11.x
+
+        *p32969* : 'len' magic is no longer invoked when calling "length"
+        with a magical scalar.
+
+        *p34908* : 'len' magic is no longer called when pushing / unshifting
+        an element into a magical array in void context. The "push" part was
+        already covered by *p25854*.
+
 EXPORT
     The functions "wizard", "gensig", "getsig", "cast", "getdata" and
     "dispell" are only exported on request. All of them are exported by the
     tags ':funcs' and ':all'.
 
-    The constants "SIG_MIN", "SIG_MAX", "SIG_NBR", "MGf_COPY", "MGf_DUP",
-    "MGf_LOCAL" and "VMG_UVAR" are also only exported on request. They are
-    all exported by the tags ':consts' and ':all'.
+    All the constants are also only exported on request, either individually
+    or by the tags ':consts' and ':all'.
 
 CAVEATS
     If you store a magic object in the private data slot, the magic won't be
-    accessible by "getdata" since it's not copied by assignation. The only
+    accessible by "getdata" since it's not copied by assignment. The only
     way to address this would be to return a reference.
 
     If you define a wizard with a "free" callback and cast it on itself,

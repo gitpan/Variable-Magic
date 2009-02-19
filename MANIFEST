@@ -40,4 +40,5 @@ t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t
 t/99-kwalitee.t
+t/lib/Variable/Magic/TestDieRequired.pm
 t/lib/Variable/Magic/TestWatcher.pm
