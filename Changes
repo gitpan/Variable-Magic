@@ -1,5 +1,15 @@
 Revision history for Variable-Magic
 
+0.32    2009-03-01 13:45 UTC
+        + Chg : dispell() and getdata() now croak when an invalid signature is
+                passed.
+        + Doc : More examples and a brand new synopsis.
+        + Fix : The signature is no longer stored in the mg_private member of
+                the MAGIC struct. This fixes possible clashes with magics from
+                other extensions.
+        + Fix : op info objects weren't blessed into the right class.
+        + Fix : Races when initializing the op names cache under threads.
+
 0.31    2009-02-19 23:50 UTC
         + Doc : A somewhat better introduction. The FUNCTION section was moved
                 before CONSTANTS and HISTORY since it's more important. And

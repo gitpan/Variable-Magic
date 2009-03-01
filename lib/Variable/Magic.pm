@@ -13,25 +13,40 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.31
+Version 0.32
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.31';
+ $VERSION = '0.32';
 }
 
 =head1 SYNOPSIS
 
-    use Variable::Magic qw/wizard cast dispell/;
+    use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
 
-    my $wiz = wizard set => sub { print STDERR "now set to ${$_[0]}!\n" };
-    my $a = 1;
-    cast $a, $wiz;
-    $a = 2;          # "now set to 2!"
-    dispell $a, $wiz;
-    $a = 3           # (nothing)
+    { # A variable tracer
+     my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },
+                      free => sub { print "destroyed!\n" };
+
+     my $a = 1;
+     cast $a, $wiz;
+     $a = 2;        # "now set to 2!"
+    }               # "destroyed!"
+
+    { # A hash with a default value
+     my $wiz = wizard data     => sub { $_[1] },
+                      fetch    => sub { $_[2] = $_[1] unless exists $_[0]->{$_[2]}; () },
+                      store    => sub { print "key $_[2] stored in $_[-1]\n" },
+                      copy_key => 1,
+                      op_info  => VMG_OP_INFO_NAME;
+
+     my %h = (_default => 0, apple => 2);
+     cast %h, $wiz, '_default';
+     print $h{banana}, "\n"; # "0", because the 'banana' key doesn't exist in %h
+     $h{pear} = 1;           # "key pear stored in helem"
+    }
 
 =head1 DESCRIPTION
 
@@ -40,7 +55,7 @@ This mechanism lets the user add extra data to any variable and hook syntaxical 
 With this module, you can add your own magic to any variable without having to write a single line of XS.
 
 You'll realize that these magic variables look a lot like tied variables.
-It's not surprising, as tied variables are implemented as a special kind of magic, just like any 'irregular' Perl variable : scalars like C<$!>, C<$(> or C<$^W>, the C<%ENV> and C<%SIG> hashes, the C<@ISA> array,  C<vec()> and C<substr()> lvalues, L<thread::shared> variables...
+It's not surprising, as tied variables are implemented as a special kind of magic, just like any 'irregular' Perl variable : scalars like C<$!>, C<$(> or C<$^W>, the C<%ENV> and C<%SIG> hashes, the C<@ISA> array,  C<vec()> and C<substr()> lvalues, L<threads::shared> variables...
 They all share the same underlying C API, and this module gives you direct access to it.
 
 Still, the magic made available by this module differs from tieing and overloading in several ways :
@@ -110,7 +125,7 @@ The callback has then to return the length as an integer.
 
 C<clear>
 
-This magic is invoked when the variable is reset, such as when an array is emptied.
+This magic is invoked when a container variable is reset, i.e. when an array or a hash is emptied.
 Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
 
 =item *
@@ -178,6 +193,7 @@ This last one triggers when a key is deleted in the hash, regardless of whether 
 You can refer to the tests to have more insight of where the different magics are invoked.
 
 To prevent any clash between different magics defined with this module, an unique numerical signature is attached to each kind of magic (i.e. each set of callbacks for magic operations).
+At the C level, magic tokens owned by magic created by this module have their C<< mg->mg_private >> field set to C<0x3891> or C<0x3892>, so please don't use these magic (sic) numbers in other extensions.
 
 =head1 FUNCTIONS
 
@@ -278,6 +294,8 @@ However, only the return value of the C<len> callback currently holds a meaning.
                      set  => sub { print STDERR "set to ${$_[0]}\n" },
                      free => sub { print STDERR "${$_[0]} was deleted\n" }
 
+Note that C<free> callbacks are I<never> called during global destruction, as there's no way to ensure that the wizard and the C<free> callback weren't destroyed before the variable.
+
 =cut
 
 sub wizard {
@@ -335,6 +353,48 @@ For example, if you want to call C<POSIX::tzset> each time the C<'TZ'> environme
     cast $ENV{TZ}, wizard set => sub { POSIX::tzset(); () };
 
 If you want to overcome the possible deletion of the C<'TZ'> entry, you have no choice but to rely on C<store> uvar magic.
+
+C<cast> can be called from any magical callback, and in particular from C<data>.
+This allows you to recursively cast magic on datastructures :
+
+    my $wiz;
+    $wiz = wizard
+            data => sub {
+             my ($var, $depth) = @_;
+             $depth ||= 0;
+             my $r = ref $var;
+             if ($r eq 'ARRAY') {
+              &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for @$var;
+             } elsif ($r eq 'HASH') {
+              &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for values %$var;
+             }
+             return $depth;
+            },
+            free => sub {
+             my ($var, $depth) = @_;
+             my $r = ref $var;
+             print "free $r at depth $depth\n";
+             ();
+            };
+
+    {
+     my %h = (
+      a => [ 1, 2 ],
+      b => { c => 3 }
+     );
+     cast %h, $wiz;
+    }
+
+When C<%h> goes out of scope, this will print something among the lines of :
+
+    free HASH at depth 0
+    free HASH at depth 1
+    free SCALAR at depth 2
+    free ARRAY at depth 1
+    free SCALAR at depth 3
+    free SCALAR at depth 3
+
+Of course, this example does nothing with the values that are added after the C<cast>.
 
 =head2 C<getdata>
 

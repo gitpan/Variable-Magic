@@ -40,10 +40,15 @@ sub spawn_wiz {
   wizard data    => sub { $_[1] + threads->tid() },
          get     => sub { ++$c; 0 },
          set     => sub {
-                     my $name = $_[-1];
-                     $name = $name->name if $op_info == VMG_OP_INFO_OBJECT;
+                     my $op = $_[-1];
                      my $tid = threads->tid();
-                     is $name, 'sassign', "opname for op_info $op_info in thread $tid is correct";
+                     if ($op_info == VMG_OP_INFO_OBJECT) {
+                      is_deeply { class => ref($op),   name => $op->name },
+                                { class => 'B::BINOP', name => 'sassign' },
+                                "op object in thread $tid is correct";
+                     } else {
+                      is $op, 'sassign', "op name in thread $tid is correct";
+                     }
                      0
                     },
          free    => sub { ++$destroyed; 0 },

@@ -31,10 +31,9 @@ if (VMG_THREADSAFE) {
 }
 
 my $destroyed : shared = 0;
-my $sig = undef;
 
 sub try {
- my ($dispell, $op_info) = @_;
+ my ($dispell, $sig, $op_info) = @_;
  my $tid = threads->tid();
  my $c   = 0;
  my $wiz = eval {
@@ -42,9 +41,14 @@ sub try {
          sig     => $sig,
          get     => sub { ++$c; 0 },
          set     => sub {
-                     my $name = $_[-1];
-                     $name = $name->name if $op_info == VMG_OP_INFO_OBJECT;
-                     is $name, 'sassign', "opname for op_info $op_info in thread $tid is correct";
+                     my $op = $_[-1];
+                     if ($op_info == VMG_OP_INFO_OBJECT) {
+                      is_deeply { class => ref($op),   name => $op->name },
+                                { class => 'B::BINOP', name => 'sassign' },
+                                "op object in thread $tid is correct";
+                     } else {
+                      is $op, 'sassign', "op name in thread $tid is correct";
+                     }
                      0
                     },
          free    => sub { ++$destroyed; 0 },
@@ -84,7 +88,7 @@ sub try {
 for my $dispell (1, 0) {
  for my $sig (undef, Variable::Magic::gensig()) {
   $destroyed = 0;
-  my @t = map { threads->create(\&try, $dispell, $_) }
+  my @t = map { threads->create(\&try, $dispell, $sig, $_) }
                                (VMG_OP_INFO_NAME) x 2, (VMG_OP_INFO_OBJECT) x 2;
   $_->join for @t;
   is($destroyed, (1 - $dispell) * 4, 'destructors');

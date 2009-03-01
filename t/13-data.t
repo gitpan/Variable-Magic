@@ -50,7 +50,7 @@ is($c,           40, 'set magic : pass data');
 is($data->{bar}, 40, 'set magic : pass data');
 
 $data = eval { getdata $a, ($sig + 1) };
-is($@, '',       'getdata from invalid sig doesn\'t croak');
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'getdata from invalid sig croaks');
 is($data, undef, 'getdata from invalid sig returns undef');
 
 $data = eval { getdata $a, undef };

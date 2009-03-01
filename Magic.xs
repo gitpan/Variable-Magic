@@ -89,10 +89,6 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define Newx(v, n, c) New(0, v, n, c)
 #endif
 
-#ifndef NewOp
-# define NewOp(m, var, c, type) Newz(m, var, c, type)
-#endif
-
 #ifndef SvMAGIC_set
 # define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
 #endif
@@ -199,23 +195,137 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 
 #endif /* VMG_UVAR */
 
+/* --- Stolen chunk of B --------------------------------------------------- */
+
+typedef enum {
+ OPc_NULL   = 0,
+ OPc_BASEOP = 1,
+ OPc_UNOP   = 2,
+ OPc_BINOP  = 3,
+ OPc_LOGOP  = 4,
+ OPc_LISTOP = 5,
+ OPc_PMOP   = 6,
+ OPc_SVOP   = 7,
+ OPc_PADOP  = 8,
+ OPc_PVOP   = 9,
+ OPc_LOOP   = 10,
+ OPc_COP    = 11,
+ OPc_MAX    = 12
+} opclass;
+
+STATIC const char *const vmg_opclassnames[] = {
+ "B::NULL",
+ "B::OP",
+ "B::UNOP",
+ "B::BINOP",
+ "B::LOGOP",
+ "B::LISTOP",
+ "B::PMOP",
+ "B::SVOP",
+ "B::PADOP",
+ "B::PVOP",
+ "B::LOOP",
+ "B::COP"
+};
+
+STATIC opclass vmg_opclass(const OP *o) {
+ if (!o)
+  return OPc_NULL;
+
+ if (o->op_type == 0)
+  return (o->op_flags & OPf_KIDS) ? OPc_UNOP : OPc_BASEOP;
+
+ if (o->op_type == OP_SASSIGN)
+  return ((o->op_private & OPpASSIGN_BACKWARDS) ? OPc_UNOP : OPc_BINOP);
+
+ if (o->op_type == OP_AELEMFAST) {
+  if (o->op_flags & OPf_SPECIAL)
+   return OPc_BASEOP;
+  else
+#ifdef USE_ITHREADS
+   return OPc_PADOP;
+#else
+   return OPc_SVOP;
+#endif
+ }
+
+#ifdef USE_ITHREADS
+ if (o->op_type == OP_GV || o->op_type == OP_GVSV || o->op_type == OP_RCATLINE)
+  return OPc_PADOP;
+#endif
+
+ switch (PL_opargs[o->op_type] & OA_CLASS_MASK) {
+  case OA_BASEOP:
+   return OPc_BASEOP;
+  case OA_UNOP:
+   return OPc_UNOP;
+  case OA_BINOP:
+   return OPc_BINOP;
+  case OA_LOGOP:
+   return OPc_LOGOP;
+  case OA_LISTOP:
+   return OPc_LISTOP;
+  case OA_PMOP:
+   return OPc_PMOP;
+  case OA_SVOP:
+   return OPc_SVOP;
+  case OA_PADOP:
+   return OPc_PADOP;
+  case OA_PVOP_OR_SVOP:
+   return (o->op_private & (OPpTRANS_TO_UTF|OPpTRANS_FROM_UTF)) ? OPc_SVOP : OPc_PVOP;
+  case OA_LOOP:
+   return OPc_LOOP;
+  case OA_COP:
+   return OPc_COP;
+  case OA_BASEOP_OR_UNOP:
+   return (o->op_flags & OPf_KIDS) ? OPc_UNOP : OPc_BASEOP;
+  case OA_FILESTATOP:
+   return ((o->op_flags & OPf_KIDS) ? OPc_UNOP :
+#ifdef USE_ITHREADS
+           (o->op_flags & OPf_REF) ? OPc_PADOP : OPc_BASEOP);
+#else
+           (o->op_flags & OPf_REF) ? OPc_SVOP : OPc_BASEOP);
+#endif
+  case OA_LOOPEXOP:
+   if (o->op_flags & OPf_STACKED)
+    return OPc_UNOP;
+   else if (o->op_flags & OPf_SPECIAL)
+    return OPc_BASEOP;
+   else
+    return OPc_PVOP;
+ }
+
+ return OPc_BASEOP;
+}
+
 /* --- Context-safe global data -------------------------------------------- */
 
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
 typedef struct {
  HV *wizards;
- HV *b__op_stash;
+ HV *b__op_stashes[OPc_MAX];
 } my_cxt_t;
 
 START_MY_CXT
 
+/* --- Error messages ------------------------------------------------------ */
+
+STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
+STATIC const char vmg_invalid_sig[]    = "Invalid numeric signature";
+STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
+STATIC const char vmg_toomanysigs[]    = "Too many magic signatures used";
+STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
+STATIC const char vmg_globstorefail[]  = "Couldn't store global wizard information";
+
 /* --- Signatures ---------------------------------------------------------- */
 
-#define SIG_MIN ((U16) (1u << 8))
+#define SIG_MIN ((U16) 0u)
 #define SIG_MAX ((U16) ((1u << 16) - 1))
 #define SIG_NBR (SIG_MAX - SIG_MIN + 1)
-#define SIG_WIZ ((U16) ((1u << 8) - 1))
+
+#define SIG_WZO ((U16) (0x3891))
+#define SIG_WIZ ((U16) (0x3892))
 
 /* ... Generate signatures ................................................. */
 
@@ -224,6 +334,9 @@ STATIC U16 vmg_gensig(pTHX) {
  U16 sig;
  char buf[8];
  dMY_CXT;
+
+ if (HvKEYS(MY_CXT.wizards) >= SIG_NBR)
+  croak(vmg_toomanysigs);
 
  do {
   sig = SIG_NBR * Drand01() + SIG_MIN;
@@ -305,9 +418,14 @@ STATIC SV *vmg_data_get(SV *sv, U16 sig) {
  if (SvTYPE(sv) >= SVt_PVMG) {
   for (mg = SvMAGIC(sv); mg; mg = moremagic) {
    moremagic = mg->mg_moremagic;
-   if ((mg->mg_type == PERL_MAGIC_ext) && (mg->mg_private == sig)) { break; }
+   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+    MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+    if (w->sig == sig)
+     break;
+   }
   }
-  if (mg) { return mg->mg_obj; }
+  if (mg)
+   return mg->mg_obj;
  }
 
  return NULL;
@@ -342,14 +460,19 @@ STATIC UV vmg_cast(pTHX_ SV *sv, SV *wiz, AV *args) {
  if (SvTYPE(sv) >= SVt_PVMG) {
   for (mg = SvMAGIC(sv); mg; mg = moremagic) {
    moremagic = mg->mg_moremagic;
-   if ((mg->mg_type == PERL_MAGIC_ext) && (mg->mg_private == w->sig)) { break; }
+   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+    MGWIZ *z = SV2MGWIZ(mg->mg_ptr);
+    if (z->sig == w->sig)
+     break;
+   }
   }
-  if (mg) { return 1; }
+  if (mg)
+   return 1;
  }
 
  data = (w->cb_data) ? vmg_data_new(w->cb_data, sv, args) : NULL;
  mg = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl, (const char *) wiz, HEf_SVKEY);
- mg->mg_private = w->sig;
+ mg->mg_private = SIG_WIZ;
 #if MGf_COPY
  if (w->cb_copy)
   mg->mg_flags |= MGf_COPY;
@@ -426,17 +549,16 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 
  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
   moremagic = mg->mg_moremagic;
-  if (mg->mg_type == PERL_MAGIC_ext) {
-   if (mg->mg_private == sig) {
+  if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+   MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+   if (w->sig == sig) {
 #if VMG_UVAR
     /* If the current has no uvar, short-circuit uvar deletion. */
-    uvars = (SV2MGWIZ(mg->mg_ptr)->uvar) ? (uvars + 1) : 0;
+    uvars = w->uvar ? (uvars + 1) : 0;
 #endif /* VMG_UVAR */
     break;
 #if VMG_UVAR
-   } else if ((mg->mg_private >= SIG_MIN) &&
-              (mg->mg_private <= SIG_MAX) &&
-               SV2MGWIZ(mg->mg_ptr)->uvar) {
+   } else if (w->uvar) {
     ++uvars;
     /* We can't break here since we need to find the ext magic to delete. */
 #endif /* VMG_UVAR */
@@ -461,12 +583,12 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
   /* mg was the first ext magic in the chain that had uvar */
 
   for (mg = moremagic; mg; mg = mg->mg_moremagic) {
-   if ((mg->mg_type == PERL_MAGIC_ext) &&
-       (mg->mg_private >= SIG_MIN) &&
-       (mg->mg_private <= SIG_MAX) &&
-        SV2MGWIZ(mg->mg_ptr)->uvar) {
-    ++uvars;
-    break;
+   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+    MGWIZ *w = SV2MGWIZ(mg->mg_ptr);
+    if (w->uvar) {
+     ++uvars;
+     break;
+    }
    }
   }
 
@@ -501,6 +623,10 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, U16 sig) {
 #define VMG_OP_INFO_NAME   1
 #define VMG_OP_INFO_OBJECT 2
 
+#if VMG_THREADSAFE
+STATIC perl_mutex vmg_op_name_init_mutex;
+#endif
+
 STATIC U32           vmg_op_name_init      = 0;
 STATIC unsigned char vmg_op_name_len[MAXO] = { 0 };
 
@@ -508,18 +634,26 @@ STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo) {
 #define vmg_op_info_init(W) vmg_op_info_init(aTHX_ (W))
  switch (opinfo) {
   case VMG_OP_INFO_NAME:
+#if VMG_THREADSAFE
+   MUTEX_LOCK(&vmg_op_name_init_mutex);
+#endif
    if (!vmg_op_name_init) {
     OPCODE t;
     for (t = 0; t < OP_max; ++t)
      vmg_op_name_len[t] = strlen(PL_op_name[t]);
     vmg_op_name_init = 1;
    }
+#if VMG_THREADSAFE
+   MUTEX_UNLOCK(&vmg_op_name_init_mutex);
+#endif
    break;
   case VMG_OP_INFO_OBJECT: {
    dMY_CXT;
-   if (!MY_CXT.b__op_stash) {
+   if (!MY_CXT.b__op_stashes[0]) {
+    opclass c;
     require_pv("B.pm");
-    MY_CXT.b__op_stash = gv_stashpv("B::OP", 1);
+    for (c = 0; c < OPc_MAX; ++c)
+     MY_CXT.b__op_stashes[c] = gv_stashpv(vmg_opclassnames[c], 1);
    }
    break;
   }
@@ -541,7 +675,7 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
   case VMG_OP_INFO_OBJECT: {
    dMY_CXT;
    return sv_bless(sv_2mortal(newRV_noinc(newSViv(PTR2IV(PL_op)))),
-                              MY_CXT.b__op_stash);
+                   MY_CXT.b__op_stashes[vmg_opclass(PL_op)]);
   }
   default:
    break;
@@ -809,8 +943,7 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
    default:
     continue;
   }
-  if (mg->mg_private < SIG_MIN || mg->mg_private > SIG_MAX)
-   continue;
+  if (mg->mg_private != SIG_WIZ) continue;
   w = SV2MGWIZ(mg->mg_ptr);
   switch (w->uvar) {
    case 0:
@@ -933,28 +1066,22 @@ STATIC MGVTBL vmg_wizard_vtbl = {
 #endif /* MGf_LOCAL */
 };
 
-STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
-STATIC const char vmg_invalid_sig[]    = "Invalid numeric signature";
-STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
-STATIC const char vmg_toomanysigs[]    = "Too many magic signatures used";
-STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
-STATIC const char vmg_globstorefail[]  = "Couldn't store global wizard information";
-
 STATIC U16 vmg_sv2sig(pTHX_ SV *sv) {
 #define vmg_sv2sig(S) vmg_sv2sig(aTHX_ (S))
- U16 sig;
+ IV sig;
 
  if (SvIOK(sv)) {
-  sig = SvUVX(sv);
+  sig = SvIVX(sv);
  } else if (SvNOK(sv)) {
   sig = SvNVX(sv);
  } else if ((SvPOK(sv) && grok_number(SvPVX(sv), SvCUR(sv), NULL))) {
-  sig = SvUV(sv);
+  sig = SvIV(sv);
  } else {
   croak(vmg_invalid_sig);
  }
- if (sig < SIG_MIN) { sig += SIG_MIN; }
- if (sig > SIG_MAX) { sig %= SIG_MAX + 1; }
+
+ if (sig < SIG_MIN || sig > SIG_MAX)
+  croak(vmg_invalid_sig);
 
  return sig;
 }
@@ -974,9 +1101,10 @@ STATIC U16 vmg_wizard_sig(pTHX_ SV *wiz) {
 
  {
   dMY_CXT;
-  if (!hv_fetch(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), 0))
-   sig = 0;
+  if (!hv_exists(MY_CXT.wizards, buf, sprintf(buf, "%u", sig)))
+   croak(vmg_invalid_wiz);
  }
+
  return sig;
 }
 
@@ -1080,7 +1208,11 @@ BOOT:
  MY_CXT_INIT;
  MY_CXT.wizards = newHV();
  hv_iterinit(MY_CXT.wizards); /* Allocate iterator */
- MY_CXT.b__op_stash = NULL;
+ MY_CXT.b__op_stashes[0] = NULL;
+#if VMG_THREADSAFE
+ MUTEX_INIT(&vmg_op_name_init_mutex);
+#endif
+
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "SIG_MIN",   newSVuv(SIG_MIN));
  newCONSTSUB(stash, "SIG_MAX",   newSVuv(SIG_MAX));
@@ -1111,6 +1243,7 @@ PROTOTYPE: DISABLE
 PREINIT:
  HV *hv;
  U32 had_b__op_stash = 0;
+ opclass c;
 CODE:
  {
   HE *key;
@@ -1128,17 +1261,22 @@ CODE:
    w  = vmg_wizard_clone(w);
    sv = MGWIZ2SV(w);
    mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);
-   mg->mg_private = SIG_WIZ;
+   mg->mg_private = SIG_WZO;
    SvREADONLY_on(sv);
    if (!hv_store(hv, sig, len, sv, HeHASH(key))) croak("%s during CLONE", vmg_globstorefail);
   }
-  if (MY_CXT.b__op_stash)
-   had_b__op_stash = 1;
+  for (c = 0; c < OPc_MAX; ++c) {
+   if (MY_CXT.b__op_stashes[c])
+    had_b__op_stash |= (((U32) 1) << c);
+  }
  }
  {
   MY_CXT_CLONE;
   MY_CXT.wizards     = hv;
-  MY_CXT.b__op_stash = had_b__op_stash ? gv_stashpv("B::OP", 1) : NULL;
+  for (c = 0; c < OPc_MAX; ++c) {
+   MY_CXT.b__op_stashes[c] = (had_b__op_stash & (((U32) 1) << c))
+                              ? gv_stashpv(vmg_opclassnames[c], 1) : NULL;
+  }
  }
 
 #endif /* VMG_THREADSAFE */
@@ -1182,7 +1320,6 @@ CODE:
    XSRETURN(1);
   }
  } else {
-  if (HvKEYS(MY_CXT.wizards) >= SIG_NBR) { croak(vmg_toomanysigs); }
   sig = vmg_gensig();
  }
  
@@ -1230,7 +1367,7 @@ CODE:
 
  sv = MGWIZ2SV(w);
  mg = sv_magicext(sv, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);
- mg->mg_private = SIG_WIZ;
+ mg->mg_private = SIG_WZO;
  SvREADONLY_on(sv);
 
  if (!hv_store(MY_CXT.wizards, buf, sprintf(buf, "%u", sig), sv, 0)) croak(vmg_globstorefail);
@@ -1242,8 +1379,6 @@ OUTPUT:
 SV *gensig()
 PROTOTYPE:
 CODE:
- dMY_CXT;
- if (HvKEYS(MY_CXT.wizards) >= SIG_NBR) { croak(vmg_toomanysigs); }
  RETVAL = newSVuv(vmg_gensig());
 OUTPUT:
  RETVAL
@@ -1288,9 +1423,7 @@ PREINIT:
  SV *data;
  U16 sig;
 PPCODE:
- sig = vmg_wizard_sig(wiz);
- if (!sig)
-  XSRETURN_UNDEF;
+ sig  = vmg_wizard_sig(wiz);
  data = vmg_data_get(SvRV(sv), sig);
  if (!data) { XSRETURN_UNDEF; }
  ST(0) = data;
@@ -1302,8 +1435,6 @@ PREINIT:
  U16 sig;
 CODE:
  sig = vmg_wizard_sig(wiz);
- if (!sig)
-  XSRETURN_UNDEF;
  RETVAL = newSVuv(vmg_dispell(SvRV(sv), sig));
 OUTPUT:
  RETVAL

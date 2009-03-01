@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 26;
+use Test::More tests => 30;
 
-use Variable::Magic qw/wizard getsig cast dispell SIG_MIN/;
+use Variable::Magic qw/wizard getsig cast dispell SIG_MIN SIG_MAX/;
 
 my $sig = 300;
 
@@ -27,6 +27,14 @@ my ($a, $b, $c, $d) = 1 .. 4;
  my $wiz3 = eval { wizard sig => [ ] };
  like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'non numeric signature croaks');
  is($wiz3, undef, 'non numeric signature doesn\'t return anything');
+
+ $wiz3 = eval { wizard sig => SIG_MIN - 1 };
+ like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'numeric signature too small croaks');
+ is($wiz3, undef, 'numeric signature too small doesn\'t return anything');
+
+ $wiz3 = eval { wizard sig => SIG_MAX + 1 };
+ like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'numeric signature too big croaks');
+ is($wiz3, undef, 'numeric signature too big doesn\'t return anything');
 
  my $a = 1;
  my $res = eval { cast $a, $wiz };

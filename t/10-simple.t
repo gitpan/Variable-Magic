@@ -45,7 +45,7 @@ is($@, '', 're-cast doesn\'t croak');
 ok($res,   're-cast is valid');
 
 $res = eval { dispell $a, gensig };
-is($@, '',      're-dispell from wrong sig doesn\'t croak');
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 're-dispell from wrong sig croaks');
 is($res, undef, 're-dispell from wrong sig doesn\'t return anything');
 
 $res = eval { dispell $a, undef };
