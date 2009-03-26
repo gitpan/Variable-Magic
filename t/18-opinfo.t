@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 11 * (5 + 6) + 4 + 5;
+use Test::More tests => 14 * (3 + 4) + 5;
 
 use Config qw/%Config/;
 
@@ -17,26 +17,31 @@ my $aelem_op = $Config{useithreads} ? 'B::PADOP' : 'B::SVOP';
 our @o;
 
 my @tests = (
- [ 'len', '@c',    undef,     'my $x = @c',        [ 'padav',   'B::OP'     ] ],
- [ 'get', '$c[0]', undef,     'my $x = $c[0]',     [ $aelem,    'B::OP'     ] ],
- [ 'get', '$o[0]', undef,     'my $x = $o[0]',   [ 'aelemfast', $aelem_op   ] ],
- [ 'get', '$c',    undef,     '++$c',              [ 'preinc',  'B::UNOP'   ] ],
- [ 'get', '$c',    '$c = 1',  '$c ** 2',           [ 'pow',     'B::BINOP'  ] ],
- [ 'get', '$c',    undef,     'my $x = $c',        [ 'sassign', 'B::BINOP'  ] ],
- [ 'get', '$c',    undef,     '1 if $c',           [ 'and',     'B::LOGOP'  ] ],
- [ 'set', '$c',    undef,     'bless \$c, "main"', [ 'bless',   'B::LISTOP' ] ],
- [ 'get', '$c',    '$c = ""', '$c =~ /x/',         [ 'match',   'B::PMOP'   ] ],
- [ 'get', '$c',    '$c = "Variable::Magic::TestPkg"',
-                              '$c->foo()',    [ 'method_named', 'B::SVOP'   ] ],
- [ 'get', '$c',    '$c = ""', '$c =~ y/x/y/',      [ 'trans',   'B::PVOP'   ] ],
+ [ 'len', '@c',    'my @c',     'my $x = @c',      [ 'padav',   'B::OP'     ] ],
+ [ 'get', '$c[0]', 'my @c',     'my $x = $c[0]',   [ $aelem,    'B::OP'     ] ],
+ [ 'get', '$o[0]', 'local @o',  'my $x = $o[0]', [ 'aelemfast', $aelem_op   ] ],
+ [ 'get', '$c',    'my $c = 1', '++$c',            [ 'preinc',  'B::UNOP'   ] ],
+ [ 'get', '$c',    'my $c = 1', '$c ** 2',         [ 'pow',     'B::BINOP'  ] ],
+ [ 'get', '$c',    'my $c = 1', 'my $x = $c',      [ 'sassign', 'B::BINOP'  ] ],
+ [ 'get', '$c',    'my $c = 1', '1 if $c',         [ 'and',     'B::LOGOP'  ] ],
+ [ 'set', '$c',    'my $c = 1', 'bless \$c, "main"',
+                                                   [ 'bless',   'B::LISTOP' ] ],
+ [ 'get', '$c',    'my $c = ""','$c =~ /x/',       [ 'match',   'B::PMOP'   ] ],
+ [ 'get', '$c',    'my $c = "Variable::Magic::TestPkg"',
+                                '$c->foo()',  [ 'method_named', 'B::SVOP'   ] ],
+ [ 'get', '$c',    'my $c = ""','$c =~ y/x/y/',    [ 'trans',   'B::PVOP'   ] ],
+ [ 'get', '$c',    'my $c = 1', '1 for 1 .. $c',
+                                                 [ 'enteriter', 'B::LOOP'   ] ],
+ [ 'free','$c',    'my $c = 1', 'last',            [ 'last',    'B::OP'     ] ],
+ [ 'free','$c', 'L:{my $c = 1', 'last L}',         [ 'last',    'B::OP'     ] ],
 );
+
+our $done;
 
 for (@tests) {
  my ($key, $var, $init, $test, $exp) = @$_;
 
  for my $op_info (VMG_OP_INFO_NAME, VMG_OP_INFO_OBJECT) {
-  our $done;
-  my ($c, @c);
   my $wiz;
 
   # We must test for the $op correctness inside the callback because, if we
@@ -63,36 +68,12 @@ for (@tests) {
 
   local $done = 0;
 
-  eval $init if defined $init;
+  my $testcase = "{ $init; cast $var, \$wiz; $test }";
 
-  eval "cast $var, \$wiz";
-  is $@, '', "$key cast with op_info == $op_info doesn't croak";
-
-  eval $test;
+  eval $testcase;
   is $@, '', "$key magic with op_info == $op_info doesn't croak";
-
-  eval "dispell $var, \$wiz";
-  is $@, '', "$key dispell with op_info == $op_info doesn't croak";
+  diag $testcase if $@;
  }
-}
-
-{
- my $c;
-
- my $op_info = VMG_OP_INFO_OBJECT;
- my $wiz = eval {
-  wizard free => sub {
-    my $op = $_[-1];
-    my $desc = "free magic with op_info == $op_info";
-    isa_ok $op, 'B::OP', $desc;
-    is $op->name, 'leaveloop', "$desc gets the right op info";
-    ();
-   }, op_info => $op_info;
- };
- is $@, '', "get wizard with out of bounds op_info doesn't croak";
-
- eval { cast $c, $wiz };
- is $@, '', "get cast with out of bounds op_info doesn't croak";
 }
 
 {

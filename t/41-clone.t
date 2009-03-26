@@ -38,7 +38,7 @@ sub spawn_wiz {
 
  my $wiz = eval {
   wizard data    => sub { $_[1] + threads->tid() },
-         get     => sub { ++$c; 0 },
+         get     => sub { lock $c; ++$c; 0 },
          set     => sub {
                      my $op = $_[-1];
                      my $tid = threads->tid();
@@ -51,7 +51,7 @@ sub spawn_wiz {
                      }
                      0
                     },
-         free    => sub { ++$destroyed; 0 },
+         free    => sub { lock $destroyed; ++$destroyed; 0 },
          op_info => $op_info
  };
  is($@,     '',    "wizard with op_info $op_info in main thread doesn't croak");
@@ -92,13 +92,25 @@ my $wiz_obj  = spawn_wiz VMG_OP_INFO_OBJECT;
 
 for my $dispell (1, 0) {
  for my $sig ($wiz_name, getsig($wiz_name), $wiz_obj, getsig($wiz_obj)) {
-  $c = 0;
-  $destroyed = 0;
+  {
+   lock $c;
+   $c = 0;
+  }
+  {
+   lock $destroyed;
+   $destroyed = 0;
+  }
 
   my @t = map { threads->create(\&try, $dispell, $sig) } 1 .. 2;
   $_->join for @t;
 
-  is($c, 2, "get triggered twice");
-  is($destroyed, (1 - $dispell) * 2, 'destructors');
+  {
+   lock $c;
+   is $c, 2, "get triggered twice";
+  }
+  {
+   lock $destroyed;
+   is $destroyed, (1 - $dispell) * 2, 'destructors';
+  }
  }
 }

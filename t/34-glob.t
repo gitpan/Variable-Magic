@@ -18,23 +18,23 @@ use Variable::Magic qw/cast dispell/;
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
-my $wiz = init
+my $wiz = init_watcher
         [ qw/get set len clear free copy dup local fetch store exists delete/ ],
         'glob';
 
 local *a = gensym();
 
-check { cast *a, $wiz } { }, 'cast';
+watch { cast *a, $wiz } { }, 'cast';
 
-check { local *b = *a } { }, 'assign to';
+watch { local *b = *a } { }, 'assign to';
 
-check { *a = gensym() } { set => 1 }, 'assign';
+watch { *a = gensym() } { set => 1 }, 'assign';
 
-check {
+watch {
  local *b = gensym();
- check { cast *b, $wiz } { }, 'cast 2';
+ watch { cast *b, $wiz } { }, 'cast 2';
 } { }, 'scope end';
 
-check { undef *a } { }, 'undef';
+watch { undef *a } { }, 'undef';
 
-check { dispell *a, $wiz } { }, 'dispell';
+watch { dispell *a, $wiz } { }, 'dispell';

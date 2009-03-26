@@ -51,7 +51,7 @@ sub try {
                      }
                      0
                     },
-         free    => sub { ++$destroyed; 0 },
+         free    => sub { lock $destroyed; ++$destroyed; 0 },
          op_info => $op_info
  };
  is($@,     '',    "wizard in thread $tid doesn't croak");
@@ -87,10 +87,18 @@ sub try {
 
 for my $dispell (1, 0) {
  for my $sig (undef, Variable::Magic::gensig()) {
-  $destroyed = 0;
+  {
+   lock $destroyed;
+   $destroyed = 0;
+  }
+
   my @t = map { threads->create(\&try, $dispell, $sig, $_) }
                                (VMG_OP_INFO_NAME) x 2, (VMG_OP_INFO_OBJECT) x 2;
   $_->join for @t;
-  is($destroyed, (1 - $dispell) * 4, 'destructors');
+
+  {
+   lock $destroyed;
+   is $destroyed, (1 - $dispell) * 4, 'destructors';
+  }
  }
 }

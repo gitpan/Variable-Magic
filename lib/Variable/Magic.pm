@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.32
+Version 0.33
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.32';
+ $VERSION = '0.33';
 }
 
 =head1 SYNOPSIS
@@ -72,8 +72,8 @@ You attach it to variables, not values (as for blessed references).
 
 It doesn't replace the original semantics.
 
-Magic callbacks trigger before the original action take place, and can't prevent it to happen.
-This makes catching individual events easier than with C<tie>, where you have to provide fallbacks methods for all actions by usually inheriting from the correct C<Tie::Std*> class and overriding individual methods in your own class.
+Magic callbacks usually trigger before the original action take place, and can't prevent it to happen.
+This also makes catching individual events easier than with C<tie>, where you have to provide fallbacks methods for all actions by usually inheriting from the correct C<Tie::Std*> class and overriding individual methods in your own class.
 
 =item *
 
@@ -125,7 +125,7 @@ The callback has then to return the length as an integer.
 
 C<clear>
 
-This magic is invoked when a container variable is reset, i.e. when an array or a hash is emptied.
+This magic is invoked when the variable is reset, such as when an array is emptied.
 Please note that this is different from undefining the variable, even though the magic is called when the clearing is a result of the undefine (e.g. for an array, but actually a bug prevent it to work before perl 5.9.5 - see the L<history|/PERL MAGIC HISTORY>).
 
 =item *
@@ -133,7 +133,7 @@ Please note that this is different from undefining the variable, even though the
 C<free>
 
 This one can be considered as an object destructor.
-It happens when the variable goes out of scope (with the exception of global scope), but not when it is undefined.
+It happens when the variable goes out of scope, but not when it is undefined.
 
 =item *
 
@@ -337,13 +337,13 @@ This accessor returns the magic signature of this wizard.
 
 This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic.
 You can also supply the numeric signature C<$sig> instead of C<$wiz>.
-It returns true on success or when C<$wiz> magic is already present, C<0> on error, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
-All extra arguments specified after C<$wiz> are passed to the private data constructor.
+It returns true on success or when C<$wiz> magic is already present, and croaks on error or when no magic corresponds to the given signature (in case a C<$sig> was supplied).
+All extra arguments specified after C<$wiz> are passed to the private data constructor in C<@_[1 .. @_-1]>.
 If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignored.
 
-    # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
+    # Casts $wiz onto $x, and pass '1' to the data constructor.
     my $x;
-    die 'error' unless cast $x, $wiz;
+    cast $x, $wiz, 1;
 
 The C<var> argument can be an array or hash value.
 Magic for those behaves like for any other scalar, except that it is dispelled when the entry is deleted from the container.
@@ -401,10 +401,10 @@ Of course, this example does nothing with the values that are added after the C<
     getdata [$@%&*]var, [$wiz|$sig]
 
 This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable.
-C<undef> is returned when no such magic or data is found, or when C<$sig> does not represent a current valid magic object.
+It croaks when C<$wiz> or C<$sig> do not represent a current valid magic object attached to the variable, and returns C<undef> when the wizard has no data constructor or when the data is actually C<undef>.
 
-    # Get the attached data.
-    my $data = getdata $x, $wiz or die 'no such magic or magic has no data';
+    # Get the attached data, or undef if the wizard does not attach any.
+    my $data = getdata $x, $wiz;
 
 =head2 C<dispell>
 
@@ -412,10 +412,10 @@ C<undef> is returned when no such magic or data is found, or when C<$sig> does n
 
 The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable.
 You can also pass the magic signature C<$sig> as the second argument.
-True is returned on success, C<0> on error or when no magic represented by C<$wiz> could be found in the variable, and C<undef> when no magic corresponds to the given signature (in case C<$sig> was supplied).
+This function returns true on success, C<0> when no magic represented by C<$wiz> or C<$sig> could be found in the variable, and croaks if the supplied wizard or signature is invalid.
 
-    # Dispell now. If $wiz isn't a signature, undef can't be returned.
-    die 'no such magic or error' unless dispell $x, $wiz;
+    # Dispell now.
+    die 'no such magic in $x' unless dispell $x, $wiz;
 
 =head1 CONSTANTS
 

@@ -8,45 +8,46 @@ use Test::More;
 use Variable::Magic qw/wizard cast dispell VMG_UVAR/;
 
 if (VMG_UVAR) {
- plan tests => 2 * 15 + 12 + 14 + 1;
+ plan tests => 2 * 15 + 12 + 14 + (4 * 2 * 2 + 1 + 1) + 1;
 } else {
  plan skip_all => 'No nice uvar magic for this perl';
 }
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
+use Variable::Magic::TestValue;
 
-my $wiz = init [ qw/fetch store exists delete/ ], 'uvar';
+my $wiz = init_watcher [ qw/fetch store exists delete/ ], 'uvar';
 
 my %h = (a => 1, b => 2, c => 3);
 
-my $res = check { cast %h, $wiz } { }, 'cast';
+my $res = watch { cast %h, $wiz } { }, 'cast';
 ok $res, 'uvar: cast succeeded';
 
-my $x = check { $h{a} } { fetch => 1 }, 'fetch directly';
+my $x = watch { $h{a} } { fetch => 1 }, 'fetch directly';
 is $x, 1, 'uvar: fetch directly correctly';
 
-$x = check { "$h{b}" } { fetch => 1 }, 'fetch by interpolation';
+$x = watch { "$h{b}" } { fetch => 1 }, 'fetch by interpolation';
 is $x, 2, 'uvar: fetch by interpolation correctly';
 
-check { $h{c} = 4 } { store => 1 }, 'store directly';
+watch { $h{c} = 4 } { store => 1 }, 'store directly';
 
-$x = check { $h{c} = 5 } { store => 1 }, 'fetch and store';
+$x = watch { $h{c} = 5 } { store => 1 }, 'fetch and store';
 is $x, 5, 'uvar: fetch and store correctly';
 
-$x = check { exists $h{c} } { exists => 1 }, 'exists';
+$x = watch { exists $h{c} } { exists => 1 }, 'exists';
 ok $x, 'uvar: exists correctly';
 
-$x = check { delete $h{c} } { delete => 1 }, 'delete existing key';
+$x = watch { delete $h{c} } { delete => 1 }, 'delete existing key';
 is $x, 5, 'uvar: delete existing key correctly';
 
-$x = check { delete $h{z} } { delete => 1 }, 'delete non-existing key';
+$x = watch { delete $h{z} } { delete => 1 }, 'delete non-existing key';
 ok !defined $x, 'uvar: delete non-existing key correctly';
 
 my $wiz2 = wizard get => sub { 0 };
 cast %h, $wiz2;
 
-$x = check { $h{a} } { fetch => 1 }, 'fetch directly with also non uvar magic';
+$x = watch { $h{a} } { fetch => 1 }, 'fetch directly with also non uvar magic';
 is $x, 1, 'uvar: fetch directly with also non uvar magic correctly';
 
 SKIP: {
@@ -57,18 +58,18 @@ SKIP: {
  tie my %h, 'Tie::StdHash';
  %h = (x => 7, y => 8);
 
- $res = check { cast %h, $wiz } { }, 'cast on tied hash';
+ $res = watch { cast %h, $wiz } { }, 'cast on tied hash';
  ok $res, 'uvar: cast on tied hash succeeded';
 
- $x = check { $h{x} } { fetch => 1 }, 'fetch on tied hash';
+ $x = watch { $h{x} } { fetch => 1 }, 'fetch on tied hash';
  is $x, 7, 'uvar: fetch on tied hash succeeded';
 
- check { $h{x} = 9 } { store => 1 }, 'store on tied hash';
+ watch { $h{x} = 9 } { store => 1 }, 'store on tied hash';
 
- $x = check { exists $h{x} } { exists => 1 }, 'exists on tied hash';
+ $x = watch { exists $h{x} } { exists => 1 }, 'exists on tied hash';
  ok $x, 'uvar: exists on tied hash succeeded';
 
- $x = check { delete $h{x} } { delete => 1 }, 'delete on tied hash';
+ $x = watch { delete $h{x} } { delete => 1 }, 'delete on tied hash';
  is $x, 9, 'uvar: delete on tied hash succeeded';
 }
 
@@ -108,4 +109,42 @@ for my $i (1 .. 2) {
  is        $@,   '',    "uvar: change readonly key in store doesn't croak ($i)";
  is_deeply \%h3, { a => 3, b => 5, c => 5 + $i },
                         "uvar: change readonly key in store correcty ($i)";
+}
+
+{
+ my %val = (apple => 1);
+
+ init_value %val, 'fetch', 'uvar';
+
+ value { my $x = $val{apple} } { apple => 1 }, 'value store';
+}
+
+{
+ my %val = (apple => 1);
+
+ my $wv = init_value %val, 'store', 'uvar';
+
+ value { $val{apple} = 2 } { apple => 1 }, 'value store';
+
+ dispell %val, $wv;
+ is_deeply \%val, { apple => 2 }, 'uvar: value after store';
+}
+
+{
+ my %val = (apple => 1);
+
+ init_value %val, 'exists', 'uvar';
+
+ value { my $x = exists $val{apple} } { apple => 1 }, 'value exists';
+}
+
+{
+ my %val = (apple => 1, banana => 2);
+
+ my $wv = init_value %val, 'delete', 'uvar';
+
+ value { delete $val{apple} } { apple => 1, banana => 2 }, 'value delete';
+
+ dispell %val, $wv;
+ is_deeply \%val, { banana => 2 }, 'uvar: value after delete';
 }

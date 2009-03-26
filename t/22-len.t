@@ -3,9 +3,12 @@
 use strict;
 use warnings;
 
-use Test::More tests => 33;
+use Test::More tests => 33 + (2 * 2 + 1);
 
-use Variable::Magic qw/wizard cast VMG_COMPAT_SCALAR_LENGTH_NOLEN/;
+use Variable::Magic qw/wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN/;
+
+use lib 't/lib';
+use Variable::Magic::TestValue;
 
 my $c = 0;
 
@@ -123,4 +126,15 @@ SKIP: {
  is $c, 1,  'len: get utf8 scalar length triggers magic correctly';
  is $d, 5,  'len: get utf8 scalar length have correct default length';
  is $b, $d, 'len: get utf8 scalar length correctly';
+}
+
+{
+ my @val = (4 .. 6);
+
+ my $wv = init_value @val, 'len', 'len';
+
+ value { $val[-1] = 8 } [ 4, 5, 6 ];
+
+ dispell @val, $wv;
+ is_deeply \@val, [ 4, 5, 8 ], 'len: after value';
 }

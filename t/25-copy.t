@@ -5,39 +5,53 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/cast MGf_COPY/;
+use Variable::Magic qw/cast dispell MGf_COPY/;
 
 if (MGf_COPY) {
- plan tests => 2 + (2 * 5 + 3) + (2 * 9 + 6) + 1;
+ plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
 } else {
  plan skip_all => 'No copy magic for this perl';
 }
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
+use Variable::Magic::TestValue;
 
-my $wiz = init 'copy', 'copy';
+my $wiz = init_watcher 'copy', 'copy';
 
 SKIP: {
  eval "use Tie::Array";
- skip 'Tie::Array required to test copy magic on arrays', 2 * 5 + 3 if $@;
+ skip 'Tie::Array required to test copy magic on arrays'
+                                             => (2 * 5 + 3) + (2 * 2 + 1) if $@;
  diag "Using Tie::Array $Tie::Array::VERSION" if defined $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
  @a = (1 .. 10);
 
- my $res = check { cast @a, $wiz } { }, 'cast on tied array';
+ my $res = watch { cast @a, $wiz } { }, 'cast on tied array';
  ok $res, 'copy: cast on tied array succeeded';
 
- check { $a[3] = 13 } { copy => 1 }, 'tied array store';
+ watch { $a[3] = 13 } { copy => 1 }, 'tied array store';
 
- my $s = check { $a[3] } { copy => 1 }, 'tied array fetch';
+ my $s = watch { $a[3] } { copy => 1 }, 'tied array fetch';
  is $s, 13, 'copy: tied array fetch correctly';
 
- $s = check { exists $a[3] } { copy => 1 }, 'tied array exists';
+ $s = watch { exists $a[3] } { copy => 1 }, 'tied array exists';
  ok $s, 'copy: tied array exists correctly';
 
- check { undef @a } { }, 'tied array undef';
+ watch { undef @a } { }, 'tied array undef';
+
+ {
+  tie my @val, 'Tie::StdArray';
+  @val = (4 .. 6);
+
+  my $wv = init_value @val, 'copy', 'copy';
+
+  value { $val[3] = 8 } [ 4 .. 6 ];
+
+  dispell @val, $wv;
+  is_deeply \@val, [ 4 .. 6, 8 ], 'copy: value after';
+ }
 }
 
 SKIP: {
@@ -48,27 +62,27 @@ SKIP: {
  tie my %h, 'Tie::StdHash';
  %h = (a => 1, b => 2, c => 3);
 
- my $res = check { cast %h, $wiz } { }, 'cast on tied hash';
+ my $res = watch { cast %h, $wiz } { }, 'cast on tied hash';
  ok $res, 'copy: cast on tied hash succeeded';
 
- check { $h{b} = 7 } { copy => 1 }, 'tied hash store';
+ watch { $h{b} = 7 } { copy => 1 }, 'tied hash store';
 
- my $s = check { $h{c} } { copy => 1 }, 'tied hash fetch';
+ my $s = watch { $h{c} } { copy => 1 }, 'tied hash fetch';
  is $s, 3, 'copy: tied hash fetch correctly';
 
- $s = check { exists $h{a} } { copy => 1 }, 'tied hash exists';
+ $s = watch { exists $h{a} } { copy => 1 }, 'tied hash exists';
  ok $s, 'copy: tied hash exists correctly';
 
- $s = check { delete $h{b} } { copy => 1 }, 'tied hash delete';
+ $s = watch { delete $h{b} } { copy => 1 }, 'tied hash delete';
  is $s, 7, 'copy: tied hash delete correctly';
 
- check { my ($k, $v) = each %h } { copy => 1 }, 'tied hash each';
+ watch { my ($k, $v) = each %h } { copy => 1 }, 'tied hash each';
 
- my @k = check { keys %h } { }, 'tied hash keys';
+ my @k = watch { keys %h } { }, 'tied hash keys';
  is_deeply [ sort @k ], [ qw/a c/ ], 'copy: tied hash keys correctly';
 
- my @v = check { values %h } { copy => 2 }, 'tied hash values';
+ my @v = watch { values %h } { copy => 2 }, 'tied hash values';
  is_deeply [ sort { $a <=> $b } @v ], [ 1, 3 ], 'copy: tied hash values correctly';
 
- check { undef %h } { }, 'tied hash undef';
+ watch { undef %h } { }, 'tied hash undef';
 }

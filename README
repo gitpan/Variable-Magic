@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.32
+    Version 0.33
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -52,11 +52,12 @@ DESCRIPTION
 
     *   It doesn't replace the original semantics.
 
-        Magic callbacks trigger before the original action take place, and
-        can't prevent it to happen. This makes catching individual events
-        easier than with "tie", where you have to provide fallbacks methods
-        for all actions by usually inheriting from the correct "Tie::Std*"
-        class and overriding individual methods in your own class.
+        Magic callbacks usually trigger before the original action take
+        place, and can't prevent it to happen. This also makes catching
+        individual events easier than with "tie", where you have to provide
+        fallbacks methods for all actions by usually inheriting from the
+        correct "Tie::Std*" class and overriding individual methods in your
+        own class.
 
     *   It's type-agnostic.
 
@@ -98,18 +99,16 @@ DESCRIPTION
 
     *   "clear"
 
-        This magic is invoked when a container variable is reset, i.e. when
-        an array or a hash is emptied. Please note that this is different
-        from undefining the variable, even though the magic is called when
-        the clearing is a result of the undefine (e.g. for an array, but
-        actually a bug prevent it to work before perl 5.9.5 - see the
-        history).
+        This magic is invoked when the variable is reset, such as when an
+        array is emptied. Please note that this is different from undefining
+        the variable, even though the magic is called when the clearing is a
+        result of the undefine (e.g. for an array, but actually a bug
+        prevent it to work before perl 5.9.5 - see the history).
 
     *   "free"
 
         This one can be considered as an object destructor. It happens when
-        the variable goes out of scope (with the exception of global scope),
-        but not when it is undefined.
+        the variable goes out of scope, but not when it is undefined.
 
     *   "copy"
 
@@ -271,15 +270,15 @@ FUNCTIONS
     This function associates $wiz magic to the variable supplied, without
     overwriting any other kind of magic. You can also supply the numeric
     signature $sig instead of $wiz. It returns true on success or when $wiz
-    magic is already present, 0 on error, and "undef" when no magic
-    corresponds to the given signature (in case $sig was supplied). All
+    magic is already present, and croaks on error or when no magic
+    corresponds to the given signature (in case a $sig was supplied). All
     extra arguments specified after $wiz are passed to the private data
-    constructor. If the variable isn't a hash, any "uvar" callback of the
-    wizard is safely ignored.
+    constructor in @_[1 .. @_-1]. If the variable isn't a hash, any "uvar"
+    callback of the wizard is safely ignored.
 
-        # Casts $wiz onto $x. If $wiz isn't a signature, undef can't be returned.
+        # Casts $wiz onto $x, and pass '1' to the data constructor.
         my $x;
-        die 'error' unless cast $x, $wiz;
+        cast $x, $wiz, 1;
 
     The "var" argument can be an array or hash value. Magic for those
     behaves like for any other scalar, except that it is dispelled when the
@@ -341,24 +340,25 @@ FUNCTIONS
         getdata [$@%&*]var, [$wiz|$sig]
 
     This accessor fetches the private data associated with the magic $wiz
-    (or the signature $sig) in the variable. "undef" is returned when no
-    such magic or data is found, or when $sig does not represent a current
-    valid magic object.
+    (or the signature $sig) in the variable. It croaks when $wiz or $sig do
+    not represent a current valid magic object attached to the variable, and
+    returns "undef" when the wizard has no data constructor or when the data
+    is actually "undef".
 
-        # Get the attached data.
-        my $data = getdata $x, $wiz or die 'no such magic or magic has no data';
+        # Get the attached data, or undef if the wizard does not attach any.
+        my $data = getdata $x, $wiz;
 
   "dispell"
         dispell [$@%&*]variable, [$wiz|$sig]
 
     The exact opposite of "cast" : it dissociates $wiz magic from the
     variable. You can also pass the magic signature $sig as the second
-    argument. True is returned on success, 0 on error or when no magic
-    represented by $wiz could be found in the variable, and "undef" when no
-    magic corresponds to the given signature (in case $sig was supplied).
+    argument. This function returns true on success, 0 when no magic
+    represented by $wiz or $sig could be found in the variable, and croaks
+    if the supplied wizard or signature is invalid.
 
-        # Dispell now. If $wiz isn't a signature, undef can't be returned.
-        die 'no such magic or error' unless dispell $x, $wiz;
+        # Dispell now.
+        die 'no such magic in $x' unless dispell $x, $wiz;
 
 CONSTANTS
   "SIG_MIN"

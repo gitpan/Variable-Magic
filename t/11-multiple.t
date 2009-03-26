@@ -77,7 +77,7 @@ is($@, '', 'dispell magic 2 doesn\'t croak');
 ok($res,   'dispell magic 2 is valid');
 
 SKIP: {
- skip 'No nice uvar magic for this perl', 41 unless VMG_UVAR;
+ skip 'No nice uvar magic for this perl' => 41 unless VMG_UVAR;
 
  $n = 3;
  @c = (0) x $n;

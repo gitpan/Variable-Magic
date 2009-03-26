@@ -23,7 +23,7 @@ if ($@) {
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
-my $wiz = init [ qw/fetch store/ ], 'huf';
+my $wiz = init_watcher [ qw/fetch store/ ], 'huf';
 ok defined($wiz),       'huf: wizard with uvar is defined';
 is ref($wiz), 'SCALAR', 'huf: wizard with uvar is a scalar ref';
 
@@ -33,16 +33,16 @@ my $obj = { };
 bless $obj, 'Variable::Magic::Test::Mock';
 $h{$obj} = 5;
 
-my ($res) = check { cast %h, $wiz } { }, 'cast uvar magic on fieldhash';
+my ($res) = watch { cast %h, $wiz } { }, 'cast uvar magic on fieldhash';
 ok $res, 'huf: cast uvar magic on fieldhash succeeded';
 
-my ($s) = check { $h{$obj} } { fetch => 1 }, 'fetch on magical fieldhash';
+my ($s) = watch { $h{$obj} } { fetch => 1 }, 'fetch on magical fieldhash';
 is $s, 5, 'huf: fetch on magical fieldhash succeeded';
 
-check { $h{$obj} = 7 } { store => 1 }, 'store on magical fieldhash';
+watch { $h{$obj} = 7 } { store => 1 }, 'store on magical fieldhash';
 is $h{$obj}, 7, 'huf: store on magical fieldhash succeeded';
 
-($res) = check { dispell %h, $wiz } { }, 'dispell uvar magic on fieldhash';
+($res) = watch { dispell %h, $wiz } { }, 'dispell uvar magic on fieldhash';
 ok $res, 'huf: dispell uvar magic on fieldhash succeeded';
 
 $h{$obj} = 11;

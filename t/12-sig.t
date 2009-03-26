@@ -11,6 +11,8 @@ my $sig = 300;
 
 my ($a, $b, $c, $d) = 1 .. 4;
 
+my $inv_num_sig = qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/;
+
 {
  my $wiz = eval { wizard sig => $sig };
  is($@, '',             'wizard creation doesn\'t croak');
@@ -25,16 +27,16 @@ my ($a, $b, $c, $d) = 1 .. 4;
  is($sig, getsig $wiz2,  'retrieved wizard signature is correct');
 
  my $wiz3 = eval { wizard sig => [ ] };
- like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'non numeric signature croaks');
- is($wiz3, undef, 'non numeric signature doesn\'t return anything');
+ like($@,  $inv_num_sig, 'non numeric signature croaks');
+ is($wiz3, undef,        'non numeric signature doesn\'t return anything');
 
  $wiz3 = eval { wizard sig => SIG_MIN - 1 };
- like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'numeric signature too small croaks');
- is($wiz3, undef, 'numeric signature too small doesn\'t return anything');
+ like($@, $inv_num_sig, 'numeric signature too small croaks');
+ is($wiz3, undef,       'numeric signature too small doesn\'t return anything');
 
  $wiz3 = eval { wizard sig => SIG_MAX + 1 };
- like($@, qr/Invalid\s+numeric\s+signature\s+at\s+\Q$0\E/, 'numeric signature too big croaks');
- is($wiz3, undef, 'numeric signature too big doesn\'t return anything');
+ like($@, $inv_num_sig, 'numeric signature too big croaks');
+ is($wiz3, undef,       'numeric signature too big doesn\'t return anything');
 
  my $a = 1;
  my $res = eval { cast $a, $wiz };

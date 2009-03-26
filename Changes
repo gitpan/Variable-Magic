@@ -1,5 +1,14 @@
 Revision history for Variable-Magic
 
+0.33    2009-03-26 00:00 UTC
+        + Chg : cast() and getsig() now croak too when an invalid signature is
+                passed.
+        + Fix : It was possible to generate with gensig() the same signature
+                twice before actually defining the wizards.
+        + Tst : More stash tests.
+        + Tst : Test when the magic takes place in some cases.
+        + Tst : Improved coverage for the op object feature.
+
 0.32    2009-03-01 13:45 UTC
         + Chg : dispell() and getdata() now croak when an invalid signature is
                 passed.

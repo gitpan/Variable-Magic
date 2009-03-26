@@ -10,7 +10,7 @@ use Variable::Magic qw/wizard/;
 
 use base qw/Exporter/;
 
-our @EXPORT = qw/init check/;
+our @EXPORT = qw/init_watcher watch/;
 
 sub _types {
  my $t = shift;
@@ -24,7 +24,7 @@ sub _types {
 
 our ($wiz, $prefix, %mg);
 
-sub init ($;$) {
+sub init_watcher ($;$) {
  croak 'can\'t initialize twice' if defined $wiz;
  my $types = _types shift;
  $prefix   = (defined) ? "$_: " : '' for shift;
@@ -37,7 +37,7 @@ sub init ($;$) {
  return $wiz;
 }
 
-sub check (&;$$) {
+sub watch (&;$$) {
  my $code = shift;
  my $exp  = _types shift;
  my $desc = shift;
