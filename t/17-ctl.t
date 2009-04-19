@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 8 + 1;
+use Test::More tests => 10 + 1;
 
 use Variable::Magic qw/wizard cast/;
 
@@ -76,6 +76,15 @@ eval q{BEGIN {
 like $@, qr/pepperoni/, 'die in len callback in BEGIN';
 
 use lib 't/lib';
-eval "use Variable::Magic::TestDieRequired";
+eval "use Variable::Magic::TestScopeEnd";
 
-like $@, qr/turnip/, 'die in required with localized hash gets the right error message';
+like $@, qr/turnip/, 'die in BEGIN in require triggers hints hash destructor';
+
+eval q{BEGIN {
+ Variable::Magic::TestScopeEnd::hook {
+  pass 'in hints hash destructor 2';
+ };
+ die "tomato";
+}};
+
+like $@, qr/tomato/, 'die in BEGIN in eval triggers hints hash destructor';

@@ -812,6 +812,9 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w;
+#if VMG_HAS_PERL(5, 10, 0)
+ PERL_CONTEXT saved_cx;
+#endif
  unsigned int had_err, has_err, flags = G_SCALAR | G_EVAL;
  int ret = 0;
 
@@ -849,7 +852,20 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (had_err)
   flags |= G_KEEPERR;
 
+#if VMG_HAS_PERL(5, 10, 0)
+ /* This context should not be used anymore, but since we croak in places the
+  * core doesn't even dare to, some pointers to it may remain in the upper call
+  * stack. Make sure call_sv() doesn't clobber it. */
+ if (cxstack_ix >= cxstack_max)
+  Perl_cxinc(aTHX);
+ saved_cx = cxstack[cxstack_ix + 1];
+#endif
+
  call_sv(w->cb_free, flags);
+
+#if VMG_HAS_PERL(5, 10, 0)
+ cxstack[cxstack_ix + 1] = saved_cx;
+#endif
 
  has_err = SvTRUE(ERRSV);
  if (IN_PERL_COMPILETIME && !had_err && has_err)
@@ -863,7 +879,10 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (has_err) {
   /* Get the eval context that was pushed by call_sv, and fake an entry for the
    * namesv, as die_where will need it to be non NULL later */
-  PERL_CONTEXT *cx = cxstack + cxstack_ix + 1;
+  PERL_CONTEXT *cx;
+  if (cxstack_ix >= cxstack_max)
+   Perl_cxinc(aTHX);
+  cx = cxstack + cxstack_ix + 1;
   if (!cx->blk_eval.old_namesv)
    cx->blk_eval.old_namesv
                  = sv_2mortal(newSVpvn_share("Variable/Magic/DUMMY.pm", 23, 0));
@@ -1028,8 +1047,16 @@ STATIC int vmg_wizard_free(pTHX_ SV *wiz, MAGIC *mg) {
   if (hv_delete(MY_CXT.wizards, buf, sprintf(buf, "%u", w->sig), 0) != wiz)
    return 0;
  }
- SvFLAGS(wiz) |= SVf_BREAK;
- FREETMPS;
+
+ /* Unmortalize the wizard to avoid it being freed in weird places. */
+ if (SvTEMP(wiz) && !SvREFCNT(wiz)) {
+  const I32 myfloor = PL_tmps_floor;
+  I32 i;
+  for (i = PL_tmps_ix; i > myfloor; --i) {
+   if (PL_tmps_stack[i] == wiz)
+    PL_tmps_stack[i] = NULL;
+  }
+ }
 
  if (w->cb_data)   SvREFCNT_dec(SvRV(w->cb_data));
  if (w->cb_get)    SvREFCNT_dec(SvRV(w->cb_get));

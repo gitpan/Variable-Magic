@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Variable-Magic
-version:            0.33
+version:            0.34
 abstract:           Associate user-defined magic to variables from Perl.
 author:
     - Vincent Pit <perl@profvince.com>
@@ -23,7 +23,7 @@ resources:
     bugtracker:  http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic
     homepage:    http://search.cpan.org/dist/Variable-Magic/
     license:     http://dev.perl.org/licenses/
-    repository:  http://git.profvince.com/perl/modules/Variable-Magic.git
+    repository:  http://git.profvince.com/?p=perl/modules/Variable-Magic.git
 no_index:
     directory:
         - t

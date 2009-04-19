@@ -9,7 +9,7 @@ use Variable::Magic qw/wizard cast dispell VMG_UVAR VMG_OP_INFO_NAME VMG_OP_INFO
 
 my $run;
 if (VMG_UVAR) {
- plan tests => 29;
+ plan tests => 33;
  $run = 1;
 } else {
  plan skip_all => 'uvar magic is required to test symbol table hooks';
@@ -109,6 +109,17 @@ cast %Hlagh::, $wiz;
 {
  local %mg;
 
+ eval q{ my $meth = 'shoot'; Hlagh->$meth() };
+
+ is $@, '', 'stash: valid dynamic method call ran fine';
+ is_deeply \%mg, {
+  store => [ qw/shoot/ ],
+ }, 'stash: valid dynamic method call';
+}
+
+{
+ local %mg;
+
  eval q[
   package Hlagher;
   our @ISA;
@@ -119,7 +130,7 @@ cast %Hlagh::, $wiz;
  is $@, '', 'inherited valid method call ran fine';
  is_deeply \%mg, {
   fetch => [ qw/ISA shoot/ ],
- }, 'stash: direct method call';
+ }, 'stash: inherited valid method call';
 }
 
 {
@@ -132,6 +143,17 @@ cast %Hlagh::, $wiz;
   fetch => [ qw/unknown/ ],
   store => [ qw/unknown AUTOLOAD/ ],
  }, 'stash: invalid method call';
+}
+
+{
+ local %mg;
+
+ eval q{ my $meth = 'unknown_too'; Hlagh->$meth() };
+
+ like $@, qr/^Can't locate object method "unknown_too" via package "Hlagh"/, 'stash: invalid dynamic method call croaked';
+ is_deeply \%mg, {
+  store => [ qw/unknown_too AUTOLOAD/ ],
+ }, 'stash: invalid dynamic method call';
 }
 
 {

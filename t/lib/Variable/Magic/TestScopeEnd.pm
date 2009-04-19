@@ -1,4 +1,4 @@
-package Variable::Magic::TestDieRequired;
+package Variable::Magic::TestScopeEnd;
 
 use Test::More;
 
@@ -18,7 +18,7 @@ sub hook (&) {
 }
 
 BEGIN {
- hook { pass 'in Variable::Magic::TestRequired hook' };
+ hook { pass 'in hints hash destructor' };
  die 'turnip';
 }
 
