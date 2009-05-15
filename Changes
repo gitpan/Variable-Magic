@@ -1,5 +1,16 @@
 Revision history for Variable-Magic
 
+0.35    2009-05-15 20:50 UTC
+        This is a maintenance release. Users of 0.34 can skip this update.
+        + Chg : uvar magic used to be enabled for 5.9.5. It now requires 5.10 or
+                later.
+        + Fix : Silence compilation warnings for cxinc().
+        + Rem : The workaround introduced in 0.31 for the "Unknown errors" issue
+                was removed, as regression tests show that 0.34 provides a
+                better fix.
+        + Tst : Skip t/40-threads.t on 5.8.x with old versions of threads and
+                threads::shared.
+
 0.34    2009-04-19 16:55 UTC
         + Fix : Destruction of wizards in require.
         + Fix : "panic: restartop" in 5.10 when dieing at compile time triggers

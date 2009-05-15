@@ -9,7 +9,7 @@ use Variable::Magic qw/wizard cast dispell VMG_UVAR VMG_OP_INFO_NAME VMG_OP_INFO
 
 my $run;
 if (VMG_UVAR) {
- plan tests => 33;
+ plan tests => 41;
  $run = 1;
 } else {
  plan skip_all => 'uvar magic is required to test symbol table hooks';
@@ -109,6 +109,17 @@ cast %Hlagh::, $wiz;
 {
  local %mg;
 
+ eval q{ Hlagh->shoot() };
+
+ is $@, '', 'stash: second valid method call ran fine';
+ is_deeply \%mg, {
+  fetch => [ qw/shoot/ ],
+ }, 'stash: second valid method call';
+}
+
+{
+ local %mg;
+
  eval q{ my $meth = 'shoot'; Hlagh->$meth() };
 
  is $@, '', 'stash: valid dynamic method call ran fine';
@@ -124,13 +135,42 @@ cast %Hlagh::, $wiz;
   package Hlagher;
   our @ISA;
   BEGIN { @ISA = 'Hlagh' }
-  Hlagher->shoot()
+  Hlagher->leave()
  ];
 
  is $@, '', 'inherited valid method call ran fine';
  is_deeply \%mg, {
-  fetch => [ qw/ISA shoot/ ],
+  fetch => [ qw/ISA leave/ ],
  }, 'stash: inherited valid method call';
+}
+
+{
+ local %mg;
+
+ eval q{ Hlagher->leave() };
+
+ is $@, '', 'second inherited valid method call ran fine';
+ is_deeply \%mg, { }, 'stash: second inherited valid method call doesn\'t call magic';
+}
+
+{
+ local %mg;
+
+ eval q{ Hlagher->shoot() };
+
+ is $@, '', 'inherited previously called valid method call ran fine';
+ is_deeply \%mg, {
+  fetch => [ qw/shoot/ ],
+ }, 'stash: inherited previously called valid method call';
+}
+
+{
+ local %mg;
+
+ eval q{ Hlagher->shoot() };
+
+ is $@, '', 'second inherited previously called valid method call ran fine';
+ is_deeply \%mg, { }, 'stash: second inherited previously called valid method call doesn\'t call magic';
 }
 
 {

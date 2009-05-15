@@ -135,8 +135,9 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # endif
 #endif
 
-/* uvar magic and Hash::Util::FieldHash were commited with 28419 */
-#if VMG_HAS_PERL_MAINT(5, 9, 4, 28419) || VMG_HAS_PERL(5, 10, 0)
+/* uvar magic and Hash::Util::FieldHash were commited with 28419, but only
+ * enable it on 5.10 */
+#if VMG_HAS_PERL(5, 10, 0)
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
@@ -812,8 +813,9 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w;
-#if VMG_HAS_PERL(5, 10, 0)
+#if VMG_HAS_PERL(5, 9, 5)
  PERL_CONTEXT saved_cx;
+ I32 cxix;
 #endif
  unsigned int had_err, has_err, flags = G_SCALAR | G_EVAL;
  int ret = 0;
@@ -852,19 +854,21 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (had_err)
   flags |= G_KEEPERR;
 
-#if VMG_HAS_PERL(5, 10, 0)
+#if VMG_HAS_PERL(5, 9, 5)
  /* This context should not be used anymore, but since we croak in places the
   * core doesn't even dare to, some pointers to it may remain in the upper call
   * stack. Make sure call_sv() doesn't clobber it. */
- if (cxstack_ix >= cxstack_max)
-  Perl_cxinc(aTHX);
- saved_cx = cxstack[cxstack_ix + 1];
+ if (cxstack_ix < cxstack_max)
+  cxix = cxstack_ix + 1;
+ else
+  cxix = Perl_cxinc(aTHX);
+ saved_cx = cxstack[cxix];
 #endif
 
  call_sv(w->cb_free, flags);
 
-#if VMG_HAS_PERL(5, 10, 0)
- cxstack[cxstack_ix + 1] = saved_cx;
+#if VMG_HAS_PERL(5, 9, 5)
+ cxstack[cxix] = saved_cx;
 #endif
 
  has_err = SvTRUE(ERRSV);
@@ -875,18 +879,6 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 
  FREETMPS;
  LEAVE;
-
- if (has_err) {
-  /* Get the eval context that was pushed by call_sv, and fake an entry for the
-   * namesv, as die_where will need it to be non NULL later */
-  PERL_CONTEXT *cx;
-  if (cxstack_ix >= cxstack_max)
-   Perl_cxinc(aTHX);
-  cx = cxstack + cxstack_ix + 1;
-  if (!cx->blk_eval.old_namesv)
-   cx->blk_eval.old_namesv
-                 = sv_2mortal(newSVpvn_share("Variable/Magic/DUMMY.pm", 23, 0));
- }
 
  /* Calling SvREFCNT_dec() will trigger destructors in an infinite loop, so
   * we have to rely on SvREFCNT() being a lvalue. Heck, even the core does it */
