@@ -1468,7 +1468,7 @@ PPCODE:
  sig  = vmg_wizard_sig(wiz);
  data = vmg_data_get(SvRV(sv), sig);
  if (!data)
-  XSRETURN_UNDEF;
+  XSRETURN_EMPTY;
  ST(0) = data;
  XSRETURN(1);
 

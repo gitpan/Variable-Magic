@@ -23,14 +23,18 @@ if (defined $pl && length $pl) {
 }
 
 my $is_as = 0;
-print "Checking if this is Windows ActiveState 5.8.[78]... ";
-if ($^O eq 'MSWin32' && $^V ge v5.8.7 && $^V lt v5.8.9) {
+print "Checking if this is ActiveState Perl 5.8.8 build 822 or higher... ";
+if ($^V eq v5.8.8) {
  eval {
-  require Win32;
+  require ActivePerl;
   1;
  } and do {
-  if (defined &Win32::BuildNumber) {
-   $is_as = 1;
+  if (defined &ActivePerl::BUILD) {
+   my $build = int ActivePerl::BUILD();
+   if ($build >= 822) {
+    $is_as = 1;
+    push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=1';
+   }
   }
  }
 }

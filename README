@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.35
+    Version 0.36
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -341,9 +341,9 @@ FUNCTIONS
 
     This accessor fetches the private data associated with the magic $wiz
     (or the signature $sig) in the variable. It croaks when $wiz or $sig do
-    not represent a current valid magic object attached to the variable, and
-    returns "undef" when the wizard has no data constructor or when the data
-    is actually "undef".
+    not represent a valid magic object, and returns an empty list if no such
+    magic is attached to the variable or when the wizard has no data
+    constructor.
 
         # Get the attached data, or undef if the wizard does not attach any.
         my $data = getdata $x, $wiz;

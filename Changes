@@ -1,5 +1,11 @@
 Revision history for Variable-Magic
 
+0.36    2009-07-05 16:30 UTC
+        + Chg : getdata() now returns an empty list when no magic is present.
+                It used to return undef but did not croak as stated in the doc.
+                Thanks Matt S. Trout for pointing this out.
+        + Fix : Building and tests with ActiveState Perl 5.8 build >= 822.
+
 0.35    2009-05-15 20:50 UTC
         This is a maintenance release. Users of 0.34 can skip this update.
         + Chg : uvar magic used to be enabled for 5.9.5. It now requires 5.10 or

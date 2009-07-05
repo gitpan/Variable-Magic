@@ -3,31 +3,36 @@
 use strict;
 use warnings;
 
+sub skipall {
+ my ($msg) = @_;
+ require Test::More;
+ Test::More::plan(skip_all => $msg);
+}
+
 use Config qw/%Config/;
 
 BEGIN {
- if (!$Config{useithreads}) {
-  require Test::More;
-  Test::More->import;
-  plan(skip_all => 'This perl wasn\'t built to support threads');
- }
+ my $t_v  = '1.67';
+ my $ts_v = '1.14';
+ skipall 'This perl wasn\'t built to support threads'
+                                                    unless $Config{useithreads};
+ skipall "threads $t_v required to test thread safety"
+                                              unless eval "use threads $t_v; 1";
+ skipall "threads::shared $ts_v required to test thread safety"
+                                     unless eval "use threads::shared $ts_v; 1";
 }
 
-use threads; # Before Test::More
-use threads::shared;
-
-use Test::More;
+use Test::More; # after threads
 
 use Variable::Magic qw/wizard cast dispell getdata getsig VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
 
-if (VMG_THREADSAFE) {
+BEGIN {
+ skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;
  plan tests => 2 * 3 + 4 * (2 * 10 + 2) + 4 * (2 * 7 + 2);
  my $v = $threads::VERSION;
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
  diag "Using threads::shared $v" if defined $v;
-} else {
- plan skip_all => 'This Variable::Magic isn\'t thread safe';
 }
 
 my $destroyed : shared = 0;

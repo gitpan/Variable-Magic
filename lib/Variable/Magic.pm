@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.35
+Version 0.36
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.35';
+ $VERSION = '0.36';
 }
 
 =head1 SYNOPSIS
@@ -401,7 +401,7 @@ Of course, this example does nothing with the values that are added after the C<
     getdata [$@%&*]var, [$wiz|$sig]
 
 This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable.
-It croaks when C<$wiz> or C<$sig> do not represent a current valid magic object attached to the variable, and returns C<undef> when the wizard has no data constructor or when the data is actually C<undef>.
+It croaks when C<$wiz> or C<$sig> do not represent a valid magic object, and returns an empty list if no such magic is attached to the variable or when the wizard has no data constructor.
 
     # Get the attached data, or undef if the wizard does not attach any.
     my $data = getdata $x, $wiz;

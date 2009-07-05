@@ -78,9 +78,9 @@ $res = eval { cast $a, $wiz };
 is($@, '', 'cast non-data wizard doesn\'t croak');
 ok($res,   'cast non-data wizard returns true');
 
-$data = eval { getdata $a, $wiz };
-is($@, '',       'getdata from non-data wizard doesn\'t croak');
-is($data, undef, 'getdata from non-data wizard invalid returns undef');
+my @data = eval { getdata $a, $wiz };
+is($@,            '',  'getdata from non-data wizard doesn\'t croak');
+is_deeply(\@data, [ ], 'getdata from non-data wizard invalid returns undef');
 
 $wiz = wizard data => sub { ++$_[1] };
 my ($di, $ei) = (1, 10);
