@@ -45,6 +45,11 @@ if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
  push @DEFINES, '-DVMG_MULTIPLICITY=0';
 }
 
+# Fork emulation got "fixed" in 5.10.1
+if ($^O eq 'MSWin32' && $^V lt v5.10.1) {
+ push @DEFINES, '-DVMG_FORKSAFE=0';
+}
+
 @DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
 
 my $dist = 'Variable-Magic';
@@ -79,7 +84,8 @@ WriteMakefile(
     PREREQ_PM        => {
         'Carp'     => 0,
         'Exporter' => 0,
-        'XSLoader' => 0
+        'XSLoader' => 0,
+        'base'     => 0,
     },
     MIN_PERL_VERSION => 5.008,
     META_MERGE       => \%META,

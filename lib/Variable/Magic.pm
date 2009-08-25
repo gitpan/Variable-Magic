@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.36
+Version 0.37
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.36';
+ $VERSION = '0.37';
 }
 
 =head1 SYNOPSIS
@@ -105,13 +105,15 @@ The operations that can be overloaded are :
 
 C<get>
 
-This magic is invoked when the variable is evaluated (does not include array/hash subscripts and slices).
+This magic is invoked when the variable is evaluated.
+It is never called for arrays and hashes.
 
 =item *
 
 C<set>
 
-This one is triggered each time the value of the variable changes (includes array/hash subscripts and slices).
+This one is triggered each time the value of the variable changes.
+It is called for array subscripts and slices, but never for hashes.
 
 =item *
 
@@ -278,7 +280,7 @@ C<fetch>, C<store>, C<exists> and C<delete>
 
 C<$_[2]> is an alias to the current key.
 Nothing prevents you from changing it, but be aware that there lurk dangerous side effects.
-For example, it may righteously be readonly if the key was a bareword.
+For example, it may rightfully be readonly if the key was a bareword.
 You can get a copy instead by passing C<< copy_key => 1 >> to L</wizard>, which allows you to safely assign to C<$_[2]> in order to e.g. redirect the action to another key.
 This however has a little performance drawback because of the copy.
 
@@ -471,6 +473,11 @@ The perl patchlevel this module was built with, or C<0> for non-debugging perls.
 
 True iff this module could have been built with thread-safety features enabled.
 
+=head2 C<VMG_FORKSAFE>
+
+True iff this module could have been built with fork-safety features enabled.
+This will always be true except on Windows where it's false for perl 5.10.0 and below .
+
 =head2 C<VMG_OP_INFO_NAME>
 
 Value to pass with C<op_info> to get the current op name in the magic callbacks.
@@ -552,7 +559,7 @@ our %EXPORT_TAGS    = (
                qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
                qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
                qw/VMG_PERL_PATCHLEVEL/,
-               qw/VMG_THREADSAFE/,
+               qw/VMG_THREADSAFE VMG_FORKSAFE/,
                qw/VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/
              ]
 );

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 21;
+use Test::More tests => 22;
 
 require Variable::Magic;
 
@@ -13,7 +13,7 @@ for (qw/wizard gensig getsig cast getdata dispell
         VMG_COMPAT_ARRAY_PUSH_NOLEN  VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID
         VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_SCALAR_LENGTH_NOLEN
         VMG_PERL_PATCHLEVEL
-        VMG_THREADSAFE
+        VMG_THREADSAFE VMG_FORKSAFE
         VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/) {
  eval { Variable::Magic->import($_) };
  is($@, '', 'import ' . $_);

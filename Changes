@@ -1,5 +1,12 @@
 Revision history for Variable-Magic
 
+0.37    2009-08-25 15:25 UTC
+        + Add : The new constant VMG_FORKSAFE can be tested to know whether the
+                module will behave nicely when fork()ing. It's currently always
+                true except on Windows where you need perl 5.10.1 for it to be
+                true.
+        + Doc : Nits and clarifications.
+
 0.36    2009-07-05 16:30 UTC
         + Chg : getdata() now returns an empty list when no magic is present.
                 It used to return undef but did not croak as stated in the doc.

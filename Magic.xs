@@ -36,6 +36,11 @@
 # define dNOOP
 #endif
 
+/* Safe unless stated otherwise in Makefile.PL */
+#ifndef VMG_FORKSAFE
+# define VMG_FORKSAFE 1
+#endif
+
 #ifndef VMG_MULTIPLICITY
 # if defined(MULTIPLICITY) || defined(PERL_IMPLICIT_CONTEXT)
 #  define VMG_MULTIPLICITY 1
@@ -1263,6 +1268,7 @@ BOOT:
                     newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
  newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));
+ newCONSTSUB(stash, "VMG_FORKSAFE",        newSVuv(VMG_FORKSAFE));
  newCONSTSUB(stash, "VMG_OP_INFO_NAME",    newSVuv(VMG_OP_INFO_NAME));
  newCONSTSUB(stash, "VMG_OP_INFO_OBJECT",  newSVuv(VMG_OP_INFO_OBJECT));
 }

@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.36
+    Version 0.37
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -81,13 +81,13 @@ DESCRIPTION
 
     *   "get"
 
-        This magic is invoked when the variable is evaluated (does not
-        include array/hash subscripts and slices).
+        This magic is invoked when the variable is evaluated. It is never
+        called for arrays and hashes.
 
     *   "set"
 
-        This one is triggered each time the value of the variable changes
-        (includes array/hash subscripts and slices).
+        This one is triggered each time the value of the variable changes.
+        It is called for array subscripts and slices, but never for hashes.
 
     *   "len"
 
@@ -228,7 +228,7 @@ FUNCTIONS
 
                 $_[2] is an alias to the current key. Nothing prevents you
                 from changing it, but be aware that there lurk dangerous
-                side effects. For example, it may righteously be readonly if
+                side effects. For example, it may rightfully be readonly if
                 the key was a bareword. You can get a copy instead by
                 passing "copy_key => 1" to "wizard", which allows you to
                 safely assign to $_[2] in order to e.g. redirect the action
@@ -405,6 +405,11 @@ CONSTANTS
   "VMG_THREADSAFE"
     True iff this module could have been built with thread-safety features
     enabled.
+
+  "VMG_FORKSAFE"
+    True iff this module could have been built with fork-safety features
+    enabled. This will always be true except on Windows where it's false for
+    perl 5.10.0 and below .
 
   "VMG_OP_INFO_NAME"
     Value to pass with "op_info" to get the current op name in the magic
