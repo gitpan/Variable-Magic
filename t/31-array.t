@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 2 * 27 + 13 + 1;
 
-use Variable::Magic qw/cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
+use Variable::Magic qw/cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -53,10 +53,12 @@ watch { $b = $#a } { len => 1 }, 'length $#';
 is $b, 2, 'array: length $# correctly';
 
 watch { push @a, 'x'; () }
-          { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN },'push (void)';
+                   { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID },
+                   'push (void)';
 
 $b = watch { push @a, 'y' }
-       { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN }, 'push (scalar)';
+                        { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN },
+                        'push (scalar)';
 is $b, 5, 'array: push (scalar) correctly';
 
 $b = watch { pop @a } { set => 1, len => 1 }, 'pop';

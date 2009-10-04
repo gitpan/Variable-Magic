@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Variable-Magic
-version:            0.37
+version:            0.38
 abstract:           Associate user-defined magic to variables from Perl.
 author:
     - Vincent Pit <perl@profvince.com>
@@ -10,10 +10,13 @@ configure_requires:
     Config:               0
     ExtUtils::MakeMaker:  0
 build_requires:
+    base:                 0
     Carp:                 0
     Config:               0
+    Exporter:             0
     ExtUtils::MakeMaker:  0
     Test::More:           0
+    XSLoader:             0
 requires:
     base:      0
     Carp:      0
@@ -29,7 +32,8 @@ no_index:
     directory:
         - t
         - inc
-generated_by:       ExtUtils::MakeMaker version 6.54
+generated_by:       ExtUtils::MakeMaker version 6.55_02
 meta-spec:
     url:      http://module-build.sourceforge.net/META-spec-v1.4.html
     version:  1.4
+dynamic_config:     1

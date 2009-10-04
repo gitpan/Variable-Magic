@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.37
+Version 0.38
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.37';
+ $VERSION = '0.38';
 }
 
 =head1 SYNOPSIS
@@ -208,8 +208,7 @@ BEGIN {
 
 =head2 C<wizard>
 
-    wizard sig      => ...,
-           data     => sub { ... },
+    wizard data     => sub { ... },
            get      => sub { my ($ref, $data [, $op]) = @_; ... },
            set      => sub { my ($ref, $data [, $op]) = @_; ... },
            len      => sub { my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen; },
@@ -236,6 +235,8 @@ C<sig>
 The numerical signature.
 If not specified or undefined, a random signature is generated.
 If the signature matches an already defined magic, then the existant magic object is returned.
+
+This option is B<deprecated> and will be removed in december 2009.
 
 =item *
 
@@ -324,6 +325,8 @@ That's the way L</wizard> creates them when no signature is supplied.
     # Generate a signature
     my $sig = gensig;
 
+This function is B<deprecated> and will be removed in december 2009.
+
 =head2 C<getsig>
 
     getsig $wiz
@@ -333,13 +336,14 @@ This accessor returns the magic signature of this wizard.
     # Get $wiz signature
     my $sig = getsig $wiz;
 
+This function is B<deprecated> and will be removed in december 2009.
+
 =head2 C<cast>
 
-    cast [$@%&*]var, [$wiz|$sig], ...
+    cast [$@%&*]var, $wiz, ...
 
 This function associates C<$wiz> magic to the variable supplied, without overwriting any other kind of magic.
-You can also supply the numeric signature C<$sig> instead of C<$wiz>.
-It returns true on success or when C<$wiz> magic is already present, and croaks on error or when no magic corresponds to the given signature (in case a C<$sig> was supplied).
+It returns true on success or when C<$wiz> magic is already present, and croaks on error.
 All extra arguments specified after C<$wiz> are passed to the private data constructor in C<@_[1 .. @_-1]>.
 If the variable isn't a hash, any C<uvar> callback of the wizard is safely ignored.
 
@@ -356,65 +360,22 @@ For example, if you want to call C<POSIX::tzset> each time the C<'TZ'> environme
 
 If you want to overcome the possible deletion of the C<'TZ'> entry, you have no choice but to rely on C<store> uvar magic.
 
-C<cast> can be called from any magical callback, and in particular from C<data>.
-This allows you to recursively cast magic on datastructures :
-
-    my $wiz;
-    $wiz = wizard
-            data => sub {
-             my ($var, $depth) = @_;
-             $depth ||= 0;
-             my $r = ref $var;
-             if ($r eq 'ARRAY') {
-              &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for @$var;
-             } elsif ($r eq 'HASH') {
-              &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for values %$var;
-             }
-             return $depth;
-            },
-            free => sub {
-             my ($var, $depth) = @_;
-             my $r = ref $var;
-             print "free $r at depth $depth\n";
-             ();
-            };
-
-    {
-     my %h = (
-      a => [ 1, 2 ],
-      b => { c => 3 }
-     );
-     cast %h, $wiz;
-    }
-
-When C<%h> goes out of scope, this will print something among the lines of :
-
-    free HASH at depth 0
-    free HASH at depth 1
-    free SCALAR at depth 2
-    free ARRAY at depth 1
-    free SCALAR at depth 3
-    free SCALAR at depth 3
-
-Of course, this example does nothing with the values that are added after the C<cast>.
-
 =head2 C<getdata>
 
-    getdata [$@%&*]var, [$wiz|$sig]
+    getdata [$@%&*]var, $wiz
 
-This accessor fetches the private data associated with the magic C<$wiz> (or the signature C<$sig>) in the variable.
-It croaks when C<$wiz> or C<$sig> do not represent a valid magic object, and returns an empty list if no such magic is attached to the variable or when the wizard has no data constructor.
+This accessor fetches the private data associated with the magic C<$wiz> in the variable.
+It croaks when C<$wiz> do not represent a valid magic object, and returns an empty list if no such magic is attached to the variable or when the wizard has no data constructor.
 
     # Get the attached data, or undef if the wizard does not attach any.
     my $data = getdata $x, $wiz;
 
 =head2 C<dispell>
 
-    dispell [$@%&*]variable, [$wiz|$sig]
+    dispell [$@%&*]variable, $wiz
 
 The exact opposite of L</cast> : it dissociates C<$wiz> magic from the variable.
-You can also pass the magic signature C<$sig> as the second argument.
-This function returns true on success, C<0> when no magic represented by C<$wiz> or C<$sig> could be found in the variable, and croaks if the supplied wizard or signature is invalid.
+This function returns true on success, C<0> when no magic represented by C<$wiz> could be found in the variable, and croaks if the supplied wizard is invalid.
 
     # Dispell now.
     die 'no such magic in $x' unless dispell $x, $wiz;
@@ -425,13 +386,19 @@ This function returns true on success, C<0> when no magic represented by C<$wiz>
 
 The minimum integer used as a signature for user-defined magic.
 
+This constant is B<deprecated> and will be removed in december 2009.
+
 =head2 C<SIG_MAX>
 
 The maximum integer used as a signature for user-defined magic.
 
+This constant is B<deprecated> and will be removed in december 2009.
+
 =head2 C<SIG_NBR>
 
     SIG_NBR = SIG_MAX - SIG_MIN + 1
+
+This constant is B<deprecated> and will be removed in december 2009.
 
 =head2 C<MGf_COPY>
 
@@ -452,6 +419,11 @@ When this constant is true, you can use the C<fetch,store,exists,delete> callbac
 =head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
 
 True for perls that don't call 'len' magic when you push an element in a magical array.
+Starting from perl 5.11.0, this only refers to pushes in non-void context and hence is false.
+
+=head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID>
+
+True for perls that don't call 'len' magic when you push in void context an element in a magical array.
 
 =head2 C<VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID>
 
@@ -485,6 +457,84 @@ Value to pass with C<op_info> to get the current op name in the magic callbacks.
 =head2 C<VMG_OP_INFO_OBJECT>
 
 Value to pass with C<op_info> to get a C<B::OP> object representing the current op in the magic callbacks.
+
+=head1 COOKBOOK
+
+=head2 Associate an object to any perl variable
+
+This can be useful for passing user data through limited APIs.
+
+    {
+     package Magical::UserData;
+
+     use Variable::Magic qw/wizard cast getdata/;
+
+     my $wiz = wizard data => sub { \$_[1] };
+
+     sub ud (\[$@%*&]) : lvalue {
+      my ($var) = @_;
+      my $data = &getdata($var, $wiz);
+      unless (defined $data) {
+       &cast($var, $wiz);
+       $data = &getdata($var, $wiz);
+       die "Couldn't cast UserData magic onto the variable" unless defined $data;
+      }
+      $$data;
+     }
+    }
+
+    {
+     BEGIN { *ud = \&Magical::UserData::ud }
+
+     my $cb;
+     $cb = sub { print 'Hello, ', ud(&$cb), "!\n" };
+
+     ud(&$cb) = 'world';
+     $cb->(); # Hello, world!
+    }
+
+=head2 Recursively cast magic on datastructures
+
+C<cast> can be called from any magical callback, and in particular from C<data>.
+This allows you to recursively cast magic on datastructures :
+
+    my $wiz;
+    $wiz = wizard data => sub {
+     my ($var, $depth) = @_;
+     $depth ||= 0;
+     my $r = ref $var;
+     if ($r eq 'ARRAY') {
+      &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for @$var;
+     } elsif ($r eq 'HASH') {
+      &cast((ref() ? $_ : \$_), $wiz, $depth + 1) for values %$var;
+     }
+     return $depth;
+    },
+    free => sub {
+     my ($var, $depth) = @_;
+     my $r = ref $var;
+     print "free $r at depth $depth\n";
+     ();
+    };
+
+    {
+     my %h = (
+      a => [ 1, 2 ],
+      b => { c => 3 }
+     );
+     cast %h, $wiz;
+    }
+
+When C<%h> goes out of scope, this will print something among the lines of :
+
+    free HASH at depth 0
+    free HASH at depth 1
+    free SCALAR at depth 2
+    free ARRAY at depth 1
+    free SCALAR at depth 3
+    free SCALAR at depth 3
+
+Of course, this example does nothing with the values that are added after the C<cast>.
 
 =head1 PERL MAGIC HISTORY
 
@@ -539,6 +589,8 @@ I<p32969> : 'len' magic is no longer invoked when calling C<length> with a magic
 I<p34908> : 'len' magic is no longer called when pushing / unshifting an element into a magical array in void context.
 The C<push> part was already covered by I<p25854>.
 
+I<g9cdcb38b> : 'len' magic is called again when pushing into a magical array in non-void context.
+
 =back
 
 =head1 EXPORT
@@ -557,7 +609,10 @@ our %EXPORT_TAGS    = (
  'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
  'consts' => [
                qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
-               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
+               qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID/,
+               qw/VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID/,
+               qw/VMG_COMPAT_ARRAY_UNDEF_CLEAR/,
+               qw/VMG_COMPAT_SCALAR_LENGTH_NOLEN/,
                qw/VMG_PERL_PATCHLEVEL/,
                qw/VMG_THREADSAFE VMG_FORKSAFE/,
                qw/VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/

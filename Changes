@@ -1,5 +1,20 @@
 Revision history for Variable-Magic
 
+0.38    2009-10-04 16:10 UTC
+        + Dep : All the signature-related features are DEPRECATED and will be
+                removed in december 2009. This includes the 'sig' option to
+                wizard(), the getsig() and gensig() functions, and the SIG_*
+                constants.
+                Afaik those features were never used in real life, and they make
+                the XS code slow and brittle. If you want your wizards to be
+                globally available, you'll have to handle that yourself by
+                storing them in a hash.
+        + Doc : More examples in a new COOKBOOK section.
+        + Fix : Compatiblity with the 5.11.0 release. The new compatibility
+                constant VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID was added to cover
+                this.
+        + Fix : Work around Kwalitee test misfailures.
+
 0.37    2009-08-25 15:25 UTC
         + Add : The new constant VMG_FORKSAFE can be tested to know whether the
                 module will behave nicely when fork()ing. It's currently always
