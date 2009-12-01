@@ -1,5 +1,20 @@
 Revision history for Variable-Magic
 
+0.39    2009-12-01 00:05 UTC
+        + Add : You can use a function name as a callback by passing a string
+                reference to wizard() instead of a code reference.
+        + Fix : Compatiblity with perl 5.11.1 and 5.11.2.
+        + Fix : Scalars stored into the data slot no longer leak.
+        + Fix : Thread destruction should not segfault anymore.
+        + Opt : As a result of removing the deprecated features, less memory is
+                used for both threaded (a pointer table is used instead of a
+                hash) and non-threaded (no global structure is needed anymore)
+                perls.
+        + Rem : As advertised in the precendent version, all the signature
+                related features were removed. This includes the 'sig' option
+                to wizard(), the getsig() and gensig() functions, and the SIG_*
+                constants.
+
 0.38    2009-10-04 16:10 UTC
         + Dep : All the signature-related features are DEPRECATED and will be
                 removed in december 2009. This includes the 'sig' option to

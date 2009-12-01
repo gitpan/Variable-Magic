@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.38
+    Version 0.39
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -178,30 +178,23 @@ FUNCTIONS
     information. It takes a list of keys / values as argument, whose keys
     can be :
 
-    *   "sig"
-
-        The numerical signature. If not specified or undefined, a random
-        signature is generated. If the signature matches an already defined
-        magic, then the existant magic object is returned.
-
-        This option is deprecated and will be removed in december 2009.
-
     *   "data"
 
-        A code reference to a private data constructor. It is called each
-        time this magic is cast on a variable, and the scalar returned is
-        used as private data storage for it. $_[0] is a reference to the
-        magic object and @_[1 .. @_-1] are all extra arguments that were
-        passed to "cast".
+        A code (or string) reference to a private data constructor. It is
+        called each time this magic is cast on a variable, and the scalar
+        returned is used as private data storage for it. $_[0] is a
+        reference to the magic object and @_[1 .. @_-1] are all extra
+        arguments that were passed to "cast".
 
     *   "get", "set", "len", "clear", "free", "copy", "local", "fetch",
         "store", "exists" and "delete"
 
-        Code references to the corresponding magic callbacks. You don't have
-        to specify all of them : the magic associated with undefined entries
-        simply won't be hooked. In those callbacks, $_[0] is always a
-        reference to the magic object and $_[1] is always the private data
-        (or "undef" when no private data constructor was supplied).
+        Code (or string) references to the corresponding magic callbacks.
+        You don't have to specify all of them : the magic associated with
+        undefined entries simply won't be hooked. In those callbacks, $_[0]
+        is always a reference to the magic object and $_[1] is always the
+        private data (or "undef" when no private data constructor was
+        supplied).
 
         Moreover, when you pass "op_info => $num" to "wizard", the last
         element of @_ will be the current op name if "$num ==
@@ -240,34 +233,19 @@ FUNCTIONS
         straight to the perl magic API. However, only the return value of
         the "len" callback currently holds a meaning.
 
-        # A simple scalar tracer
-        my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
-                         set  => sub { print STDERR "set to ${$_[0]}\n" },
-                         free => sub { print STDERR "${$_[0]} was deleted\n" }
+    Each callback can be specified as a code or a string reference, in which
+    case the function denoted by the string will be used as the callback.
 
     Note that "free" callbacks are *never* called during global destruction,
     as there's no way to ensure that the wizard and the "free" callback
     weren't destroyed before the variable.
 
-  "gensig"
-    With this tool, you can manually generate random magic signature between
-    SIG_MIN and SIG_MAX inclusive. That's the way "wizard" creates them when
-    no signature is supplied.
+    Here's a simple usage example :
 
-        # Generate a signature
-        my $sig = gensig;
-
-    This function is deprecated and will be removed in december 2009.
-
-  "getsig"
-        getsig $wiz
-
-    This accessor returns the magic signature of this wizard.
-
-        # Get $wiz signature
-        my $sig = getsig $wiz;
-
-    This function is deprecated and will be removed in december 2009.
+        # A simple scalar tracer
+        my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
+                         set  => sub { print STDERR "set to ${$_[0]}\n" },
+                         free => sub { print STDERR "${$_[0]} was deleted\n" }
 
   "cast"
         cast [$@%&*]var, $wiz, ...
@@ -318,21 +296,6 @@ FUNCTIONS
         die 'no such magic in $x' unless dispell $x, $wiz;
 
 CONSTANTS
-  "SIG_MIN"
-    The minimum integer used as a signature for user-defined magic.
-
-    This constant is deprecated and will be removed in december 2009.
-
-  "SIG_MAX"
-    The maximum integer used as a signature for user-defined magic.
-
-    This constant is deprecated and will be removed in december 2009.
-
-  "SIG_NBR"
-        SIG_NBR = SIG_MAX - SIG_MIN + 1
-
-    This constant is deprecated and will be removed in december 2009.
-
   "MGf_COPY"
     Evaluates to true iff the 'copy' magic is available.
 
@@ -511,9 +474,9 @@ PERL MAGIC HISTORY
         magical array in non-void context.
 
 EXPORT
-    The functions "wizard", "gensig", "getsig", "cast", "getdata" and
-    "dispell" are only exported on request. All of them are exported by the
-    tags ':funcs' and ':all'.
+    The functions "wizard", "cast", "getdata" and "dispell" are only
+    exported on request. All of them are exported by the tags ':funcs' and
+    ':all'.
 
     All the constants are also only exported on request, either individually
     or by the tags ':consts' and ':all'.

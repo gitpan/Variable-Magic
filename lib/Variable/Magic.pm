@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.38
+Version 0.39
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.38';
+ $VERSION = '0.39';
 }
 
 =head1 SYNOPSIS
@@ -230,19 +230,9 @@ It takes a list of keys / values as argument, whose keys can be :
 
 =item *
 
-C<sig>
-
-The numerical signature.
-If not specified or undefined, a random signature is generated.
-If the signature matches an already defined magic, then the existant magic object is returned.
-
-This option is B<deprecated> and will be removed in december 2009.
-
-=item *
-
 C<data>
 
-A code reference to a private data constructor.
+A code (or string) reference to a private data constructor.
 It is called each time this magic is cast on a variable, and the scalar returned is used as private data storage for it.
 C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra arguments that were passed to L</cast>.
 
@@ -250,7 +240,7 @@ C<$_[0]> is a reference to the magic object and C<@_[1 .. @_-1]> are all extra a
 
 C<get>, C<set>, C<len>, C<clear>, C<free>, C<copy>, C<local>, C<fetch>, C<store>, C<exists> and C<delete>
 
-Code references to the corresponding magic callbacks.
+Code (or string) references to the corresponding magic callbacks.
 You don't have to specify all of them : the magic associated with undefined entries simply won't be hooked.
 In those callbacks, C<$_[0]> is always a reference to the magic object and C<$_[1]> is always the private data (or C<undef> when no private data constructor was supplied).
 
@@ -292,19 +282,23 @@ However, only the return value of the C<len> callback currently holds a meaning.
 
 =back
 
+Each callback can be specified as a code or a string reference, in which case the function denoted by the string will be used as the callback.
+
+Note that C<free> callbacks are I<never> called during global destruction, as there's no way to ensure that the wizard and the C<free> callback weren't destroyed before the variable.
+
+Here's a simple usage example :
+
     # A simple scalar tracer
     my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
                      set  => sub { print STDERR "set to ${$_[0]}\n" },
                      free => sub { print STDERR "${$_[0]} was deleted\n" }
-
-Note that C<free> callbacks are I<never> called during global destruction, as there's no way to ensure that the wizard and the C<free> callback weren't destroyed before the variable.
 
 =cut
 
 sub wizard {
  croak 'Wrong number of arguments for wizard()' if @_ % 2;
  my %opts = @_;
- my @keys = qw/sig data op_info get set len clear free/;
+ my @keys = qw/data op_info get set len clear free/;
  push @keys, 'copy'  if MGf_COPY;
  push @keys, 'dup'   if MGf_DUP;
  push @keys, 'local' if MGf_LOCAL;
@@ -316,27 +310,6 @@ sub wizard {
  }
  return $ret;
 }
-
-=head2 C<gensig>
-
-With this tool, you can manually generate random magic signature between SIG_MIN and SIG_MAX inclusive.
-That's the way L</wizard> creates them when no signature is supplied.
-
-    # Generate a signature
-    my $sig = gensig;
-
-This function is B<deprecated> and will be removed in december 2009.
-
-=head2 C<getsig>
-
-    getsig $wiz
-
-This accessor returns the magic signature of this wizard.
-
-    # Get $wiz signature
-    my $sig = getsig $wiz;
-
-This function is B<deprecated> and will be removed in december 2009.
 
 =head2 C<cast>
 
@@ -381,24 +354,6 @@ This function returns true on success, C<0> when no magic represented by C<$wiz>
     die 'no such magic in $x' unless dispell $x, $wiz;
 
 =head1 CONSTANTS
-
-=head2 C<SIG_MIN>
-
-The minimum integer used as a signature for user-defined magic.
-
-This constant is B<deprecated> and will be removed in december 2009.
-
-=head2 C<SIG_MAX>
-
-The maximum integer used as a signature for user-defined magic.
-
-This constant is B<deprecated> and will be removed in december 2009.
-
-=head2 C<SIG_NBR>
-
-    SIG_NBR = SIG_MAX - SIG_MIN + 1
-
-This constant is B<deprecated> and will be removed in december 2009.
 
 =head2 C<MGf_COPY>
 
@@ -595,7 +550,7 @@ I<g9cdcb38b> : 'len' magic is called again when pushing into a magical array in 
 
 =head1 EXPORT
 
-The functions L</wizard>, L</gensig>, L</getsig>, L</cast>, L</getdata> and L</dispell> are only exported on request.
+The functions L</wizard>, L</cast>, L</getdata> and L</dispell> are only exported on request.
 All of them are exported by the tags C<':funcs'> and C<':all'>.
 
 All the constants are also only exported on request, either individually or by the tags C<':consts'> and C<':all'>.
@@ -606,9 +561,9 @@ use base qw/Exporter/;
 
 our @EXPORT         = ();
 our %EXPORT_TAGS    = (
- 'funcs' =>  [ qw/wizard gensig getsig cast getdata dispell/ ],
+ 'funcs' =>  [ qw/wizard cast getdata dispell/ ],
  'consts' => [
-               qw/SIG_MIN SIG_MAX SIG_NBR MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
+               qw/MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/,
                qw/VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID/,
                qw/VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID/,
                qw/VMG_COMPAT_ARRAY_UNDEF_CLEAR/,

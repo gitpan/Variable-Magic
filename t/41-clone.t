@@ -24,11 +24,11 @@ BEGIN {
 
 use Test::More; # after threads
 
-use Variable::Magic qw/wizard cast dispell getdata getsig VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
+use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
 
 BEGIN {
  skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;
- plan tests => 2 * 3 + 4 * (2 * 10 + 2) + 4 * (2 * 7 + 2);
+ plan tests => 2 * 3 + 2 * (2 * 10 + 2) + 2 * (2 * 7 + 2);
  my $v = $threads::VERSION;
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
@@ -67,22 +67,22 @@ sub spawn_wiz {
 }
 
 sub try {
- my ($dispell, $sig) = @_;
+ my ($dispell, $wiz) = @_;
  my $tid = threads->tid();
  my $a   = 3;
- my $res = eval { cast $a, $sig, sub { 5 }->() };
+ my $res = eval { cast $a, $wiz, sub { 5 }->() };
  is($@, '', "cast in thread $tid doesn't croak");
  my $b;
  eval { $b = $a };
  is($@, '', "get in thread $tid doesn't croak");
  is($b, 3,  "get in thread $tid returns the right thing");
- my $d = eval { getdata $a, $sig };
+ my $d = eval { getdata $a, $wiz };
  is($@, '',       "getdata in thread $tid doesn't croak");
  is($d, 5 + $tid, "getdata in thread $tid returns the right thing");
  eval { $a = 9 };
  is($@, '', "set in thread $tid (check opname) doesn't croak");
  if ($dispell) {
-  $res = eval { dispell $a, $sig };
+  $res = eval { dispell $a, $wiz };
   is($@, '', "dispell in thread $tid doesn't croak");
   undef $b;
   eval { $b = $a };
@@ -96,7 +96,7 @@ my $wiz_name = spawn_wiz VMG_OP_INFO_NAME;
 my $wiz_obj  = spawn_wiz VMG_OP_INFO_OBJECT;
 
 for my $dispell (1, 0) {
- for my $sig ($wiz_name, getsig($wiz_name), $wiz_obj, getsig($wiz_obj)) {
+ for my $wiz ($wiz_name, $wiz_obj) {
   {
    lock $c;
    $c = 0;
@@ -106,7 +106,7 @@ for my $dispell (1, 0) {
    $destroyed = 0;
   }
 
-  my @t = map { threads->create(\&try, $dispell, $sig) } 1 .. 2;
+  my @t = map { threads->create(\&try, $dispell, $wiz) } 1 .. 2;
   $_->join for @t;
 
   {

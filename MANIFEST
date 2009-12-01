@@ -5,6 +5,7 @@ Magic.xs
 Makefile.PL
 README
 lib/Variable/Magic.pm
+ptable.h
 samples/copy.pl
 samples/magic.pl
 samples/synopsis.pl
@@ -14,7 +15,6 @@ t/00-load.t
 t/01-import.t
 t/10-simple.t
 t/11-multiple.t
-t/12-sig.t
 t/13-data.t
 t/14-callbacks.t
 t/15-self.t
@@ -37,6 +37,7 @@ t/34-glob.t
 t/35-stash.t
 t/40-threads.t
 t/41-clone.t
+t/80-leaks.t
 t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t

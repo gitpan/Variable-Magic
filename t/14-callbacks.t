@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 12;
+use Test::More tests => 17;
 
 use Variable::Magic qw/wizard cast/;
 
@@ -26,6 +26,24 @@ eval {
 };
 is($@, '', 'callback returning undef doesn\'t warn/croak');
 is($x, $n, 'callback returning undef fails');
+
+{
+ my $c = 0;
+ sub X::wat { ++$c }
+ my $wiz = eval { wizard get => \'X::wat' };
+ is($@, '', 'wizard with a string callback doesn\'t croak');
+ my $b = $n;
+ my $res = eval { cast $b, $wiz };
+ is($@, '', 'cast a wizard with a string callback doesn\'t croak');
+ my $x;
+ eval {
+  local $SIG{__WARN__} = sub { die };
+  $x = $b;
+ };
+ is($@, '', 'string callback doesn\'t warn/croak');
+ is($c, 1,  'string callback is called');
+ is($x, $n, 'string callback returns the right thing');
+}
 
 my @callers;
 $wiz = wizard get => sub {

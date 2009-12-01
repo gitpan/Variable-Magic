@@ -3,16 +3,14 @@
 use strict;
 use warnings;
 
-use Test::More tests => 38;
+use Test::More tests => 35;
 
-use Variable::Magic qw/wizard getdata cast dispell SIG_MIN/;
+use Variable::Magic qw/wizard getdata cast dispell/;
 
 my $c = 1;
 
-my $sig = SIG_MIN;
 my $wiz = eval {
- wizard  sig => $sig,
-        data => sub { return { foo => $_[1] || 12, bar => $_[3] || 27 } },
+ wizard data => sub { return { foo => $_[1] || 12, bar => $_[3] || 27 } },
          get => sub { $c += $_[1]->{foo}; $_[1]->{foo} = $c },
          set => sub { $c += $_[1]->{bar}; $_[1]->{bar} = $c }
 };
@@ -25,21 +23,15 @@ my $res = eval { cast $a, $wiz };
 is($@, '', 'cast doesn\'t croak');
 ok($res,   'cast returns true');
 
-my $data = eval { getdata $a, $wiz };
+my $data = eval { getdata my $b, $wiz };
+is($@, '',       'getdata from non-magical scalar doesn\'t croak');
+is($data, undef, 'getdata from non-magical scalar returns undef');
+
+$data = eval { getdata $a, $wiz };
 is($@, '', 'getdata from wizard doesn\'t croak');
 ok($res,   'getdata from wizard returns true');
 is_deeply($data, { foo => 12, bar => 27 },
            'getdata from wizard return value is ok');
-
-$data = eval { getdata my $b, $wiz };
-is($@, '',       'getdata from non-magical scalar doesn\'t croak');
-is($data, undef, 'getdata from non-magical scalar returns undef');
-
-$data = eval { getdata $a, $sig };
-is($@, '', 'getdata from sig doesn\'t croak');
-ok($res,   'getdata from sig returns true');
-is_deeply($data, { foo => 12, bar => 27 },
-           'getdata from sig return value is ok');
 
 my $b = $a;
 is($c,           13, 'get magic : pass data');
@@ -49,9 +41,9 @@ $a = 57;
 is($c,           40, 'set magic : pass data');
 is($data->{bar}, 40, 'set magic : pass data');
 
-$data = eval { getdata $a, ($sig + 1) };
-like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'getdata from invalid sig croaks');
-is($data, undef, 'getdata from invalid sig returns undef');
+$data = eval { getdata $a, \"blargh" };
+like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'getdata from invalid wizard croaks');
+is($data, undef, 'getdata from invalid wizard returns undef');
 
 $data = eval { getdata $a, undef };
 like($@, qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/, 'getdata from undef croaks');
@@ -71,8 +63,9 @@ ok($res,   'getdata from wizard with arguments returns true');
 is_deeply($data, { foo => 'z', bar => 't' },
            'getdata from wizard with arguments return value is ok');
 
+dispell $a, $wiz;
+
 $wiz = wizard get => sub { };
-dispell $a, $sig;
 $a = 63;
 $res = eval { cast $a, $wiz };
 is($@, '', 'cast non-data wizard doesn\'t croak');

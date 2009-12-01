@@ -42,9 +42,10 @@ if ($^V eq v5.8.8) {
 print $is_as ? "yes\n" : "no\n";
 
 my $is_5110rel = 0;
-print "Checking if this is a released perl 5.11.0... ";
-if ($^V eq v5.11.0 and not defined $pl) {
+print "Checking if this is a released perl 5.11.0 or higher... ";
+if ($^V ge v5.11.0 and not defined $pl) {
  my $describe = $Config{git_describe};
+ # An empty 'describe' is fine
  if (defined $describe and $describe !~ /^GitLive-/) {
   $is_5110rel = 1;
   push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=0';

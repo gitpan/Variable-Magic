@@ -28,7 +28,7 @@ use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE VMG_OP_INFO_NA
 
 BEGIN {
  skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;
- plan tests => 2 * (4 * 18 + 1) + 2 * (4 * 13 + 1);
+ plan tests => (4 * 18 + 1) + (4 * 13 + 1);
  my $v = $threads::VERSION;
  diag "Using threads $v" if defined $v;
  $v = $threads::shared::VERSION;
@@ -38,12 +38,11 @@ BEGIN {
 my $destroyed : shared = 0;
 
 sub try {
- my ($dispell, $sig, $op_info) = @_;
+ my ($dispell, $op_info) = @_;
  my $tid = threads->tid();
  my $c   = 0;
  my $wiz = eval {
   wizard data    => sub { $_[1] + $tid },
-         sig     => $sig,
          get     => sub { ++$c; 0 },
          set     => sub {
                      my $op = $_[-1];
@@ -91,19 +90,17 @@ sub try {
 }
 
 for my $dispell (1, 0) {
- for my $sig (undef, Variable::Magic::gensig()) {
-  {
-   lock $destroyed;
-   $destroyed = 0;
-  }
+ {
+  lock $destroyed;
+  $destroyed = 0;
+ }
 
-  my @t = map { threads->create(\&try, $dispell, $sig, $_) }
-                               (VMG_OP_INFO_NAME) x 2, (VMG_OP_INFO_OBJECT) x 2;
-  $_->join for @t;
+ my @t = map { threads->create(\&try, $dispell, $_) }
+                              (VMG_OP_INFO_NAME) x 2, (VMG_OP_INFO_OBJECT) x 2;
+ $_->join for @t;
 
-  {
-   lock $destroyed;
-   is $destroyed, (1 - $dispell) * 4, 'destructors';
-  }
+ {
+  lock $destroyed;
+  is $destroyed, (1 - $dispell) * 4, 'destructors';
  }
 }

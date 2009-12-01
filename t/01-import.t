@@ -3,19 +3,16 @@
 use strict;
 use warnings;
 
-use Test::More tests => 2 * 23;
+use Test::More tests => 2 * 18;
 
 require Variable::Magic;
 
 my %syms = (
  wizard   => undef,
- gensig   => '',
- getsig   => '$',
  cast     => '\[$@%&*]$@',
  getdata  => '\[$@%&*]$',
  dispell  => '\[$@%&*]$',
  map { $_ => '' } qw/
-  SIG_MIN SIG_MAX SIG_NBR
   MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR
   VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
   VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID

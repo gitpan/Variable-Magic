@@ -9,7 +9,7 @@ use Variable::Magic qw/wizard cast dispell VMG_UVAR VMG_OP_INFO_NAME VMG_OP_INFO
 
 my $run;
 if (VMG_UVAR) {
- plan tests => 41;
+ plan tests => 43;
  $run = 1;
 } else {
  plan skip_all => 'uvar magic is required to test symbol table hooks';
@@ -88,10 +88,12 @@ cast %Hlagh::, $wiz;
   roam();
  };
 
+ my @calls = qw/eat shoot leave roam yawn roam/;
+
  is $@, "ok\n", 'stash: function calls compiled fine';
  is_deeply \%mg, {
-  fetch => [ qw/eat shoot leave roam yawn roam/ ],
-  store => [ qw/eat shoot leave roam yawn roam/ ],
+  fetch => \@calls,
+  store => ($] < 5.011002 ? \@calls : [ map { ($_) x 2 } @calls ]),
  }, 'stash: function calls';
 }
 
@@ -278,17 +280,20 @@ cast %AutoHlagh::, $wiz;
 
 dispell %AutoHlagh::, $wiz;
 
+my $uo = 0;
 $code = 'wizard '
         . join (', ', map { <<CB;
 $_ => sub {
  my \$d = \$_[1];
  return 0 if \$d->{guard};
  local \$d->{guard} = 1;
- is \$_[3], undef, 'stash: undef op';
+ ++\$uo;
  ()
 }
 CB
 } qw/fetch store exists delete/);
+
+my $uo_exp = $] < 5.011002 ? 2 : 3;
 
 $code .= ', data => sub { +{ guard => 0 } }';
 
@@ -297,27 +302,35 @@ diag $@ if $@;
 
 cast %Hlagh::, $wiz;
 
+is $uo, 0, 'stash: no undef op before function call with op name';
 eval q{
  die "ok\n";
  package Hlagh;
  meh();
 };
-
-is $@, "ok\n", 'stash: function call with op name compiled fine';
+is $@,  "ok\n",  'stash: function call with op name compiled fine';
+is $uo, $uo_exp, 'stash: undef op after function call with op name';
 
 dispell %Hlagh::, $wiz;
+is $uo, $uo_exp, 'stash: undef op after dispell for function call with op name';
+
+$uo = 0;
 
 $wiz = eval $code . ', op_info => ' . VMG_OP_INFO_OBJECT;
 diag $@ if $@;
 
 cast %Hlagh::, $wiz;
 
+is $uo, 0, 'stash: no undef op before function call with op object';
 eval q{
  die "ok\n";
  package Hlagh;
  wat();
 };
-
-is $@, "ok\n", 'stash: function call with op object compiled fine';
+is $@,        "ok\n", 'stash: function call with op object compiled fine';
+is $uo, $uo_exp,
+               'stash: undef op after dispell for function call with op object';
 
 dispell %Hlagh::, $wiz;
+is $uo, $uo_exp,
+               'stash: undef op after dispell for function call with op object';

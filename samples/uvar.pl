@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use lib qw{blib/arch blib/lib};
-use Variable::Magic qw/wizard getsig cast dispell/;
+use Variable::Magic qw/wizard cast dispell/;
 
 my $wiz = wizard
  fetch  => sub { print STDERR "$_[0] FETCH KEY $_[2]\n" },

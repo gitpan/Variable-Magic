@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 17;
 
-use Variable::Magic qw/wizard cast dispell getdata getsig/;
+use Variable::Magic qw/wizard cast dispell getdata/;
 
 my $c = 0;
 
@@ -39,7 +39,6 @@ my $c = 0;
 
  $w = getdata $wiz, $wiz;
  is($c, 1, 'getdata on magical self doesn\'t trigger callbacks');
- # is(getsig($w), getsig($wiz), 'getdata returns the correct wizard');
 
  $res = eval { dispell $wiz, $wiz };
  is($@, '', 're-dispell on self doesn\'t croak');
