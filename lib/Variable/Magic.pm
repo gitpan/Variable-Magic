@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.39
+Version 0.40
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.39';
+ $VERSION = '0.40';
 }
 
 =head1 SYNOPSIS
@@ -623,7 +623,7 @@ Tests code coverage report is available at L<http://www.profvince.com/perl/cover
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2007-2009 Vincent Pit, all rights reserved.
+Copyright 2007,2008,2009,2010 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

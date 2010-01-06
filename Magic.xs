@@ -100,12 +100,16 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define SvMAGIC_set(sv, val) (SvMAGIC(sv) = (val))
 #endif
 
-#ifndef mPUSHu
-# define mPUSHu(U) PUSHs(sv_2mortal(newSVuv(U)))
+#ifndef SvRV_const
+# define SvRV_const(sv) SvRV((SV *) sv)
 #endif
 
-#ifndef SvPV_const
-# define SvPV_const SvPV
+#ifndef SvREFCNT_inc_simple_void
+# define SvREFCNT_inc_simple_void(sv) SvREFCNT_inc(sv)
+#endif
+
+#ifndef mPUSHu
+# define mPUSHu(U) PUSHs(sv_2mortal(newSVuv(U)))
 #endif
 
 #ifndef PERL_MAGIC_ext
@@ -335,8 +339,8 @@ STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
 typedef struct {
  MGVTBL *vtbl;
 
- U8 uvar;
  U8 opinfo;
+ U8 uvar;
 
  SV *cb_data;
  SV *cb_get, *cb_set, *cb_len, *cb_clear, *cb_free;
@@ -530,7 +534,7 @@ STATIC SV *vmg_wizard_new(pTHX_ const MGWIZ *w) {
 STATIC const SV *vmg_wizard_validate(pTHX_ const SV *wiz) {
 #define vmg_wizard_validate(W) vmg_wizard_validate(aTHX_ (W))
  if (SvROK(wiz)) {
-  wiz = SvRV(wiz);
+  wiz = SvRV_const(wiz);
   if (SvIOK(wiz))
    return wiz;
  }
@@ -591,7 +595,7 @@ STATIC const MGWIZ *vmg_wizard_mgwiz(pTHX_ const SV *wiz) {
 
 STATIC const MAGIC *vmg_find(const SV *sv, const SV *wiz) {
  const MAGIC *mg, *moremagic;
- UV wid;
+ IV wid;
 
  if (SvTYPE(sv) < SVt_PVMG)
   return NULL;
@@ -600,7 +604,7 @@ STATIC const MAGIC *vmg_find(const SV *sv, const SV *wiz) {
  for (mg = SvMAGIC(sv); mg; mg = moremagic) {
   moremagic = mg->mg_moremagic;
   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
-   UV zid = vmg_wizard_id(mg->mg_ptr);
+   IV zid = vmg_wizard_id(mg->mg_ptr);
    if (zid == wid)
     return mg;
   }
@@ -633,9 +637,9 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, SV **args, I32 items) {
  SPAGAIN;
  nsv = POPs;
 #if VMG_HAS_PERL(5, 8, 3)
- SvREFCNT_inc(nsv);    /* Or it will be destroyed in FREETMPS */
+ SvREFCNT_inc_simple_void(nsv); /* Or it will be destroyed in FREETMPS */
 #else
- nsv = sv_newref(nsv); /* Workaround some bug in SvREFCNT_inc() */
+ nsv = sv_newref(nsv);          /* Workaround some bug in SvREFCNT_inc() */
 #endif
  PUTBACK;
 
@@ -757,7 +761,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
  U32 uvars = 0;
 #endif /* VMG_UVAR */
  MAGIC *mg, *prevmagic, *moremagic = NULL;
- UV wid = vmg_wizard_id(wiz);
+ IV wid = vmg_wizard_id(wiz);
 
  if (SvTYPE(sv) < SVt_PVMG)
   return 0;
@@ -766,7 +770,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
   moremagic = mg->mg_moremagic;
   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
    const MGWIZ *z   = vmg_wizard_mgwiz(mg->mg_ptr);
-   UV           zid = vmg_wizard_id(mg->mg_ptr);
+   IV           zid = vmg_wizard_id(mg->mg_ptr);
    if (zid == wid) {
 #if VMG_UVAR
     /* If the current has no uvar, short-circuit uvar deletion. */
@@ -907,23 +911,15 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
 
 /* ... svt callbacks ....................................................... */
 
-#define VMG_CB_CALL_SET_RET(D) \
- {            \
-  SV *svr;    \
-  SPAGAIN;    \
-  svr = POPs; \
-  ret = SvOK(svr) ? SvIV(svr) : (D); \
-  PUTBACK;    \
- }
-
 #define VMG_CB_CALL_ARGS_MASK  15
 #define VMG_CB_CALL_ARGS_SHIFT 4
 #define VMG_CB_CALL_OPINFO     (VMG_OP_INFO_NAME|VMG_OP_INFO_OBJECT)
 
 STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
  va_list ap;
- int ret;
+ int ret = 0;
  unsigned int i, args, opinfo;
+ SV *svr;
 
  dSP;
 
@@ -949,7 +945,11 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
 
  call_sv(cb, G_SCALAR);
 
- VMG_CB_CALL_SET_RET(0);
+ SPAGAIN;
+ svr = POPs;
+ if (SvOK(svr))
+  ret = (int) SvIV(svr);
+ PUTBACK;
 
  FREETMPS;
  LEAVE;
@@ -957,12 +957,15 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
  return ret;
 }
 
-#define vmg_cb_call1(I, F, S, A1) \
-        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 1), (S), (A1))
-#define vmg_cb_call2(I, F, S, A1, A2) \
-        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 2), (S), (A1), (A2))
-#define vmg_cb_call3(I, F, S, A1, A2, A3) \
-        vmg_cb_call(aTHX_ (I), (((F) << VMG_CB_CALL_ARGS_SHIFT) | 3), (S), (A1), (A2), (A3))
+#define VMG_CB_FLAGS(OI, A) \
+        ((((unsigned int) (OI)) << VMG_CB_CALL_ARGS_SHIFT) | (A))
+
+#define vmg_cb_call1(I, OI, S, A1) \
+        vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 1), (S), (A1))
+#define vmg_cb_call2(I, OI, S, A1, A2) \
+        vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 2), (S), (A1), (A2))
+#define vmg_cb_call3(I, OI, S, A1, A2, A3) \
+        vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 3), (S), (A1), (A2), (A3))
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
@@ -978,6 +981,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
  unsigned int opinfo = w->opinfo;
  U32 len, ret;
+ SV *svr;
  svtype t = SvTYPE(sv);
 
  dSP;
@@ -991,7 +995,11 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (t < SVt_PVAV) {
   STRLEN l;
-  const U8 *s = (const U8 *) SvPV_const(sv, l);
+#if VMG_HAS_PERL(5, 9, 3)
+  const U8 *s = SvPV_const(sv, l);
+#else
+  U8 *s = SvPV(sv, l);
+#endif
   if (DO_UTF8(sv))
    len = utf8_length(s, s + l);
   else
@@ -1010,12 +1018,17 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 
  call_sv(w->cb_len, G_SCALAR);
 
- VMG_CB_CALL_SET_RET(len);
+ SPAGAIN;
+ svr = POPs;
+ ret = SvOK(svr) ? (U32) SvUV(svr) : len;
+ if (t == SVt_PVAV)
+  --ret;
+ PUTBACK;
 
  FREETMPS;
  LEAVE;
 
- return t == SVt_PVAV ? ret - 1 : ret;
+ return ret;
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
@@ -1029,8 +1042,9 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  PERL_CONTEXT saved_cx;
  I32 cxix;
 #endif
- unsigned int had_err, has_err, flags = G_SCALAR | G_EVAL;
+ I32 had_err, has_err, flags = G_SCALAR | G_EVAL;
  int ret = 0;
+ SV *svr;
 
  dSP;
 
@@ -1042,7 +1056,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  w = vmg_wizard_mgwiz(mg->mg_ptr);
 
  /* So that it survives the temp cleanup below */
- SvREFCNT_inc(sv);
+ SvREFCNT_inc_simple_void(sv);
 
 #if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
  /* The previous magic tokens were freed but the magic chain wasn't updated, so
@@ -1087,7 +1101,11 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (IN_PERL_COMPILETIME && !had_err && has_err)
   ++PL_error_count;
 
- VMG_CB_CALL_SET_RET(0);
+ SPAGAIN;
+ svr = POPs;
+ if (SvOK(svr))
+  ret = (int) SvIV(svr);
+ PUTBACK;
 
  FREETMPS;
  LEAVE;
@@ -1340,6 +1358,7 @@ SV *_wizard(...)
 PROTOTYPE: DISABLE
 PREINIT:
  I32 i = 0;
+ UV opinfo;
  MGWIZ *w;
  MGVTBL *t;
  SV *cb;
@@ -1365,10 +1384,13 @@ CODE:
  Newx(w, 1, MGWIZ);
 
  VMG_SET_CB(ST(i++), data);
+
  cb = ST(i++);
- w->opinfo = SvOK(cb) ? SvUV(cb) : 0;
+ opinfo = SvOK(cb) ? SvUV(cb) : 0;
+ w->opinfo = (U8) ((opinfo < 255) ? opinfo : 255);
  if (w->opinfo)
   vmg_op_info_init(w->opinfo);
+
  VMG_SET_SVT_CB(ST(i++), get);
  VMG_SET_SVT_CB(ST(i++), set);
  VMG_SET_SVT_CB(ST(i++), len);
@@ -1414,15 +1436,12 @@ PROTOTYPE: \[$@%&*]$@
 PREINIT:
  SV **args = NULL;
  I32 i = 0;
- SV *ret;
 CODE:
  if (items > 2) {
   i = items - 2;
   args = &ST(2);
  }
- ret = newSVuv(vmg_cast(SvRV(sv), vmg_wizard_validate(wiz), args, i));
- SvREFCNT_dec(args);
- RETVAL = ret;
+ RETVAL = newSVuv(vmg_cast(SvRV(sv), vmg_wizard_validate(wiz), args, i));
 OUTPUT:
  RETVAL
 

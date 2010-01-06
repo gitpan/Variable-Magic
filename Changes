@@ -1,5 +1,9 @@
 Revision history for Variable-Magic
 
+0.40    2010-01-06 23:20 UTC
+        + Fix : Possible memory miswrites when passing data arguments to cast().
+        + Fix : Minor C portability tweaks.
+
 0.39    2009-12-01 00:05 UTC
         + Add : You can use a function name as a callback by passing a string
                 reference to wizard() instead of a code reference.
