@@ -1,6 +1,6 @@
 Changes
 MANIFEST
-META.yml # Will be created by "make dist"
+META.yml
 Magic.xs
 Makefile.PL
 README

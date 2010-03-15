@@ -146,8 +146,8 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # endif
 #endif
 
-/* uvar magic and Hash::Util::FieldHash were commited with 28419, but only
- * enable it on 5.10 */
+/* uvar magic and Hash::Util::FieldHash were commited with 28419, but we only
+ * enable them on 5.10 */
 #if VMG_HAS_PERL(5, 10, 0)
 # define VMG_UVAR 1
 #else
@@ -175,7 +175,7 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #endif
 
 /* Applied to dev-5.11 as 34908 */
-#if VMG_HAS_PERL_MAINT(5, 11, 0, 34908)
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 34908) || VMG_HAS_PERL(5, 12, 0)
 # define VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID 1
 #else
 # define VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID 0
@@ -188,7 +188,7 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
 #endif
 
-#if VMG_HAS_PERL_MAINT(5, 11, 0, 32969)
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 32969) || VMG_HAS_PERL(5, 12, 0)
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
 #else
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
@@ -1058,7 +1058,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  /* So that it survives the temp cleanup below */
  SvREFCNT_inc_simple_void(sv);
 
-#if !VMG_HAS_PERL_MAINT(5, 11, 0, 32686)
+#if !(VMG_HAS_PERL_MAINT(5, 11, 0, 32686) || VMG_HAS_PERL(5, 12, 0))
  /* The previous magic tokens were freed but the magic chain wasn't updated, so
   * if you access the sv from the callback the old deleted magics will trigger
   * and cause memory misreads. Change 32686 solved it that way : */
@@ -1098,8 +1098,16 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 #endif
 
  has_err = SvTRUE(ERRSV);
- if (IN_PERL_COMPILETIME && !had_err && has_err)
-  ++PL_error_count;
+ if (IN_PERL_COMPILETIME && !had_err && has_err) {
+  if (PL_errors)
+   sv_catsv(PL_errors, ERRSV);
+  else
+   Perl_warn(aTHX_ "%s", SvPV_nolen(ERRSV));
+#ifdef PL_parser
+  if (PL_parser)
+#endif
+   ++PL_error_count;
+ }
 
  SPAGAIN;
  svr = POPs;
@@ -1121,7 +1129,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 
 #if MGf_COPY
 STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
-# if VMG_HAS_PERL_MAINT(5, 11, 0, 33256)
+# if VMG_HAS_PERL_MAINT(5, 11, 0, 33256) || VMG_HAS_PERL(5, 12, 0)
   I32 keylen
 # else
   int keylen

@@ -13,13 +13,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.40
+Version 0.41
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.40';
+ $VERSION = '0.41';
 }
 
 =head1 SYNOPSIS
@@ -50,8 +50,8 @@ BEGIN {
 
 =head1 DESCRIPTION
 
-Magic is Perl way of enhancing objects.
-This mechanism lets the user add extra data to any variable and hook syntaxical operations (such as access, assignment or destruction) that can be applied to it.
+Magic is Perl's way of enhancing variables.
+This mechanism lets the user add extra data to any variable and hook syntactical operations (such as access, assignment or destruction) that can be applied to it.
 With this module, you can add your own magic to any variable without having to write a single line of XS.
 
 You'll realize that these magic variables look a lot like tied variables.
@@ -72,7 +72,7 @@ You attach it to variables, not values (as for blessed references).
 
 It doesn't replace the original semantics.
 
-Magic callbacks usually trigger before the original action take place, and can't prevent it to happen.
+Magic callbacks usually get triggered before the original action takes place, and can't prevent it from happening.
 This also makes catching individual events easier than with C<tie>, where you have to provide fallbacks methods for all actions by usually inheriting from the correct C<Tie::Std*> class and overriding individual methods in your own class.
 
 =item *
@@ -417,7 +417,8 @@ Value to pass with C<op_info> to get a C<B::OP> object representing the current 
 
 =head2 Associate an object to any perl variable
 
-This can be useful for passing user data through limited APIs.
+This technique can be useful for passing user data through limited APIs.
+It is similar to using inside-out objects, but without the drawback of having to implement a complex destructor.
 
     {
      package Magical::UserData;
@@ -430,9 +431,9 @@ This can be useful for passing user data through limited APIs.
       my ($var) = @_;
       my $data = &getdata($var, $wiz);
       unless (defined $data) {
-       &cast($var, $wiz);
-       $data = &getdata($var, $wiz);
-       die "Couldn't cast UserData magic onto the variable" unless defined $data;
+       $data = \(my $slot);
+       &cast($var, $wiz, $slot)
+                        or die "Couldn't cast UserData magic onto the variable";
       }
       $$data;
      }

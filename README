@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.40
+    Version 0.41
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -30,8 +30,8 @@ SYNOPSIS
         }
 
 DESCRIPTION
-    Magic is Perl way of enhancing objects. This mechanism lets the user add
-    extra data to any variable and hook syntaxical operations (such as
+    Magic is Perl's way of enhancing variables. This mechanism lets the user
+    add extra data to any variable and hook syntactical operations (such as
     access, assignment or destruction) that can be applied to it. With this
     module, you can add your own magic to any variable without having to
     write a single line of XS.
@@ -52,12 +52,12 @@ DESCRIPTION
 
     *   It doesn't replace the original semantics.
 
-        Magic callbacks usually trigger before the original action take
-        place, and can't prevent it to happen. This also makes catching
-        individual events easier than with "tie", where you have to provide
-        fallbacks methods for all actions by usually inheriting from the
-        correct "Tie::Std*" class and overriding individual methods in your
-        own class.
+        Magic callbacks usually get triggered before the original action
+        takes place, and can't prevent it from happening. This also makes
+        catching individual events easier than with "tie", where you have to
+        provide fallbacks methods for all actions by usually inheriting from
+        the correct "Tie::Std*" class and overriding individual methods in
+        your own class.
 
     *   It's type-agnostic.
 
@@ -352,7 +352,9 @@ CONSTANTS
 
 COOKBOOK
   Associate an object to any perl variable
-    This can be useful for passing user data through limited APIs.
+    This technique can be useful for passing user data through limited APIs.
+    It is similar to using inside-out objects, but without the drawback of
+    having to implement a complex destructor.
 
         {
          package Magical::UserData;
@@ -365,9 +367,9 @@ COOKBOOK
           my ($var) = @_;
           my $data = &getdata($var, $wiz);
           unless (defined $data) {
-           &cast($var, $wiz);
-           $data = &getdata($var, $wiz);
-           die "Couldn't cast UserData magic onto the variable" unless defined $data;
+           $data = \(my $slot);
+           &cast($var, $wiz, $slot)
+                            or die "Couldn't cast UserData magic onto the variable";
           }
           $$data;
          }

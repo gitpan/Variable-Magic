@@ -1,5 +1,13 @@
 Revision history for Variable-Magic
 
+0.41    2010-03-15 17:35 UTC
+        + Doc : Tweaks and fixups.
+                Thanks Shlomi Fish.
+        + Fix : Compatibility with the soon-to-be-released perl 5.12.0.
+        + Fix : Correctly propagate the errors thrown when variable destruction
+                happens at compile-time and not from inside eval STRING.
+                Thanks Florian Ragwitz and Ash Berlin for reporting.
+
 0.40    2010-01-06 23:20 UTC
         + Fix : Possible memory miswrites when passing data arguments to cast().
         + Fix : Minor C portability tweaks.
