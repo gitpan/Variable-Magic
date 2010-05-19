@@ -12,6 +12,8 @@ use Variable::Magic qw/wizard cast dispell MGf_COPY/;
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
+my $is_5130_release = ($] == 5.013 && !$Config{git_describe}) ? 1 : 0;
+
 my $wiz = init_watcher
         [ qw/get set len clear free copy dup local fetch store exists delete/ ],
         'scalar';
@@ -58,7 +60,7 @@ watch { cast $a[1], $wiz } { }, 'array element: cast';
 
 watch { $a[1] = 6; () } { set => 1 }, 'array element: set';
 
-$b = watch { $a[1] } { get => 1 }, 'array element: get';
+$b = watch { $a[1] } { get => ($is_5130_release ? 2 : 1) },'array element: get';
 is $b, 6, 'scalar: array element: get correctly';
 
 watch { $a[0] = 5 } { }, 'array element: set other';
@@ -83,7 +85,7 @@ watch { cast $h{b}, $wiz } { }, 'hash element: cast';
 
 watch { $h{b} = 6; () } { set => 1 }, 'hash element: set';
 
-$b = watch { $h{b} } { get => 1 }, 'hash element: get';
+$b = watch { $h{b} } { get => ($is_5130_release ? 2 : 1) }, 'hash element: get';
 is $b, 6, 'scalar: hash element: get correctly';
 
 watch { $h{a} = 5 } { }, 'hash element: set other';

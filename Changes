@@ -1,5 +1,11 @@
 Revision history for Variable-Magic
 
+0.42    2010-05-19 00:15 UTC
+        This is a maintenance release. The code contains no functional change.
+        Users of 0.41 can skip this update.
+        + Fix : Test failures with perl 5.13.
+        + Tst : Improve coverage.
+
 0.41    2010-03-15 17:35 UTC
         + Doc : Tweaks and fixups.
                 Thanks Shlomi Fish.

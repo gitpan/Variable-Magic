@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 33 + (2 * 2 + 1);
+use Test::More tests => 39 + (2 * 2 + 1);
 
 use Variable::Magic qw/wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN/;
 
@@ -126,6 +126,35 @@ SKIP: {
  is $c, 1,  'len: get utf8 scalar length triggers magic correctly';
  is $d, 5,  'len: get utf8 scalar length have correct default length';
  is $b, $d, 'len: get utf8 scalar length correctly';
+}
+
+{
+ our $c;
+ # length magic on scalars needs also get magic to be triggered.
+ my $wiz = wizard get => sub { 0 },
+                  len => sub { $d = $_[2]; ++$c; return $_[2] };
+
+ {
+  my $x = "banana";
+  cast $x, $wiz;
+
+  local $c = 0;
+  pos($x) = 2;
+  is $c, 1,        'len: pos scalar triggers magic correctly';
+  is $d, 6,        'len: pos scalar have correct default length';
+  is $x, 'banana', 'len: pos scalar works correctly'
+ }
+
+ {
+  my $x = "hl\x{20AB}gh"; # Force utf8 on string
+  cast $x, $wiz;
+
+  local $c = 0;
+  substr($x, 2, 1) = 'a';
+  is $c, 1,       'len: substr utf8 scalar triggers magic correctly';
+  is $d, 5,       'len: substr utf8 scalar have correct default length';
+  is $x, 'hlagh', 'len: substr utf8 scalar correctly';
+ }
 }
 
 {

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 14 * (3 + 4) + 5;
+use Test::More tests => 17 * (3 + 4) + 5;
 
 use Config qw/%Config/;
 
@@ -11,19 +11,29 @@ use Variable::Magic qw/wizard cast dispell VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
 
 sub Variable::Magic::TestPkg::foo { }
 
-my $aelem    = $] <= 5.008003 ? 'aelem' : 'aelemfast';
-my $aelem_op = $Config{useithreads} ? 'B::PADOP' : 'B::SVOP';
+my $is_5130_release = ($] == 5.013 && !$Config{git_describe}) ? 1 : 0;
+
+my $aelem     = $] <= 5.008003 ? 'aelem'
+                               : ($] < 5.013 or $is_5130_release) ? 'aelemfast'
+                                                                  : 'sassign';
+my $aelemf    = ($] < 5.013 or $is_5130_release) ? 'aelemfast' : 'sassign';
+my $aelemf_op = $aelemf eq 'sassign'
+                   ? 'B::BINOP' : $Config{useithreads} ? 'B::PADOP' : 'B::SVOP';
 
 our @o;
 
 my @tests = (
  [ 'len', '@c',    'my @c',     'my $x = @c',      [ 'padav',   'B::OP'     ] ],
  [ 'get', '$c[0]', 'my @c',     'my $x = $c[0]',   [ $aelem,    'B::OP'     ] ],
- [ 'get', '$o[0]', 'local @o',  'my $x = $o[0]', [ 'aelemfast', $aelem_op   ] ],
+ [ 'get', '$o[0]', 'local @o',  'my $x = $o[0]',   [ $aelemf,   $aelemf_op  ] ],
  [ 'get', '$c',    'my $c = 1', '++$c',            [ 'preinc',  'B::UNOP'   ] ],
  [ 'get', '$c',    'my $c = 1', '$c ** 2',         [ 'pow',     'B::BINOP'  ] ],
  [ 'get', '$c',    'my $c = 1', 'my $x = $c',      [ 'sassign', 'B::BINOP'  ] ],
  [ 'get', '$c',    'my $c = 1', '1 if $c',         [ 'and',     'B::LOGOP'  ] ],
+ [ 'get', '$c',    'my $c = []','ref $c',          [ 'ref',     'B::UNOP'   ] ],
+ [ 'get', '$c',    'my $c = $0','-f $c',           [ 'ftfile',  'B::UNOP'   ] ],
+ [ 'get', '$c',    'my $c = "Z"',
+                   'my $i = 1; Z:goto $c if $i--', [ 'goto',    'B::UNOP'   ] ],
  [ 'set', '$c',    'my $c = 1', 'bless \$c, "main"',
                                                    [ 'bless',   'B::LISTOP' ] ],
  [ 'get', '$c',    'my $c = ""','$c =~ /x/',       [ 'match',   'B::PMOP'   ] ],
