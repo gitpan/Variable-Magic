@@ -106,8 +106,6 @@ SKIP: {
 
  unless (MGf_COPY) {
   $SKIP = 'No copy magic for this perl';
- } elsif ($Config{useithreads} and $] le 5.008003) {
-  $SKIP = 'Causes havoc during global destruction for old threaded perls';
  } else {
   eval "use Tie::Array";
   $SKIP = 'Tie::Array required to test clear magic on tied array values' if $@;

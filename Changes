@@ -1,5 +1,14 @@
 Revision history for Variable-Magic
 
+0.43    2010-06-25 23:35 UTC
+        + Add : The new constant VMG_COMPAT_GLOB_GET tells you whether get magic
+                is called for globs. It's true starting perl 5.13.2.
+        + Chg : All callbacks are now called within an eval-like context.
+                Only free callbacks used to be called that way.
+        + Fix : Some exceptions thrown from a free callback could be lost.
+        + Fix : Croak messages could sometimes be repeated several times.
+        + Fix : t/41-clone.t segfaulting with perl 5.13.2.
+
 0.42    2010-05-19 00:15 UTC
         This is a maintenance release. The code contains no functional change.
         Users of 0.41 can skip this update.

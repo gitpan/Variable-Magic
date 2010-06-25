@@ -79,13 +79,25 @@
 
 STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #define vmg_clone(P, O) vmg_clone(aTHX_ (P), (O))
+ SV *dupsv;
+
+#if VMG_HAS_PERL(5, 13, 2)
+ CLONE_PARAMS *param = Perl_clone_params_new(owner, aTHX);
+
+ dupsv = sv_dup(sv, param);
+
+ Perl_clone_params_del(param);
+#else
  CLONE_PARAMS param;
 
  param.stashes    = NULL; /* don't need it unless sv is a PVHV */
  param.flags      = 0;
  param.proto_perl = owner;
 
- return SvREFCNT_inc(sv_dup(sv, &param));
+ dupsv = sv_dup(sv, &param);
+#endif
+
+ return SvREFCNT_inc(dupsv);
 }
 
 #endif /* VMG_THREADSAFE */
@@ -136,16 +148,6 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define IN_PERL_COMPILETIME (PL_curcop == &PL_compiling)
 #endif
 
-#if VMG_HAS_PERL(5, 10, 0) || defined(PL_parser)
-# ifndef PL_error_count
-#  define PL_error_count PL_parser->error_count
-# endif
-#else
-# ifndef PL_error_count
-#  define PL_error_count PL_Ierror_count
-# endif
-#endif
-
 /* uvar magic and Hash::Util::FieldHash were commited with 28419, but we only
  * enable them on 5.10 */
 #if VMG_HAS_PERL(5, 10, 0)
@@ -194,9 +196,18 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
 #endif
 
+#if VMG_HAS_PERL(5, 13, 2)
+# define VMG_COMPAT_GLOB_GET 1
+#else
+# define VMG_COMPAT_GLOB_GET 0
+#endif
+
+/* ... Bug-free mg_magical ................................................. */
+
+/* See the discussion at http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html. This version is specialized to our needs. */
+
 #if VMG_UVAR
 
-/* Bug-free mg_magical - see http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html - but specialized to our needs. */
 STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 #define vmg_sv_magicuvar(S, U, L) vmg_sv_magicuvar(aTHX_ (S), (U), (L))
  const MAGIC* mg;
@@ -217,6 +228,75 @@ STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
 }
 
 #endif /* VMG_UVAR */
+
+/* ... Safe version of call_sv() ........................................... */
+
+#define VMG_SAVE_LAST_CX (!VMG_HAS_PERL(5, 8, 4) || VMG_HAS_PERL(5, 9, 5))
+
+STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, I32 destructor) {
+#define vmg_call_sv(S, F, D) vmg_call_sv(aTHX_ (S), (F), (D))
+ I32 ret, cxix = 0, in_eval = 0;
+#if VMG_SAVE_LAST_CX
+ PERL_CONTEXT saved_cx;
+#endif
+ SV *old_err = NULL;
+
+ if (SvTRUE(ERRSV)) {
+  old_err = ERRSV;
+  ERRSV   = newSV(0);
+ }
+
+ if (cxstack_ix < cxstack_max) {
+  cxix = cxstack_ix + 1;
+  if (destructor && CxTYPE(cxstack + cxix) == CXt_EVAL)
+   in_eval = 1;
+ }
+
+#if VMG_SAVE_LAST_CX
+ /* The last popped context will be reused by call_sv(), but our callers may
+  * still need its previous value. Back it up so that it isn't clobbered. */
+ saved_cx = cxstack[cxix];
+#endif
+
+ ret = call_sv(sv, flags | G_EVAL);
+
+#if VMG_SAVE_LAST_CX
+ cxstack[cxix] = saved_cx;
+#endif
+
+ if (SvTRUE(ERRSV)) {
+  if (old_err) {
+   sv_setsv(old_err, ERRSV);
+   SvREFCNT_dec(ERRSV);
+   ERRSV = old_err;
+  }
+  if (IN_PERL_COMPILETIME) {
+   if (!PL_in_eval) {
+    if (PL_errors)
+     sv_catsv(PL_errors, ERRSV);
+    else
+     Perl_warn(aTHX_ "%s", SvPV_nolen(ERRSV));
+    SvCUR_set(ERRSV, 0);
+   }
+#if VMG_HAS_PERL(5, 10, 0) || defined(PL_parser)
+   if (PL_parser)
+    ++PL_parser->error_count;
+#elif defined(PL_error_count)
+   ++PL_error_count;
+#else
+   ++PL_Ierror_count;
+#endif
+   } else if (!in_eval)
+    croak(NULL);
+ } else {
+  if (old_err) {
+   SvREFCNT_dec(ERRSV);
+   ERRSV = old_err;
+  }
+ }
+
+ return ret;
+}
 
 /* --- Stolen chunk of B --------------------------------------------------- */
 
@@ -632,7 +712,7 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, SV **args, I32 items) {
   PUSHs(args[i]);
  PUTBACK;
 
- call_sv(ctor, G_SCALAR);
+ vmg_call_sv(ctor, G_SCALAR, 0);
 
  SPAGAIN;
  nsv = POPs;
@@ -943,7 +1023,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- call_sv(cb, G_SCALAR);
+ vmg_call_sv(cb, G_SCALAR, 0);
 
  SPAGAIN;
  svr = POPs;
@@ -1016,7 +1096,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- call_sv(w->cb_len, G_SCALAR);
+ vmg_call_sv(w->cb_len, G_SCALAR, 0);
 
  SPAGAIN;
  svr = POPs;
@@ -1038,11 +1118,6 @@ STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  const MGWIZ *w;
-#if VMG_HAS_PERL(5, 9, 5)
- PERL_CONTEXT saved_cx;
- I32 cxix;
-#endif
- I32 had_err, has_err, flags = G_SCALAR | G_EVAL;
  int ret = 0;
  SV *svr;
 
@@ -1076,38 +1151,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(w->opinfo));
  PUTBACK;
 
- had_err = SvTRUE(ERRSV);
- if (had_err)
-  flags |= G_KEEPERR;
-
-#if VMG_HAS_PERL(5, 9, 5)
- /* This context should not be used anymore, but since we croak in places the
-  * core doesn't even dare to, some pointers to it may remain in the upper call
-  * stack. Make sure call_sv() doesn't clobber it. */
- if (cxstack_ix < cxstack_max)
-  cxix = cxstack_ix + 1;
- else
-  cxix = Perl_cxinc(aTHX);
- saved_cx = cxstack[cxix];
-#endif
-
- call_sv(w->cb_free, flags);
-
-#if VMG_HAS_PERL(5, 9, 5)
- cxstack[cxix] = saved_cx;
-#endif
-
- has_err = SvTRUE(ERRSV);
- if (IN_PERL_COMPILETIME && !had_err && has_err) {
-  if (PL_errors)
-   sv_catsv(PL_errors, ERRSV);
-  else
-   Perl_warn(aTHX_ "%s", SvPV_nolen(ERRSV));
-#ifdef PL_parser
-  if (PL_parser)
-#endif
-   ++PL_error_count;
- }
+ vmg_call_sv(w->cb_free, G_SCALAR, 1);
 
  SPAGAIN;
  svr = POPs;
@@ -1319,6 +1363,7 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
  newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
                     newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
+ newCONSTSUB(stash, "VMG_COMPAT_GLOB_GET", newSVuv(VMG_COMPAT_GLOB_GET));
  newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));
  newCONSTSUB(stash, "VMG_FORKSAFE",        newSVuv(VMG_FORKSAFE));

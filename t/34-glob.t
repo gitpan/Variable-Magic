@@ -13,7 +13,9 @@ if ($@) {
  diag "Using Symbol $Symbol::VERSION" if defined $Symbol::VERSION;
 }
 
-use Variable::Magic qw/cast dispell/;
+use Variable::Magic qw/cast dispell VMG_COMPAT_GLOB_GET/;
+
+my %get = VMG_COMPAT_GLOB_GET ? (get => 1) : ();
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -24,17 +26,17 @@ my $wiz = init_watcher
 
 local *a = gensym();
 
-watch { cast *a, $wiz } { }, 'cast';
+watch { cast *a, $wiz } +{ }, 'cast';
 
-watch { local *b = *a } { }, 'assign to';
+watch { local *b = *a } +{ %get }, 'assign to';
 
-watch { *a = gensym() } { set => 1 }, 'assign';
+watch { *a = gensym() } +{ %get, set => 1 }, 'assign';
 
 watch {
  local *b = gensym();
- watch { cast *b, $wiz } { }, 'cast 2';
-} { }, 'scope end';
+ watch { cast *b, $wiz } +{ }, 'cast 2';
+} +{ }, 'scope end';
 
-watch { undef *a } { }, 'undef';
+watch { undef *a } +{ %get }, 'undef';
 
-watch { dispell *a, $wiz } { }, 'dispell';
+watch { dispell *a, $wiz } +{ %get }, 'dispell';

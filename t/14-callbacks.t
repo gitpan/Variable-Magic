@@ -59,20 +59,20 @@ cast $b, $wiz;
 
 my $u = $b;
 is_deeply(\@callers, [
- [ 'main', $0, __LINE__-2 ],
+ ([ 'main', $0, __LINE__-2 ]) x 2,
 ], 'caller into callback returns the right thing');
 
 @callers = ();
 $u = $b;
 is_deeply(\@callers, [
- [ 'main', $0, __LINE__-2 ],
+ ([ 'main', $0, __LINE__-2 ]) x 2,
 ], 'caller into callback returns the right thing (second time)');
 
 {
  @callers = ();
  my $u = $b;
  is_deeply(\@callers, [
-  [ 'main', $0, __LINE__-2 ],
+  ([ 'main', $0, __LINE__-2 ]) x 2,
  ], 'caller into callback into block returns the right thing');
 }
 
@@ -80,6 +80,6 @@ is_deeply(\@callers, [
 eval { my $u = $b };
 is($@, '', 'caller into callback doesn\'t croak');
 is_deeply(\@callers, [
- ([ 'main', $0, __LINE__-3 ]) x 2,
+ ([ 'main', $0, __LINE__-3 ]) x 3,
 ], 'caller into callback into eval returns the right thing');
 
