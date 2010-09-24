@@ -1,5 +1,23 @@
 Revision history for Variable-Magic
 
+0.44    2010-09-24 19:10 UTC
+        + Fix : Broken linkage on Windows with gcc 3.4, which appears in
+                particular when using ActivePerl's default compiler suite.
+                For those setups, the Variable::Magic shared library will now
+                be linked against the perl dll directly (instead of the import
+                library). This (should) fix RT #51483.
+                Thanks Christian Walde for helping to reproduce this failure
+                and extra testing.
+        + Rem : Support for development perls from the 5.11 branch but older
+                than the 5.11.0 release was removed. This could cause more
+                recent setups to fail.
+        + Tst : Threads tests are now only run on perl 5.13.4 and higher.
+                They could segfault randomly because of what seems to be an
+                internal bug of Perl, which has been addressed in 5.13.4.
+                There is also an environment variable that allows you to
+                forcefully run those tests, but it should be set only for
+                author testing and not for end users.
+
 0.43    2010-06-25 23:35 UTC
         + Add : The new constant VMG_COMPAT_GLOB_GET tells you whether get magic
                 is called for globs. It's true starting perl 5.13.2.

@@ -160,9 +160,11 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
  * reverted to dev-5.11 as 9cdcb38b */
 #if VMG_HAS_PERL_MAINT(5, 8, 9, 28160) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0)
 # ifndef VMG_COMPAT_ARRAY_PUSH_NOLEN
-/* This branch should only apply for perls before the official 5.11.0 release.
- * Makefile.PL takes care of the higher ones. */
-#  define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
+#  if VMG_HAS_PERL(5, 11, 0)
+#   define VMG_COMPAT_ARRAY_PUSH_NOLEN 0
+#  else
+#   define VMG_COMPAT_ARRAY_PUSH_NOLEN 1
+#  endif
 # endif
 # ifndef VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
 #  define VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID 1
@@ -447,26 +449,35 @@ STATIC void vmg_mgwiz_free(pTHX_ MGWIZ *w) {
  if (!w)
   return;
 
- if (w->cb_data)   SvREFCNT_dec(w->cb_data);
- if (w->cb_get)    SvREFCNT_dec(w->cb_get);
- if (w->cb_set)    SvREFCNT_dec(w->cb_set);
- if (w->cb_len)    SvREFCNT_dec(w->cb_len);
- if (w->cb_clear)  SvREFCNT_dec(w->cb_clear);
- if (w->cb_free)   SvREFCNT_dec(w->cb_free);
+ /* We reach this point in dirty state when ptable_free() is called from the
+  * atexit cleanup callback, and that the global table still holds a live
+  * wizard. This happens before all the SV bodies are freed, so all the wizard
+  * callbacks are still alive (as they are referenced by the undead wizard).
+  * Hence it is safe to decrement their refcount. Later on, the wizard free
+  * callback itself will trigger when the wizard body is reaped, but it will
+  * be skipped as it guards against dirty state - which is good since nothing
+  * has to be done anymore at that point. */
+
+ SvREFCNT_dec(w->cb_data);
+ SvREFCNT_dec(w->cb_get);
+ SvREFCNT_dec(w->cb_set);
+ SvREFCNT_dec(w->cb_len);
+ SvREFCNT_dec(w->cb_clear);
+ SvREFCNT_dec(w->cb_free);
 #if MGf_COPY
- if (w->cb_copy)   SvREFCNT_dec(w->cb_copy);
+ SvREFCNT_dec(w->cb_copy);
 #endif /* MGf_COPY */
 #if 0 /* MGf_DUP */
- if (w->cb_dup)    SvREFCNT_dec(w->cb_dup);
+ SvREFCNT_dec(w->cb_dup);
 #endif /* MGf_DUP */
 #if MGf_LOCAL
- if (w->cb_local)  SvREFCNT_dec(w->cb_local);
+ SvREFCNT_dec(w->cb_local);
 #endif /* MGf_LOCAL */
 #if VMG_UVAR
- if (w->cb_fetch)  SvREFCNT_dec(w->cb_fetch);
- if (w->cb_store)  SvREFCNT_dec(w->cb_store);
- if (w->cb_exists) SvREFCNT_dec(w->cb_exists);
- if (w->cb_delete) SvREFCNT_dec(w->cb_delete);
+ SvREFCNT_dec(w->cb_fetch);
+ SvREFCNT_dec(w->cb_store);
+ SvREFCNT_dec(w->cb_exists);
+ SvREFCNT_dec(w->cb_delete);
 #endif /* VMG_UVAR */
 
  Safefree(w->vtbl);

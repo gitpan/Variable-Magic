@@ -12,10 +12,13 @@ sub skipall {
 use Config qw/%Config/;
 
 BEGIN {
- my $t_v  = '1.67';
- my $ts_v = '1.14';
+ my $force = $ENV{PERL_VARIABLE_MAGIC_TEST_THREADS} ? 1 : !1;
+ my $t_v   = $force ? '0' : '1.67';
+ my $ts_v  = $force ? '0' : '1.14';
  skipall 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
+ skipall 'perl 5.13.4 required to test thread safety'
+                                                unless $force or $] >= 5.013004;
  skipall "threads $t_v required to test thread safety"
                                               unless eval "use threads $t_v; 1";
  skipall "threads::shared $ts_v required to test thread safety"

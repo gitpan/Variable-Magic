@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 17 * (3 + 4) + 5;
+use Test::More tests => 17 * (3 + 4) + 5 + 1;
 
 use Config qw/%Config/;
 
@@ -105,4 +105,14 @@ for (@tests) {
 
  eval { dispell $c, $wiz };
  is $@, '', "get dispell with out of bounds op_info doesn't croak";
+}
+
+{
+ local $@;
+ my $wiz = eval {
+  local $SIG{__WARN__} = sub { die @_ };
+  wizard op_info => "hlagh";
+ };
+ like $@, qr/^Argument "hlagh" isn't numeric in subroutine entry at \Q$0\E/,
+      'wizard(op_info => "text") throws numeric warnings';
 }

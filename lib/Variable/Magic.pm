@@ -5,21 +5,19 @@ use 5.008;
 use strict;
 use warnings;
 
-use Carp qw/croak/;
-
 =head1 NAME
 
 Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.43
+Version 0.44
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.43';
+ $VERSION = '0.44';
 }
 
 =head1 SYNOPSIS
@@ -296,19 +294,32 @@ Here's a simple usage example :
 =cut
 
 sub wizard {
- croak 'Wrong number of arguments for wizard()' if @_ % 2;
+ if (@_ % 2) {
+  require Carp;
+  Carp::croak('Wrong number of arguments for wizard()');
+ }
+
  my %opts = @_;
+
  my @keys = qw/data op_info get set len clear free/;
  push @keys, 'copy'  if MGf_COPY;
  push @keys, 'dup'   if MGf_DUP;
  push @keys, 'local' if MGf_LOCAL;
  push @keys, qw/fetch store exists delete copy_key/ if VMG_UVAR;
- my $ret = eval { _wizard(map $opts{$_}, @keys) };
- if (my $err = $@) {
-  $err =~ s/\sat\s+.*?\n//;
-  croak $err;
+
+ my ($wiz, $err);
+ {
+  local $@;
+  $wiz = eval { _wizard(map $opts{$_}, @keys) };
+  $err = $@;
  }
- return $ret;
+ if ($err) {
+  $err =~ s/\sat\s+.*?\n//;
+  require Carp;
+  Carp::croak($err);
+ }
+
+ return $wiz;
 }
 
 =head2 C<cast>
