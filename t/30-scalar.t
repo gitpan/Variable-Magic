@@ -112,7 +112,7 @@ SKIP: {
  }
 
  skip $SKIP => 3 if $SKIP;
- diag "Using Tie::Array $Tie::Array::VERSION" if defined $Tie::Array::VERSION;
+ defined and diag "Using Tie::Array $_" for $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
  $a[0] = $$;

@@ -32,10 +32,8 @@ use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE VMG_OP_INFO_NA
 BEGIN {
  skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;
  plan tests => (4 * 18 + 1) + (4 * 13 + 1);
- my $v = $threads::VERSION;
- diag "Using threads $v" if defined $v;
- $v = $threads::shared::VERSION;
- diag "Using threads::shared $v" if defined $v;
+ defined and diag "Using threads $_"         for $threads::VERSION;
+ defined and diag "Using threads::shared $_" for $threads::shared::VERSION;
 }
 
 my $destroyed : shared = 0;

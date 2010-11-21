@@ -1,5 +1,17 @@
 Revision history for Variable-Magic
 
+0.45    2010-11-21 23:15 UTC
+        This is a maintenance release. The code contains no functional change.
+        Users of 0.44 can skip this update.
+        + Doc : C++ compilers are officially NOT supported.
+        + Doc : The minimum perl 5.10.0 requirement for uvar magic has been
+                made more explicit.
+                Thanks Peter Rabbitson for pointing this out and contributing a
+                patch.
+        + Tst : Tune for perl 5.13.7.
+        + Tst : Capture::Tiny will be used in t/17-ctl.t if and only if it can
+                capture a simple run.
+
 0.44    2010-09-24 19:10 UTC
         + Fix : Broken linkage on Windows with gcc 3.4, which appears in
                 particular when using ActivePerl's default compiler suite.

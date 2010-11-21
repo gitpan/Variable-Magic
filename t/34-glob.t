@@ -9,8 +9,8 @@ eval "use Symbol qw/gensym/";
 if ($@) {
  plan skip_all => "Symbol::gensym required for testing magic for globs";
 } else {
- plan tests => 2 * 8 + 1;
- diag "Using Symbol $Symbol::VERSION" if defined $Symbol::VERSION;
+ plan tests => 2 * 12 + 1;
+ defined and diag "Using Symbol $_" for $Symbol::VERSION;
 }
 
 use Variable::Magic qw/cast dispell VMG_COMPAT_GLOB_GET/;
@@ -30,12 +30,19 @@ watch { cast *a, $wiz } +{ }, 'cast';
 
 watch { local *b = *a } +{ %get }, 'assign to';
 
-watch { *a = gensym() } +{ %get, set => 1 }, 'assign';
+watch { *a = \1 }          +{ %get, set => 1 }, 'assign scalar slot';
+watch { *a = [ qw/x y/ ] } +{ %get, set => 1 }, 'assign array slot';
+watch { *a = { u => 1 } }  +{ %get, set => 1 }, 'assign hash slot';
+watch { *a = sub { } }     +{ %get, set => 1 }, 'assign code slot';
+
+watch { *a = gensym() }    +{ %get, set => 1 }, 'assign glob';
 
 watch {
  local *b = gensym();
  watch { cast *b, $wiz } +{ }, 'cast 2';
 } +{ }, 'scope end';
+
+%get = () if $] >= 5.013007;
 
 watch { undef *a } +{ %get }, 'undef';
 

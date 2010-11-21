@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.44
+    Version 0.45
 
 SYNOPSIS
         use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
@@ -307,7 +307,8 @@ CONSTANTS
 
   "VMG_UVAR"
     When this constant is true, you can use the "fetch,store,exists,delete"
-    callbacks on hashes.
+    callbacks on hashes. Initial VMG_UVAR capability was introduced in perl
+    5.9.5, with a fully functional implementation shipped with perl 5.10.0.
 
   "VMG_COMPAT_ARRAY_PUSH_NOLEN"
     True for perls that don't call 'len' magic when you push an element in a
@@ -495,8 +496,14 @@ CAVEATS
     this destructor won't be called because the wizard will be destroyed
     first.
 
+    In order to define magic on hash members, you need at least perl 5.10.0
+    (see "VMG_UVAR")
+
 DEPENDENCIES
     perl 5.8.
+
+    A C compiler. This module may happen to build with a C++ compiler as
+    well, but don't rely on it, as no guarantee is made in this regard.
 
     Carp (standard since perl 5), XSLoader (standard since perl 5.006).
 

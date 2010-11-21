@@ -11,13 +11,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.44
+Version 0.45
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.44';
+ $VERSION = '0.45';
 }
 
 =head1 SYNOPSIS
@@ -159,7 +159,7 @@ It is available on your perl iff C<MGf_LOCAL> is true.
 
 =back
 
-The following actions only apply to hashes and are available iff C<VMG_UVAR> is true.
+The following actions only apply to hashes and are available iff L</VMG_UVAR> is true.
 They are referred to as C<uvar> magics.
 
 =over 4
@@ -381,6 +381,8 @@ Evaluates to true iff the 'local' magic is available.
 =head2 C<VMG_UVAR>
 
 When this constant is true, you can use the C<fetch,store,exists,delete> callbacks on hashes.
+Initial VMG_UVAR capability was introduced in perl 5.9.5, with a fully functional implementation
+shipped with perl 5.10.0.
 
 =head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
 
@@ -600,9 +602,14 @@ The only way to address this would be to return a reference.
 
 If you define a wizard with a C<free> callback and cast it on itself, this destructor won't be called because the wizard will be destroyed first.
 
+In order to define magic on hash members, you need at least L<perl> 5.10.0 (see L</VMG_UVAR>)
+
 =head1 DEPENDENCIES
 
 L<perl> 5.8.
+
+A C compiler.
+This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
 
 L<Carp> (standard since perl 5), L<XSLoader> (standard since perl 5.006).
 

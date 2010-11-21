@@ -16,8 +16,8 @@ if ($@) {
  plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction';
 } else {
  plan tests => 2 * 5 + 7 + 1;
- my $v = $Hash::Util::FieldHash::VERSION;
- diag "Using Hash::Util::FieldHash $v" if defined $v;
+ defined and diag "Using Hash::Util::FieldHash $_"
+                                            for $Hash::Util::FieldHash::VERSION;
 }
 
 use lib 't/lib';

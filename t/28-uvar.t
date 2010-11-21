@@ -53,7 +53,7 @@ is $x, 1, 'uvar: fetch directly with also non uvar magic correctly';
 SKIP: {
  eval "use Tie::Hash";
  skip 'Tie::Hash required to test uvar magic on tied hashes' => 2 * 5 + 4 if $@;
- diag "Using Tie::Hash $Tie::Hash::VERSION" if defined $Tie::Hash::VERSION;
+ defined and diag "Using Tie::Hash $_" for $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';
  %h = (x => 7, y => 8);

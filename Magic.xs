@@ -12,6 +12,13 @@
 
 #define __PACKAGE__ "Variable::Magic"
 
+#undef VOID2
+#ifdef __cplusplus
+# define VOID2(T, P) static_cast<T>(P)
+#else
+# define VOID2(T, P) (P)
+#endif
+
 #ifndef VMG_PERL_PATCHLEVEL
 # ifdef PERL_PATCHNUM
 #  define VMG_PERL_PATCHLEVEL PERL_PATCHNUM
@@ -543,7 +550,7 @@ STATIC MGWIZ *vmg_mgwiz_clone(pTHX_ const MGWIZ *w) {
 #if VMG_THREADSAFE
 
 #define PTABLE_NAME        ptable
-#define PTABLE_VAL_FREE(V) vmg_mgwiz_free(V)
+#define PTABLE_VAL_FREE(V) vmg_mgwiz_free(VOID2(MGWIZ *, (V)))
 
 #define pPTBL  pTHX
 #define pPTBL_ pTHX_
@@ -573,13 +580,13 @@ START_MY_CXT
 #if VMG_THREADSAFE
 
 STATIC void vmg_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
- my_cxt_t *ud = ud_;
+ my_cxt_t *ud = VOID2(my_cxt_t *, ud_);
  MGWIZ *w;
 
  if (ud->owner == aTHX)
   return;
 
- w = vmg_mgwiz_clone(ent->val);
+ w = vmg_mgwiz_clone(VOID2(MGWIZ *, ent->val));
  if (w)
   ptable_store(ud->wizards, ent->key, w);
 }
@@ -672,7 +679,7 @@ STATIC const MGWIZ *vmg_wizard_mgwiz(pTHX_ const SV *wiz) {
 
  {
   dMY_CXT;
-  return ptable_fetch(MY_CXT.wizards, w);
+  return VOID2(const MGWIZ *, ptable_fetch(MY_CXT.wizards, w));
  }
 }
 
@@ -966,7 +973,7 @@ STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo) {
   case VMG_OP_INFO_OBJECT: {
    dMY_CXT;
    if (!MY_CXT.b__op_stashes[0]) {
-    opclass c;
+    int c;
     require_pv("B.pm");
     for (c = OPc_NULL; c < OPc_MAX; ++c)
      MY_CXT.b__op_stashes[c] = gv_stashpv(vmg_opclassnames[c], 1);
@@ -1087,7 +1094,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  if (t < SVt_PVAV) {
   STRLEN l;
 #if VMG_HAS_PERL(5, 9, 3)
-  const U8 *s = SvPV_const(sv, l);
+  const U8 *s = VOID2(const U8 *, VOID2(const void *, SvPV_const(sv, l)));
 #else
   U8 *s = SvPV(sv, l);
 #endif
@@ -1390,7 +1397,7 @@ PROTOTYPE: DISABLE
 PREINIT:
  ptable *t;
  U32     had_b__op_stash = 0;
- opclass c;
+ int     c;
 PPCODE:
  {
   my_cxt_t ud;

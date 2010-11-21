@@ -223,18 +223,33 @@ sub run_perl {
  system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
 }
 
-my $has_capture_tiny = do { local $@; eval 'use Capture::Tiny 0.08 (); 1' };
+my $has_capture_tiny = do {
+ local $@;
+ eval 'use Capture::Tiny 0.08 (); 1'
+};
+if ($has_capture_tiny) {
+ my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
+print STDOUT "pants\n";
+print STDERR "trousers\n";
+ CODE
+ unless (defined $output and $output =~ /pants/ and $output =~ /trousers/) {
+  $has_capture_tiny = 0;
+ }
+}
+if ($has_capture_tiny) {
+ defined and diag "Using Capture::Tiny $_" for $Capture::Tiny::VERSION;
+}
 
 SKIP:
 {
  my $count = 1;
 
- skip 'Capture::Tiny 0.08 is not installed' => $count unless $has_capture_tiny;
+ skip 'No working Capture::Tiny is installed'=> $count unless $has_capture_tiny;
 
  my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
 use Variable::Magic qw/wizard cast/; { BEGIN { $^H |= 0x020000; cast %^H, wizard free => sub { die q[cucumber] } } }
  CODE
- skip 'Test code didn\'t run properly' => 1 unless defined $output;
+ skip 'Test code didn\'t run properly' => $count unless defined $output;
  like $output, expect('cucumber', '-e', "\nExecution(?s:.*)"),
                   'die in free callback at compile time and not in eval string';
  --$count;
@@ -246,8 +261,8 @@ SKIP:
 {
  my $count = 1;
 
- skip 'No nice uvar magic for this perl'    => $count unless VMG_UVAR;
- skip 'Capture::Tiny 0.08 is not installed' => $count unless $has_capture_tiny;
+ skip 'No nice uvar magic for this perl'     => $count unless VMG_UVAR;
+ skip 'No working Capture::Tiny is installed'=> $count unless $has_capture_tiny;
 
  my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
 use Variable::Magic qw/wizard cast/; BEGIN { cast %::, wizard fetch => sub { die q[salsify] } } hlagh()

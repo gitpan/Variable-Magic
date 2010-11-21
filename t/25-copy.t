@@ -23,7 +23,7 @@ SKIP: {
  eval "use Tie::Array";
  skip 'Tie::Array required to test copy magic on arrays'
                                              => (2 * 5 + 3) + (2 * 2 + 1) if $@;
- diag "Using Tie::Array $Tie::Array::VERSION" if defined $Tie::Array::VERSION;
+ defined and diag "Using Tie::Array $_" for $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
  @a = (1 .. 10);
@@ -57,7 +57,7 @@ SKIP: {
 SKIP: {
  eval "use Tie::Hash";
  skip 'Tie::Hash required to test copy magic on hashes' => 2 * 9 + 6 if $@;
- diag "Using Tie::Hash $Tie::Hash::VERSION" if defined $Tie::Hash::VERSION;
+ defined and diag "Using Tie::Hash $_" for $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';
  %h = (a => 1, b => 2, c => 3);
