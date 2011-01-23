@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 11;
 
-use Variable::Magic qw/wizard cast getdata/;
+use Variable::Magic qw<wizard cast getdata>;
 
 our $destroyed;
 

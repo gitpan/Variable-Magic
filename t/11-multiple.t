@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 33 + 41;
 
-use Variable::Magic qw/wizard cast dispell VMG_UVAR/;
+use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
 
 my $n = 3;
 my @w;

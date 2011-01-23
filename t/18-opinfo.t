@@ -5,9 +5,9 @@ use warnings;
 
 use Test::More tests => 17 * (3 + 4) + 5 + 1;
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
-use Variable::Magic qw/wizard cast dispell VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
+use Variable::Magic qw<wizard cast dispell VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT>;
 
 sub Variable::Magic::TestPkg::foo { }
 

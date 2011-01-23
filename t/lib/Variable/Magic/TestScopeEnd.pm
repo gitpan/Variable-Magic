@@ -2,7 +2,7 @@ package Variable::Magic::TestScopeEnd;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw<wizard cast>;
 
 my $wiz;
 

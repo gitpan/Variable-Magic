@@ -9,7 +9,7 @@ sub skipall {
  Test::More::plan(skip_all => $msg);
 }
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
 BEGIN {
  my $force = $ENV{PERL_VARIABLE_MAGIC_TEST_THREADS} ? 1 : !1;
@@ -27,7 +27,10 @@ BEGIN {
 
 use Test::More; # after threads
 
-use Variable::Magic qw/wizard cast dispell getdata VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
+use Variable::Magic qw<
+ wizard cast dispell getdata
+ VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
+>;
 
 BEGIN {
  skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;

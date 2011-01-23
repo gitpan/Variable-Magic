@@ -2,10 +2,10 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.45
+    Version 0.46
 
 SYNOPSIS
-        use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
+        use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
 
         { # A variable tracer
          my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },
@@ -363,7 +363,7 @@ COOKBOOK
         {
          package Magical::UserData;
 
-         use Variable::Magic qw/wizard cast getdata/;
+         use Variable::Magic qw<wizard cast getdata>;
 
          my $wiz = wizard data => sub { \$_[1] };
 
@@ -543,7 +543,7 @@ SUPPORT
     <http://www.profvince.com/perl/cover/Variable-Magic>.
 
 COPYRIGHT & LICENSE
-    Copyright 2007,2008,2009,2010 Vincent Pit, all rights reserved.
+    Copyright 2007,2008,2009,2010,2011 Vincent Pit, all rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

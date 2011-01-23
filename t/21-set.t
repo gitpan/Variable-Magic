@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => (2 * 5 + 3) + (2 * 2 + 1);
 
-use Variable::Magic qw/cast/;
+use Variable::Magic qw<cast>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;

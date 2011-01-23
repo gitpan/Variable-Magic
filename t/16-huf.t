@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast dispell VMG_UVAR/;
+use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
 
 if (!VMG_UVAR) {
  plan skip_all => 'No nice uvar magic for this perl';
@@ -23,7 +23,7 @@ if ($@) {
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
-my $wiz = init_watcher [ qw/fetch store/ ], 'huf';
+my $wiz = init_watcher [ qw<fetch store> ], 'huf';
 ok defined($wiz),       'huf: wizard with uvar is defined';
 is ref($wiz), 'SCALAR', 'huf: wizard with uvar is a scalar ref';
 

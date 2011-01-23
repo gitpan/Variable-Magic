@@ -5,11 +5,11 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw<wizard cast>;
 
-use base qw/Exporter/;
+use base qw<Exporter>;
 
-our @EXPORT = qw/init_value value/;
+our @EXPORT = qw<init_value value>;
 
 our ($exp, $prefix, $desc);
 

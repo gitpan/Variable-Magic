@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
 use Test::More tests => (2 * 14 + 2) + 2 * (2 * 8 + 4) + 3 + 1;
 
-use Variable::Magic qw/wizard cast dispell MGf_COPY/;
+use Variable::Magic qw<wizard cast dispell MGf_COPY>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -15,7 +15,7 @@ use Variable::Magic::TestWatcher;
 my $is_5130_release = ($] == 5.013 && !$Config{git_describe}) ? 1 : 0;
 
 my $wiz = init_watcher
-        [ qw/get set len clear free copy dup local fetch store exists delete/ ],
+        [ qw<get set len clear free copy dup local fetch store exists delete> ],
         'scalar';
 
 my $n = int rand 1000;
@@ -122,5 +122,5 @@ SKIP: {
  };
  is $@, '', 'cast copy magic on tied array';
 
- watch { delete $a[0] } [ qw/get clear free/ ], 'delete from tied array';
+ watch { delete $a[0] } [ qw<get clear free> ], 'delete from tied array';
 }

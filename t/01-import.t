@@ -12,7 +12,7 @@ my %syms = (
  cast     => '\[$@%&*]$@',
  getdata  => '\[$@%&*]$',
  dispell  => '\[$@%&*]$',
- map { $_ => '' } qw/
+ map { $_ => '' } qw<
   MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR
   VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
   VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID
@@ -22,7 +22,7 @@ my %syms = (
   VMG_PERL_PATCHLEVEL
   VMG_THREADSAFE VMG_FORKSAFE
   VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
- /
+ >
 );
 
 for (sort keys %syms) {

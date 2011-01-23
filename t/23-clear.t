@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => (2 * 5 + 2) + (2 * 2 + 1) + 1;
 
-use Variable::Magic qw/cast dispell/;
+use Variable::Magic qw<cast dispell>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -13,7 +13,7 @@ use Variable::Magic::TestValue;
 
 my $wiz = init_watcher 'clear', 'clear';
 
-my @a = qw/a b c/;
+my @a = qw<a b c>;
 
 watch { cast @a, $wiz } { }, 'cast array';
 

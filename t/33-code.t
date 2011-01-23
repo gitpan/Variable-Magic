@@ -5,13 +5,13 @@ use warnings;
 
 use Test::More tests => 2 * 12 + 11 + 1;
 
-use Variable::Magic qw/cast dispell/;
+use Variable::Magic qw<cast dispell>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
 my $wiz = init_watcher
-        [ qw/get set len clear free copy dup local fetch store exists delete/ ],
+        [ qw<get set len clear free copy dup local fetch store exists delete> ],
         'code';
 
 my $x = 0;

@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 17;
 
-use Variable::Magic qw/wizard cast/;
+use Variable::Magic qw<wizard cast>;
 
 my $wiz = eval { wizard get => sub { undef } };
 is($@, '',             'wizard creation doesn\'t croak');

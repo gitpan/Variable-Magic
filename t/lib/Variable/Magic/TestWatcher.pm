@@ -5,12 +5,12 @@ use warnings;
 
 use Test::More;
 
-use Carp qw/croak/;
-use Variable::Magic qw/wizard/;
+use Carp qw<croak>;
+use Variable::Magic qw<wizard>;
 
-use base qw/Exporter/;
+use base qw<Exporter>;
 
-our @EXPORT = qw/init_watcher watch/;
+our @EXPORT = qw<init_watcher watch>;
 
 sub _types {
  my $t = shift;

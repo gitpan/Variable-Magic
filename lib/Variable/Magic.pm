@@ -11,18 +11,18 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.45
+Version 0.46
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.45';
+ $VERSION = '0.46';
 }
 
 =head1 SYNOPSIS
 
-    use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
+    use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
 
     { # A variable tracer
      my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },
@@ -301,11 +301,11 @@ sub wizard {
 
  my %opts = @_;
 
- my @keys = qw/data op_info get set len clear free/;
+ my @keys = qw<data op_info get set len clear free>;
  push @keys, 'copy'  if MGf_COPY;
  push @keys, 'dup'   if MGf_DUP;
  push @keys, 'local' if MGf_LOCAL;
- push @keys, qw/fetch store exists delete copy_key/ if VMG_UVAR;
+ push @keys, qw<fetch store exists delete copy_key> if VMG_UVAR;
 
  my ($wiz, $err);
  {
@@ -440,7 +440,7 @@ It is similar to using inside-out objects, but without the drawback of having to
     {
      package Magical::UserData;
 
-     use Variable::Magic qw/wizard cast getdata/;
+     use Variable::Magic qw<wizard cast getdata>;
 
      my $wiz = wizard data => sub { \$_[1] };
 
@@ -575,12 +575,12 @@ All the constants are also only exported on request, either individually or by t
 
 =cut
 
-use base qw/Exporter/;
+use base qw<Exporter>;
 
 our @EXPORT         = ();
 our %EXPORT_TAGS    = (
- 'funcs' =>  [ qw/wizard cast getdata dispell/ ],
- 'consts' => [ qw/
+ 'funcs' =>  [ qw<wizard cast getdata dispell> ],
+ 'consts' => [ qw<
    MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR
    VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
    VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID
@@ -590,7 +590,7 @@ our %EXPORT_TAGS    = (
    VMG_PERL_PATCHLEVEL
    VMG_THREADSAFE VMG_FORKSAFE
    VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
- / ],
+ > ],
 );
 our @EXPORT_OK      = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
@@ -647,7 +647,7 @@ Tests code coverage report is available at L<http://www.profvince.com/perl/cover
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2007,2008,2009,2010 Vincent Pit, all rights reserved.
+Copyright 2007,2008,2009,2010,2011 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/cast dispell MGf_COPY/;
+use Variable::Magic qw<cast dispell MGf_COPY>;
 
 if (MGf_COPY) {
  plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
@@ -79,7 +79,7 @@ SKIP: {
  watch { my ($k, $v) = each %h } { copy => 1 }, 'tied hash each';
 
  my @k = watch { keys %h } { }, 'tied hash keys';
- is_deeply [ sort @k ], [ qw/a c/ ], 'copy: tied hash keys correctly';
+ is_deeply [ sort @k ], [ qw<a c> ], 'copy: tied hash keys correctly';
 
  my @v = watch { values %h } { copy => 2 }, 'tied hash values';
  is_deeply [ sort { $a <=> $b } @v ], [ 1, 3 ], 'copy: tied hash values correctly';

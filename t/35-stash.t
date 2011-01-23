@@ -5,7 +5,10 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast dispell VMG_UVAR VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT/;
+use Variable::Magic qw<
+ wizard cast dispell
+ VMG_UVAR VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
+>;
 
 my $run;
 if (VMG_UVAR) {
@@ -27,7 +30,7 @@ $_ => sub {
  ()
 }
 CB
-} qw/fetch store exists delete/);
+} qw<fetch store exists delete>);
 
 $code .= ', data => sub { +{ guard => 0 } }';
 
@@ -51,8 +54,8 @@ cast %Hlagh::, $wiz;
 
  is $@, "ok\n", 'stash: variables compiled fine';
  is_deeply \%mg, {
-  fetch => [ qw/thing stuff/ ],
-  store => [ qw/thing stuff/ ],
+  fetch => [ qw<thing stuff> ],
+  store => [ qw<thing stuff> ],
  }, 'stash: variables';
 }
 
@@ -70,7 +73,7 @@ cast %Hlagh::, $wiz;
 
  is $@, "ok\n", 'stash: function definitions compiled fine';
  is_deeply \%mg, {
-  store => [ qw/eat shoot leave shoot/ ],
+  store => [ qw<eat shoot leave shoot> ],
  }, 'stash: function definitions';
 }
 
@@ -88,7 +91,7 @@ cast %Hlagh::, $wiz;
   roam();
  };
 
- my @calls = qw/eat shoot leave roam yawn roam/;
+ my @calls = qw<eat shoot leave roam yawn roam>;
 
  is $@, "ok\n", 'stash: function calls compiled fine';
  is_deeply \%mg, {
@@ -104,7 +107,7 @@ cast %Hlagh::, $wiz;
 
  is $@, '', 'stash: valid method call ran fine';
  is_deeply \%mg, {
-  fetch => [ qw/shoot/ ],
+  fetch => [ qw<shoot> ],
  }, 'stash: valid method call';
 }
 
@@ -115,7 +118,7 @@ cast %Hlagh::, $wiz;
 
  is $@, '', 'stash: second valid method call ran fine';
  is_deeply \%mg, {
-  fetch => [ qw/shoot/ ],
+  fetch => [ qw<shoot> ],
  }, 'stash: second valid method call';
 }
 
@@ -126,7 +129,7 @@ cast %Hlagh::, $wiz;
 
  is $@, '', 'stash: valid dynamic method call ran fine';
  is_deeply \%mg, {
-  store => [ qw/shoot/ ],
+  store => [ qw<shoot> ],
  }, 'stash: valid dynamic method call';
 }
 
@@ -142,7 +145,7 @@ cast %Hlagh::, $wiz;
 
  is $@, '', 'inherited valid method call ran fine';
  is_deeply \%mg, {
-  fetch => [ qw/ISA leave/ ],
+  fetch => [ qw<ISA leave> ],
  }, 'stash: inherited valid method call';
 }
 
@@ -162,7 +165,7 @@ cast %Hlagh::, $wiz;
 
  is $@, '', 'inherited previously called valid method call ran fine';
  is_deeply \%mg, {
-  fetch => [ qw/shoot/ ],
+  fetch => [ qw<shoot> ],
  }, 'stash: inherited previously called valid method call';
 }
 
@@ -182,8 +185,8 @@ cast %Hlagh::, $wiz;
 
  like $@, qr/^Can't locate object method "unknown" via package "Hlagh"/, 'stash: invalid method call croaked';
  is_deeply \%mg, {
-  fetch => [ qw/unknown/ ],
-  store => [ qw/unknown AUTOLOAD/ ],
+  fetch => [ qw<unknown> ],
+  store => [ qw<unknown AUTOLOAD> ],
  }, 'stash: invalid method call';
 }
 
@@ -194,7 +197,7 @@ cast %Hlagh::, $wiz;
 
  like $@, qr/^Can't locate object method "unknown_too" via package "Hlagh"/, 'stash: invalid dynamic method call croaked';
  is_deeply \%mg, {
-  store => [ qw/unknown_too AUTOLOAD/ ],
+  store => [ qw<unknown_too AUTOLOAD> ],
  }, 'stash: invalid dynamic method call';
 }
 
@@ -205,7 +208,7 @@ cast %Hlagh::, $wiz;
 
  like $@, qr/^Can't locate object method "also_unknown" via package "Hlagher"/, 'stash: invalid inherited method call croaked';
  is_deeply \%mg, {
-  fetch => [ qw/also_unknown AUTOLOAD/ ],
+  fetch => [ qw<also_unknown AUTOLOAD> ],
  }, 'stash: invalid method call';
 }
 
@@ -222,7 +225,7 @@ cast %Hlagh::, $wiz;
  is $@, '', 'stash: delete executed fine';
  is_deeply \%mg, {
   store => [
-   qw/nevermentioned nevermentioned eat eat shoot shoot nevermentioned/
+   qw<nevermentioned nevermentioned eat eat shoot shoot nevermentioned>
   ],
  }, 'stash: delete';
 }
@@ -236,7 +239,7 @@ dispell %Hlagh::, $wiz;
 {
  package AutoHlagh;
 
- use vars qw/$AUTOLOAD/;
+ use vars qw<$AUTOLOAD>;
 
  sub AUTOLOAD { return $AUTOLOAD }
 }
@@ -252,8 +255,8 @@ cast %AutoHlagh::, $wiz;
  is $res, 'AutoHlagh::autoloaded',
                        'stash: autoloaded method call returned the right thing';
  is_deeply \%mg, {
-  fetch => [ qw/autoloaded/ ],
-  store => [ qw/autoloaded AUTOLOAD AUTOLOAD/ ],
+  fetch => [ qw<autoloaded> ],
+  store => [ qw<autoloaded AUTOLOAD AUTOLOAD> ],
  }, 'stash: autoloaded method call';
 }
 
@@ -273,8 +276,8 @@ cast %AutoHlagh::, $wiz;
  is $res, 'AutoHlagher::also_autoloaded',
                   'stash: inherited autoloaded method returned the right thing';
  is_deeply \%mg, {
-  fetch => [ qw/also_autoloaded AUTOLOAD/ ],
-  store => [ qw/AUTOLOAD/ ],
+  fetch => [ qw<also_autoloaded AUTOLOAD> ],
+  store => [ qw<AUTOLOAD> ],
  }, 'stash: inherited autoloaded method call';
 }
 
@@ -291,7 +294,7 @@ $_ => sub {
  ()
 }
 CB
-} qw/fetch store exists delete/);
+} qw<fetch store exists delete>);
 
 my $uo_exp = $] < 5.011002 ? 2 : 3;
 

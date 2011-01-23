@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 4 * 8 + 10 + 1 + 1;
 
-use Variable::Magic qw/wizard cast VMG_UVAR/;
+use Variable::Magic qw<wizard cast VMG_UVAR>;
 
 sub expect {
  my ($name, $where, $suffix) = @_;
@@ -247,7 +247,7 @@ SKIP:
  skip 'No working Capture::Tiny is installed'=> $count unless $has_capture_tiny;
 
  my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
-use Variable::Magic qw/wizard cast/; { BEGIN { $^H |= 0x020000; cast %^H, wizard free => sub { die q[cucumber] } } }
+use Variable::Magic qw<wizard cast>; { BEGIN { $^H |= 0x020000; cast %^H, wizard free => sub { die q[cucumber] } } }
  CODE
  skip 'Test code didn\'t run properly' => $count unless defined $output;
  like $output, expect('cucumber', '-e', "\nExecution(?s:.*)"),
@@ -265,7 +265,7 @@ SKIP:
  skip 'No working Capture::Tiny is installed'=> $count unless $has_capture_tiny;
 
  my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
-use Variable::Magic qw/wizard cast/; BEGIN { cast %::, wizard fetch => sub { die q[salsify] } } hlagh()
+use Variable::Magic qw<wizard cast>; BEGIN { cast %::, wizard fetch => sub { die q[salsify] } } hlagh()
  CODE
  skip 'Test code didn\'t run properly' => $count unless defined $output;
  my $suffix = "\nExecution(?s:.*)";

@@ -213,30 +213,36 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 
 /* ... Bug-free mg_magical ................................................. */
 
-/* See the discussion at http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html. This version is specialized to our needs. */
+/* See the discussion at http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html */
 
-#if VMG_UVAR
+#if VMG_HAS_PERL(5, 11, 3)
 
-STATIC void vmg_sv_magicuvar(pTHX_ SV *sv, const char *uf, I32 len) {
-#define vmg_sv_magicuvar(S, U, L) vmg_sv_magicuvar(aTHX_ (S), (U), (L))
- const MAGIC* mg;
- sv_magic(sv, NULL, PERL_MAGIC_uvar, uf, len);
- /* uvar magic has set and get magic, hence this has set SVs_GMG and SVs_SMG. */
+#define vmg_mg_magical(S) mg_magical(S)
+
+#else
+
+STATIC void vmg_mg_magical(SV *sv) {
+ const MAGIC *mg;
+
+ SvMAGICAL_off(sv);
  if ((mg = SvMAGIC(sv))) {
-  SvRMAGICAL_off(sv);
   do {
    const MGVTBL* const vtbl = mg->mg_virtual;
    if (vtbl) {
-    if (vtbl->svt_clear) {
+    if (vtbl->svt_get && !(mg->mg_flags & MGf_GSKIP))
+     SvGMAGICAL_on(sv);
+    if (vtbl->svt_set)
+     SvSMAGICAL_on(sv);
+    if (vtbl->svt_clear)
      SvRMAGICAL_on(sv);
-     break;
-    }
    }
   } while ((mg = mg->mg_moremagic));
+  if (!(SvFLAGS(sv) & (SVs_GMG|SVs_SMG)))
+   SvRMAGICAL_on(sv);
  }
 }
 
-#endif /* VMG_UVAR */
+#endif
 
 /* ... Safe version of call_sv() ........................................... */
 
@@ -772,7 +778,7 @@ STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) 
 
 STATIC UV vmg_cast(pTHX_ SV *sv, const SV *wiz, SV **args, I32 items) {
 #define vmg_cast(S, W, A, I) vmg_cast(aTHX_ (S), (W), (A), (I))
- MAGIC       *mg, *moremagic = NULL;
+ MAGIC       *mg;
  SV          *data;
  const MGWIZ *w;
  U32          oldgmg;
@@ -784,7 +790,9 @@ STATIC UV vmg_cast(pTHX_ SV *sv, const SV *wiz, SV **args, I32 items) {
  oldgmg = SvGMAGICAL(sv);
 
  data = (w->cb_data) ? vmg_data_new(w->cb_data, sv, args, items) : NULL;
- mg = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl, (const char *) wiz, HEf_SVKEY);
+ /* sv_magicext() calls mg_magical and increments data's refcount */
+ mg   = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl,
+                              (const char *) wiz, HEf_SVKEY);
  SvREFCNT_dec(data);
  mg->mg_private = SIG_WIZ;
 #if MGf_COPY
@@ -814,7 +822,7 @@ STATIC UV vmg_cast(pTHX_ SV *sv, const SV *wiz, SV **args, I32 items) {
 
 #if VMG_UVAR
  if (w->uvar) {
-  MAGIC *prevmagic;
+  MAGIC *prevmagic, *moremagic = NULL;
   struct ufuncs uf[2];
 
   uf[0].uf_val   = vmg_svt_val;
@@ -843,7 +851,8 @@ STATIC UV vmg_cast(pTHX_ SV *sv, const SV *wiz, SV **args, I32 items) {
    }
   }
 
-  vmg_sv_magicuvar(sv, (const char *) &uf, sizeof(uf));
+  sv_magic(sv, NULL, PERL_MAGIC_uvar, (const char *) &uf, sizeof(uf));
+  vmg_mg_magical(sv);
   /* Our hash now carries uvar magic. The uvar/clear shortcoming has to be
    * handled by our uvar callback. */
  }
@@ -867,7 +876,9 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
   moremagic = mg->mg_moremagic;
   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+#if VMG_UVAR
    const MGWIZ *z   = vmg_wizard_mgwiz(mg->mg_ptr);
+#endif /* VMG_UVAR */
    IV           zid = vmg_wizard_id(mg->mg_ptr);
    if (zid == wid) {
 #if VMG_UVAR
@@ -937,6 +948,8 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
   }
  }
 #endif /* VMG_UVAR */
+
+ vmg_mg_magical(sv);
 
  return 1;
 }

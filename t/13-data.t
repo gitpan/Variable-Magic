@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 35;
 
-use Variable::Magic qw/wizard getdata cast dispell/;
+use Variable::Magic qw<wizard getdata cast dispell>;
 
 my $c = 1;
 
@@ -53,7 +53,7 @@ $res = eval { dispell $a, $wiz };
 is($@, '', 'dispell doesn\'t croak');
 ok($res,   'dispell returns true');
 
-$res = eval { cast $a, $wiz, qw/z j t/ };
+$res = eval { cast $a, $wiz, qw<z j t> };
 is($@, '', 'cast with arguments doesn\'t croak');
 ok($res,   'cast with arguments returns true');
 

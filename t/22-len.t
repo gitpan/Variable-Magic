@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 39 + (2 * 2 + 1);
 
-use Variable::Magic qw/wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN/;
+use Variable::Magic qw<wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN>;
 
 use lib 't/lib';
 use Variable::Magic::TestValue;
@@ -17,7 +17,7 @@ my $d;
 my $wiz = wizard len => sub { $d = $_[2]; ++$c; return $n };
 is $c, 0, 'len: wizard() doesn\'t trigger magic';
 
-my @a = qw/a b c/;
+my @a = qw<a b c>;
 
 $c = 0;
 cast @a, $wiz;

@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/cast MGf_LOCAL/;
+use Variable::Magic qw<cast MGf_LOCAL>;
 
 if (MGf_LOCAL) {
  plan tests => 2 * 3 + 1 + 1;

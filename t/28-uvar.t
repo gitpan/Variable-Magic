@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw/wizard cast dispell VMG_UVAR/;
+use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
 
 if (VMG_UVAR) {
  plan tests => 2 * 15 + 12 + 14 + (4 * 2 * 2 + 1 + 1) + 1;
@@ -17,7 +17,7 @@ use lib 't/lib';
 use Variable::Magic::TestWatcher;
 use Variable::Magic::TestValue;
 
-my $wiz = init_watcher [ qw/fetch store exists delete/ ], 'uvar';
+my $wiz = init_watcher [ qw<fetch store exists delete> ], 'uvar';
 
 my %h = (a => 1, b => 2, c => 3);
 

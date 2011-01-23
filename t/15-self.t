@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 17;
 
-use Variable::Magic qw/wizard cast dispell getdata/;
+use Variable::Magic qw<wizard cast dispell getdata>;
 
 my $c = 0;
 

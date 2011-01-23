@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Variable::Magic qw/wizard cast VMG_OP_INFO_NAME/;
+use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
 
 {
  my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },

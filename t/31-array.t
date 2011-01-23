@@ -5,13 +5,18 @@ use warnings;
 
 use Test::More tests => 2 * 27 + 13 + 1;
 
-use Variable::Magic qw/cast dispell VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID VMG_COMPAT_ARRAY_UNDEF_CLEAR/;
+use Variable::Magic qw<
+ cast dispell
+ VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
+                             VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID
+ VMG_COMPAT_ARRAY_UNDEF_CLEAR
+>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
 
 my $wiz = init_watcher
-        [ qw/get set len clear free copy dup local fetch store exists delete/ ],
+        [ qw<get set len clear free copy dup local fetch store exists delete> ],
         'array';
 
 my @n = map { int rand 1000 } 1 .. 5;
@@ -33,7 +38,7 @@ $b = watch { \@a } { }, 'reference';
 @b = watch { @a[2 .. 4] } { }, 'slice';
 is_deeply \@b, [ @n[2 .. 4] ], 'array: slice correctly';
 
-watch { @a = qw/a b d/ } { set => 3, clear => 1 }, 'assign';
+watch { @a = qw<a b d> } { set => 3, clear => 1 }, 'assign';
 
 watch { $a[2] = 'c' } { }, 'assign old element';
 

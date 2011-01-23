@@ -5,10 +5,10 @@ use warnings;
 
 use Tie::Hash;
 
-use lib qw{blib/arch blib/lib};
-use Variable::Magic qw/wizard cast VMG_UVAR/;
+use lib qw<blib/arch blib/lib>;
+use Variable::Magic qw<wizard cast VMG_UVAR>;
 
-use Benchmark qw/cmpthese/;
+use Benchmark qw<cmpthese>;
 
 die 'Your perl does not support the nice uvar magic of 5.10.*' unless VMG_UVAR;
 

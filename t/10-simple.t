@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 43;
 
-use Variable::Magic qw/wizard cast dispell MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR/;
+use Variable::Magic qw<wizard cast dispell MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR>;
 
 my $inv_wiz_obj = qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/;
 

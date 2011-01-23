@@ -1,5 +1,12 @@
 Revision history for Variable-Magic
 
+0.46    2011-01-23 16:45 UTC
+        + Fix : [RT #64866] : Assertion failure with perl 5.13.9.
+                The real problem was that dispell() wasn't properly resetting
+                the magical sv flags, which became visible in the test suite
+                only with perl 5.13.9.
+                Thanks Joshua ben Jore for reporting.
+
 0.45    2010-11-21 23:15 UTC
         This is a maintenance release. The code contains no functional change.
         Users of 0.44 can skip this update.
