@@ -51,8 +51,9 @@ $x = watch { $h{a} } { fetch => 1 }, 'fetch directly with also non uvar magic';
 is $x, 1, 'uvar: fetch directly with also non uvar magic correctly';
 
 SKIP: {
- eval "use Tie::Hash";
- skip 'Tie::Hash required to test uvar magic on tied hashes' => 2 * 5 + 4 if $@;
+ my $has_tie_hash = do { local $@; eval { require Tie::Hash; 1 } };
+ skip 'Tie::Hash required to test uvar magic on tied hashes'
+                                              => 2 * 5 + 4 unless $has_tie_hash;
  defined and diag "Using Tie::Hash $_" for $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';

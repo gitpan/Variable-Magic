@@ -3,9 +3,13 @@
 use strict;
 use warnings;
 
-use Test::More tests => (2 * 21 + 7) + (2 * 5 + 5) + 1;
+use Test::More tests => (2 * 27 + 9) + (2 * 5 + 5) + 1;
 
-use Variable::Magic qw<cast dispell MGf_COPY VMG_UVAR>;
+use Variable::Magic qw<
+ cast dispell
+ VMG_UVAR
+ VMG_COMPAT_HASH_DELETE_NOUVAR_VOID
+>;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -23,11 +27,6 @@ my $s = watch { $h{foo} } +{ (fetch => 1) x VMG_UVAR },
                        'assign element to';
 is $s, $n{foo}, 'hash: assign element to correctly';
 
-for (1 .. 2) {
- $s = watch { exists $h{foo} } +{ (exists => 1) x VMG_UVAR }, "exists ($_)";
- ok $s, "hash: exists correctly ($_)";
-}
-
 my %b;
 watch { %b = %h } { }, 'assign to';
 is_deeply \%b, \%n, 'hash: assign to correctly';
@@ -38,20 +37,53 @@ my @b = watch { @h{qw<bar qux>} }
                   +{ (fetch => 2) x VMG_UVAR }, 'slice';
 is_deeply \@b, [ @n{qw<bar qux>} ], 'hash: slice correctly';
 
+# exists
+
+watch { exists $h{bar} } +{ (exists => 1) x VMG_UVAR },'exists in void context';
+
+for (1 .. 2) {
+ $s = watch { exists $h{bar} } +{ (exists => 1) x VMG_UVAR },
+                                                "exists in scalar context ($_)";
+ ok $s, "hash: exists correctly ($_)";
+}
+
+# delete
+
+watch { delete $h{bar} } +{
+ ((delete => 1) x !VMG_COMPAT_HASH_DELETE_NOUVAR_VOID, copy => 1) x VMG_UVAR
+}, 'delete in void context';
+
+for (1 .. 2) {
+ $s = watch { delete $h{baz} } +{ (delete => 1, copy => 1) x VMG_UVAR },
+                                                "delete in scalar context ($_)";
+ my $exp = $_ == 1 ? $n{baz} : undef;
+ is $s, $exp, "hash: delete correctly ($_)";
+}
+
+# clear
+
 watch { %h = () } { clear => 1 }, 'empty in list context';
 
-watch { %h = (a => 1, d => 3); () }
+watch { $h{a} = -1; %h = (b => $h{a}) }
+           +{ (fetch => 1, store => 2, copy => 2) x VMG_UVAR, clear => 1 },
+           'empty and set in void context';
+
+watch { %h = (a => 1, d => 3) }
                +{ (store => 2, copy => 2) x VMG_UVAR, clear => 1 },
                'assign from list in void context';
 
-watch { %h = map { $_ => 1 } qw<a b d>; }
-               +{ (exists => 3, store => 3, copy => 3) x VMG_UVAR, clear => 1 },
-               'assign from map in list context';
+@b = watch { %h = (a => 1, d => 3) }
+               +{ (exists => 2, store => 2, copy => 2) x VMG_UVAR, clear => 1 },
+               'assign from list in void context';
 
-watch { $h{d} = 2; () } +{ (store => 1) x VMG_UVAR },
+watch { %h = map { $_ => 1 } qw<a b d>; }
+               +{ (store => 3, copy => 3) x VMG_UVAR, clear => 1 },
+               'assign from map in void context';
+
+watch { $h{d} = 2 } +{ (store => 1) x VMG_UVAR },
                     'assign old element';
 
-watch { $h{c} = 3; () } +{ (store => 1, copy => 1) x VMG_UVAR },
+watch { $h{c} = 3 } +{ (store => 1, copy => 1) x VMG_UVAR },
                     'assign new element';
 
 $s = watch { %h } { }, 'buckets';
@@ -76,11 +108,13 @@ watch { dispell %h, $wiz } { }, 'dispell';
 SKIP: {
  my $SKIP;
 
- unless (VMG_UVAR) {
+ if (!VMG_UVAR) {
   $SKIP = 'uvar magic';
  } else {
-  eval "use B::Deparse";
-  $SKIP = 'B::Deparse' if $@;
+  local $@;
+  unless (eval { require B::Deparse; 1 }) {
+   $SKIP = 'B::Deparse';
+  }
  }
  if ($SKIP) {
   $SKIP .= ' required to test uvar/clear interaction fix';

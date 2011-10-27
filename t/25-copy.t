@@ -5,13 +5,9 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw<cast dispell MGf_COPY>;
+use Variable::Magic qw<cast dispell>;
 
-if (MGf_COPY) {
- plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
-} else {
- plan skip_all => 'No copy magic for this perl';
-}
+plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -20,9 +16,9 @@ use Variable::Magic::TestValue;
 my $wiz = init_watcher 'copy', 'copy';
 
 SKIP: {
- eval "use Tie::Array";
+ my $has_tie_array = do { local $@; eval { require Tie::Array; 1 } };
  skip 'Tie::Array required to test copy magic on arrays'
-                                             => (2 * 5 + 3) + (2 * 2 + 1) if $@;
+                             => (2 * 5 + 3) + (2 * 2 + 1) unless $has_tie_array;
  defined and diag "Using Tie::Array $_" for $Tie::Array::VERSION;
 
  tie my @a, 'Tie::StdArray';
@@ -55,8 +51,9 @@ SKIP: {
 }
 
 SKIP: {
- eval "use Tie::Hash";
- skip 'Tie::Hash required to test copy magic on hashes' => 2 * 9 + 6 if $@;
+ my $has_tie_hash = do { local $@; eval { require Tie::Hash; 1 } };
+ skip 'Tie::Hash required to test copy magic on hashes'
+                                              => 2 * 9 + 6 unless $has_tie_hash;
  defined and diag "Using Tie::Hash $_" for $Tie::Hash::VERSION;
 
  tie my %h, 'Tie::StdHash';

@@ -57,7 +57,7 @@ is $b, 3, 'array: length @ correctly';
 watch { $b = $#a } { len => 1 }, 'length $#';
 is $b, 2, 'array: length $# correctly';
 
-watch { push @a, 'x'; () }
+watch { push @a, 'x'; () } # push looks at the static context
                    { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID },
                    'push (void)';
 
@@ -69,7 +69,7 @@ is $b, 5, 'array: push (scalar) correctly';
 $b = watch { pop @a } { set => 1, len => 1 }, 'pop';
 is $b, 'y', 'array: pop correctly';
 
-watch { unshift @a, 'z'; () }
+watch { unshift @a, 'z'; () } # unshift looks at the static context
                 { set => 1, (len => 1) x !VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID },
                 'unshift (void)';
 
@@ -79,7 +79,7 @@ is $b, 6, 'unshift (scalar) correctly';
 $b = watch { shift @a } { set => 1, len => 1 }, 'shift';
 is $b, 't', 'array: shift correctly';
 
-watch { my $i; @a = map ++$i, @a; () } { set => 5, len => 1, clear => 1}, 'map';
+watch { my $i; @a = map ++$i, @a } { set => 5, len => 1, clear => 1}, 'map';
 
 @b = watch { grep { $_ >= 4 } @a } { len => 1 }, 'grep';
 is_deeply \@b, [ 4 .. 5 ], 'array: grep correctly';

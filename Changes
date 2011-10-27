@@ -1,5 +1,20 @@
 Revision history for Variable-Magic
 
+0.47    2011-10-27 16:55 UTC
+        + Add : The new constant VMG_COMPAT_HASH_DELETE_NOUVAR_VOID evaluates
+                to true when "delete $hash{key}" does not call 'delete' uvar
+                magic in void context.
+        + Chg : The MAGIC tokens created by this module no longer use the
+                mg_private member for storing a "magical" signature.
+        + Fix : Triggering magic in a thread on a variable cloned from the main
+                interpreter, and when the wizard already went out of scope,
+                will not segfault anymore.
+        + Opt : The pointer table is no longer needed to ensure thread safety.
+                The size of the object code is about 8% smaller for threaded
+                perls.
+        + Tst : Threads tests will not fail anymore if resources constraints
+                prevent the system from creating all the required threads.
+
 0.46    2011-01-23 16:45 UTC
         + Fix : [RT #64866] : Assertion failure with perl 5.13.9.
                 The real problem was that dispell() wasn't properly resetting

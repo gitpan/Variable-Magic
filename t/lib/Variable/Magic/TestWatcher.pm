@@ -45,7 +45,10 @@ sub watch (&;$$) {
  my @ret;
  local %mg = ();
  local $Test::Builder::Level = ($Test::Builder::Level || 0) + 1;
- if (defined $want and not $want) { # scalar context
+ local $@;
+ if (not defined $want) { # void context
+  eval { $code->() };
+ } elsif (not $want) { # scalar context
   $ret[0] = eval { $code->() };
  } else {
   @ret = eval { $code->() };

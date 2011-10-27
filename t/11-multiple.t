@@ -125,7 +125,7 @@ SKIP: {
  $s = $h{b};
  is($s, 2, 'fetch magic after dispelled 1 doesn\'t clobber');
  for (0, 2) { is($c[$_], 2, "fetch magic $_ after dispelled 1"); }
- 
+
  $h{b} = 4;
  for (0, 2) { is($c[$_], 1, "store magic $_ after dispelled 1"); }
  is($h{b}, 4, 'store magic after dispelled 1 doesn\'t clobber');

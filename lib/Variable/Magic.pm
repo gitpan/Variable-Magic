@@ -11,13 +11,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.46
+Version 0.47
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.46';
+ $VERSION = '0.47';
 }
 
 =head1 SYNOPSIS
@@ -25,8 +25,10 @@ BEGIN {
     use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
 
     { # A variable tracer
-     my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },
-                      free => sub { print "destroyed!\n" };
+     my $wiz = wizard(
+      set  => sub { print "now set to ${$_[0]}!\n" },
+      free => sub { print "destroyed!\n" },
+     );
 
      my $a = 1;
      cast $a, $wiz;
@@ -34,15 +36,17 @@ BEGIN {
     }               # "destroyed!"
 
     { # A hash with a default value
-     my $wiz = wizard data     => sub { $_[1] },
-                      fetch    => sub { $_[2] = $_[1] unless exists $_[0]->{$_[2]}; () },
-                      store    => sub { print "key $_[2] stored in $_[-1]\n" },
-                      copy_key => 1,
-                      op_info  => VMG_OP_INFO_NAME;
+     my $wiz = wizard(
+      data     => sub { $_[1] },
+      fetch    => sub { $_[2] = $_[1] unless exists $_[0]->{$_[2]}; () },
+      store    => sub { print "key $_[2] stored in $_[-1]\n" },
+      copy_key => 1,
+      op_info  => VMG_OP_INFO_NAME,
+     );
 
      my %h = (_default => 0, apple => 2);
      cast %h, $wiz, '_default';
-     print $h{banana}, "\n"; # "0", because the 'banana' key doesn't exist in %h
+     print $h{banana}, "\n"; # "0" (there is no 'banana' key in %h)
      $h{pear} = 1;           # "key pear stored in helem"
     }
 
@@ -192,9 +196,6 @@ This last one triggers when a key is deleted in the hash, regardless of whether 
 
 You can refer to the tests to have more insight of where the different magics are invoked.
 
-To prevent any clash between different magics defined with this module, an unique numerical signature is attached to each kind of magic (i.e. each set of callbacks for magic operations).
-At the C level, magic tokens owned by magic created by this module have their C<< mg->mg_private >> field set to C<0x3891> or C<0x3892>, so please don't use these magic (sic) numbers in other extensions.
-
 =head1 FUNCTIONS
 
 =cut
@@ -206,20 +207,24 @@ BEGIN {
 
 =head2 C<wizard>
 
-    wizard data     => sub { ... },
-           get      => sub { my ($ref, $data [, $op]) = @_; ... },
-           set      => sub { my ($ref, $data [, $op]) = @_; ... },
-           len      => sub { my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen; },
-           clear    => sub { my ($ref, $data [, $op]) = @_; ... },
-           free     => sub { my ($ref, $data [, $op]) = @_, ... },
-           copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
-           local    => sub { my ($ref, $data [, $op]) = @_; ... },
-           fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-           store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-           exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-           delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-           copy_key => $bool,
-           op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ]
+    wizard(
+     data     => sub { ... },
+     get      => sub { my ($ref, $data [, $op]) = @_; ... },
+     set      => sub { my ($ref, $data [, $op]) = @_; ... },
+     len      => sub {
+      my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen
+     },
+     clear    => sub { my ($ref, $data [, $op]) = @_; ... },
+     free     => sub { my ($ref, $data [, $op]) = @_, ... },
+     copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
+     local    => sub { my ($ref, $data [, $op]) = @_; ... },
+     fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+     store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+     exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+     delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+     copy_key => $bool,
+     op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ],
+    )
 
 This function creates a 'wizard', an opaque type that holds the magic information.
 It takes a list of keys / values as argument, whose keys can be :
@@ -287,9 +292,11 @@ Note that C<free> callbacks are I<never> called during global destruction, as th
 Here's a simple usage example :
 
     # A simple scalar tracer
-    my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
-                     set  => sub { print STDERR "set to ${$_[0]}\n" },
-                     free => sub { print STDERR "${$_[0]} was deleted\n" }
+    my $wiz = wizard(
+     get  => sub { print STDERR "got ${$_[0]}\n" },
+     set  => sub { print STDERR "set to ${$_[0]}\n" },
+     free => sub { print STDERR "${$_[0]} was deleted\n" },
+    );
 
 =cut
 
@@ -301,9 +308,7 @@ sub wizard {
 
  my %opts = @_;
 
- my @keys = qw<data op_info get set len clear free>;
- push @keys, 'copy'  if MGf_COPY;
- push @keys, 'dup'   if MGf_DUP;
+ my @keys = qw<op_info data get set len clear free copy dup>;
  push @keys, 'local' if MGf_LOCAL;
  push @keys, qw<fetch store exists delete copy_key> if VMG_UVAR;
 
@@ -384,6 +389,10 @@ When this constant is true, you can use the C<fetch,store,exists,delete> callbac
 Initial VMG_UVAR capability was introduced in perl 5.9.5, with a fully functional implementation
 shipped with perl 5.10.0.
 
+=head2 C<VMG_COMPAT_SCALAR_LENGTH_NOLEN>
+
+True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
+
 =head2 C<VMG_COMPAT_ARRAY_PUSH_NOLEN>
 
 True for perls that don't call 'len' magic when you push an element in a magical array.
@@ -401,9 +410,9 @@ True for perls that don't call 'len' magic when you unshift in void context an e
 
 True for perls that call 'clear' magic when undefining magical arrays.
 
-=head2 C<VMG_COMPAT_SCALAR_LENGTH_NOLEN>
+=head2 C<VMG_COMPAT_HASH_DELETE_NOUVAR_VOID>
 
-True for perls that don't call 'len' magic when taking the C<length> of a magical scalar.
+True for perls that don't call 'delete' uvar magic when you delete an element from a hash in void context.
 
 =head2 C<VMG_COMPAT_GLOB_GET>
 
@@ -450,7 +459,7 @@ It is similar to using inside-out objects, but without the drawback of having to
       unless (defined $data) {
        $data = \(my $slot);
        &cast($var, $wiz, $slot)
-                        or die "Couldn't cast UserData magic onto the variable";
+                 or die "Couldn't cast UserData magic onto the variable";
       }
       $$data;
      }
@@ -582,10 +591,11 @@ our %EXPORT_TAGS    = (
  'funcs' =>  [ qw<wizard cast getdata dispell> ],
  'consts' => [ qw<
    MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR
+   VMG_COMPAT_SCALAR_LENGTH_NOLEN
    VMG_COMPAT_ARRAY_PUSH_NOLEN VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID
    VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID
    VMG_COMPAT_ARRAY_UNDEF_CLEAR
-   VMG_COMPAT_SCALAR_LENGTH_NOLEN
+   VMG_COMPAT_HASH_DELETE_NOUVAR_VOID
    VMG_COMPAT_GLOB_GET
    VMG_PERL_PATCHLEVEL
    VMG_THREADSAFE VMG_FORKSAFE

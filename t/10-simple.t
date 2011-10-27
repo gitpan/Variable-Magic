@@ -5,13 +5,11 @@ use warnings;
 
 use Test::More tests => 43;
 
-use Variable::Magic qw<wizard cast dispell MGf_COPY MGf_DUP MGf_LOCAL VMG_UVAR>;
+use Variable::Magic qw<wizard cast dispell MGf_LOCAL VMG_UVAR>;
 
 my $inv_wiz_obj = qr/Invalid\s+wizard\s+object\s+at\s+\Q$0\E/;
 
-my $args = 7;
-++$args if MGf_COPY;
-++$args if MGf_DUP;
+my $args = 9;
 ++$args if MGf_LOCAL;
 $args += 5 if VMG_UVAR;
 for (0 .. 20) {

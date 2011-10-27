@@ -20,7 +20,7 @@ my $as_perl = eval {
 
 my $is_as_822 = 0;
 print "Checking if this is ActiveState Perl 5.8.8 build 822 or higher... ";
-if ($^V eq v5.8.8 and defined $as_perl and $as_perl >= 822) {
+if ("$]" == 5.008008 and defined $as_perl and $as_perl >= 822) {
  $is_as_822 = 1;
  push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=1';
 }
@@ -46,13 +46,13 @@ if ($^O eq 'MSWin32' and not grep /^LD[A-Z]*=/, @ARGV) {
 print $is_gcc_34 ? "yes\n" : "no\n";
 
 # Threads, Windows and 5.8.x don't seem to be best friends
-if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+if ($^O eq 'MSWin32' && "$]" < 5.009) {
  push @DEFINES, '-DVMG_MULTIPLICITY=0';
  print "Thread safety disabled for perl 5.8.x on Windows.\n"
 }
 
 # Fork emulation got "fixed" in 5.10.1
-if ($^O eq 'MSWin32' && $^V lt v5.10.1) {
+if ($^O eq 'MSWin32' && "$]" < 5.010001) {
  push @DEFINES, '-DVMG_FORKSAFE=0';
  print "Fork safety not ensured for perl 5.8.x and 5.10.0 on Windows.\n";
 }
@@ -107,7 +107,7 @@ WriteMakefile(
  MIN_PERL_VERSION => 5.008,
  META_MERGE       => \%META,
  dist             => {
-  PREOP    => "pod2text $file > \$(DISTVNAME)/README",
+  PREOP    => "pod2text -u $file > \$(DISTVNAME)/README",
   COMPRESS => 'gzip -9f', SUFFIX => 'gz'
  },
  clean            => {

@@ -11,13 +11,15 @@ if (!VMG_UVAR) {
  plan skip_all => 'No nice uvar magic for this perl';
 }
 
-eval "use Hash::Util::FieldHash";
-if ($@) {
- plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction';
-} else {
- plan tests => 2 * 5 + 7 + 1;
- defined and diag "Using Hash::Util::FieldHash $_"
+{
+ local $@;
+ if (eval { require Hash::Util::FieldHash; 1 }) {
+  plan tests => 2 * 5 + 7 + 1;
+  defined and diag "Using Hash::Util::FieldHash $_"
                                             for $Hash::Util::FieldHash::VERSION;
+ } else {
+  plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction'
+ }
 }
 
 use lib 't/lib';

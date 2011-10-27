@@ -3,41 +3,15 @@
 use strict;
 use warnings;
 
-sub skipall {
- my ($msg) = @_;
- require Test::More;
- Test::More::plan(skip_all => $msg);
-}
+use lib 't/lib';
+use Variable::Magic::TestThreads;
 
-use Config qw<%Config>;
-
-BEGIN {
- my $force = $ENV{PERL_VARIABLE_MAGIC_TEST_THREADS} ? 1 : !1;
- my $t_v   = $force ? '0' : '1.67';
- my $ts_v  = $force ? '0' : '1.14';
- skipall 'This perl wasn\'t built to support threads'
-                                                    unless $Config{useithreads};
- skipall 'perl 5.13.4 required to test thread safety'
-                                                unless $force or $] >= 5.013004;
- skipall "threads $t_v required to test thread safety"
-                                              unless eval "use threads $t_v; 1";
- skipall "threads::shared $ts_v required to test thread safety"
-                                     unless eval "use threads::shared $ts_v; 1";
-}
-
-use Test::More; # after threads
+use Test::More 'no_plan';
 
 use Variable::Magic qw<
  wizard cast dispell getdata
- VMG_THREADSAFE VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
+ VMG_OP_INFO_NAME VMG_OP_INFO_OBJECT
 >;
-
-BEGIN {
- skipall 'This Variable::Magic isn\'t thread safe' unless VMG_THREADSAFE;
- plan tests => 2 * 3 + 2 * (2 * 10 + 2) + 2 * (2 * 7 + 2);
- defined and diag "Using threads $_"         for $threads::VERSION;
- defined and diag "Using threads::shared $_" for $threads::shared::VERSION;
-}
 
 my $destroyed : shared = 0;
 my $c         : shared = 0;
@@ -45,55 +19,88 @@ my $c         : shared = 0;
 sub spawn_wiz {
  my ($op_info) = @_;
 
+ my $desc = "wizard with op_info $op_info in main thread";
+
+ local $@;
  my $wiz = eval {
-  wizard data    => sub { $_[1] + threads->tid() },
-         get     => sub { lock $c; ++$c; 0 },
-         set     => sub {
-                     my $op = $_[-1];
-                     my $tid = threads->tid();
-                     if ($op_info == VMG_OP_INFO_OBJECT) {
-                      is_deeply { class => ref($op),   name => $op->name },
-                                { class => 'B::BINOP', name => 'sassign' },
-                                "op object in thread $tid is correct";
-                     } else {
-                      is $op, 'sassign', "op name in thread $tid is correct";
-                     }
-                     0
-                    },
-         free    => sub { lock $destroyed; ++$destroyed; 0 },
-         op_info => $op_info
+  wizard(
+   data    => sub { $_[1] + threads->tid() },
+   get     => sub { lock $c; ++$c; 0 },
+   set     => sub {
+    my $op = $_[-1];
+    my $tid = threads->tid();
+
+    if ($op_info == VMG_OP_INFO_OBJECT) {
+     is_deeply { class => ref($op),   name => $op->name },
+               { class => 'B::BINOP', name => 'sassign' },
+               "op object in thread $tid is correct";
+    } else {
+     is $op, 'sassign', "op name in thread $tid is correct";
+    }
+
+    return 0
+   },
+   free    => sub { lock $destroyed; ++$destroyed; 0 },
+   op_info => $op_info,
+  );
  };
- is($@,     '',    "wizard with op_info $op_info in main thread doesn't croak");
- isnt($wiz, undef, "wizard with op_info $op_info in main thread is defined");
- is($c,     0,     "wizard with op_info $op_info in main thread doesn't trigger magic");
+ is $@,     '',    "$desc doesn't croak";
+ isnt $wiz, undef, "$desc is defined";
+ is $c,     0,     "$desc doesn't trigger magic";
 
  return $wiz;
 }
 
 sub try {
  my ($dispell, $wiz) = @_;
- my $tid = threads->tid();
- my $a   = 3;
- my $res = eval { cast $a, $wiz, sub { 5 }->() };
- is($@, '', "cast in thread $tid doesn't croak");
- my $b;
- eval { $b = $a };
- is($@, '', "get in thread $tid doesn't croak");
- is($b, 3,  "get in thread $tid returns the right thing");
- my $d = eval { getdata $a, $wiz };
- is($@, '',       "getdata in thread $tid doesn't croak");
- is($d, 5 + $tid, "getdata in thread $tid returns the right thing");
- eval { $a = 9 };
- is($@, '', "set in thread $tid (check opname) doesn't croak");
- if ($dispell) {
-  $res = eval { dispell $a, $wiz };
-  is($@, '', "dispell in thread $tid doesn't croak");
-  undef $b;
-  eval { $b = $a };
-  is($@, '', "get in thread $tid after dispell doesn't croak");
-  is($b, 9,  "get in thread $tid after dispell returns the right thing");
+ my $tid = threads->tid;
+
+ my $a = 3;
+
+ {
+  local $@;
+  my $res = eval { cast $a, $wiz, sub { 5 }->() };
+  is $@, '', "cast in thread $tid doesn't croak";
  }
- return; # Ugly if not here
+
+ {
+  local $@;
+  my $b;
+  eval { $b = $a };
+  is $@, '', "get in thread $tid doesn't croak";
+  is $b, 3,  "get in thread $tid returns the right thing";
+ }
+
+ {
+  local $@;
+  my $d = eval { getdata $a, $wiz };
+  is $@, '',       "getdata in thread $tid doesn't croak";
+  is $d, 5 + $tid, "getdata in thread $tid returns the right thing";
+ }
+
+ {
+  local $@;
+  eval { $a = 9 };
+  is $@, '', "set in thread $tid (check opname) doesn't croak";
+ }
+
+ if ($dispell) {
+  {
+   local $@;
+   my $res = eval { dispell $a, $wiz };
+   is $@, '', "dispell in thread $tid doesn't croak";
+  }
+
+  {
+   local $@;
+   my $b;
+   eval { $b = $a };
+   is $@, '', "get in thread $tid after dispell doesn't croak";
+   is $b, 9,  "get in thread $tid after dispell returns the right thing";
+  }
+ }
+
+ return;
 }
 
 my $wiz_name = spawn_wiz VMG_OP_INFO_NAME;
@@ -110,8 +117,8 @@ for my $dispell (1, 0) {
    $destroyed = 0;
   }
 
-  my @t = map { threads->create(\&try, $dispell, $wiz) } 1 .. 2;
-  $_->join for @t;
+  my @threads = map spawn(\&try, $dispell, $wiz), 1 .. 2;
+  $_->join for @threads;
 
   {
    lock $c;
@@ -122,4 +129,46 @@ for my $dispell (1, 0) {
    is $destroyed, (1 - $dispell) * 2, 'destructors';
   }
  }
+}
+
+{
+ my @threads;
+ my $flag : shared = 0;
+ my $destroyed;
+
+ {
+  my $wiz = wizard(
+   set => sub {
+    my $tid = threads->tid;
+    pass "set callback called in thread $tid"
+   },
+   free => sub { ++$destroyed },
+  );
+
+  my $var = 123;
+  cast $var, $wiz;
+
+  @threads = map spawn(
+   sub {
+    my $tid = threads->tid;
+    my $exp = 456 + $tid;
+    {
+     lock $flag;
+     threads::shared::cond_wait($flag) until $flag;
+    }
+    $var = $exp;
+    is $var, $exp, "\$var could be assigned to in thread $tid";
+   }
+  ), 1 .. 5;
+ }
+
+ is $destroyed, 1, 'wizard is destroyed';
+
+ {
+  lock $flag;
+  $flag = 1;
+  threads::shared::cond_broadcast($flag);
+ }
+
+ $_->join for @threads;
 }

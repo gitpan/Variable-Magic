@@ -55,9 +55,6 @@
 #  define VMG_MULTIPLICITY 0
 # endif
 #endif
-#if VMG_MULTIPLICITY && !defined(tTHX)
-# define tTHX PerlInterpreter*
-#endif
 
 #if VMG_MULTIPLICITY && defined(USE_ITHREADS) && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))
 # define VMG_THREADSAFE 1
@@ -83,31 +80,12 @@
 #endif
 
 #if VMG_THREADSAFE
-
-STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
-#define vmg_clone(P, O) vmg_clone(aTHX_ (P), (O))
- SV *dupsv;
-
-#if VMG_HAS_PERL(5, 13, 2)
- CLONE_PARAMS *param = Perl_clone_params_new(owner, aTHX);
-
- dupsv = sv_dup(sv, param);
-
- Perl_clone_params_del(param);
+# define VMG_LOCK(M)   MUTEX_LOCK(M)
+# define VMG_UNLOCK(M) MUTEX_UNLOCK(M)
 #else
- CLONE_PARAMS param;
-
- param.stashes    = NULL; /* don't need it unless sv is a PVHV */
- param.flags      = 0;
- param.proto_perl = owner;
-
- dupsv = sv_dup(sv, &param);
+# define VMG_LOCK(M)
+# define VMG_UNLOCK(M)
 #endif
-
- return SvREFCNT_inc(dupsv);
-}
-
-#endif /* VMG_THREADSAFE */
 
 /* --- Compatibility ------------------------------------------------------- */
 
@@ -124,7 +102,7 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 #endif
 
 #ifndef SvREFCNT_inc_simple_void
-# define SvREFCNT_inc_simple_void(sv) SvREFCNT_inc(sv)
+# define SvREFCNT_inc_simple_void(sv) ((void) SvREFCNT_inc(sv))
 #endif
 
 #ifndef mPUSHu
@@ -137,14 +115,6 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 
 #ifndef PERL_MAGIC_tied
 # define PERL_MAGIC_tied 'P'
-#endif
-
-#ifndef MGf_COPY
-# define MGf_COPY 0
-#endif
-
-#ifndef MGf_DUP
-# define MGf_DUP 0
 #endif
 
 #ifndef MGf_LOCAL
@@ -161,6 +131,12 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define VMG_UVAR 1
 #else
 # define VMG_UVAR 0
+#endif
+
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 32969) || VMG_HAS_PERL(5, 12, 0)
+# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
+#else
+# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
 #endif
 
 /* Applied to dev-5.9 as 25854, integrated to maint-5.8 as 28160, partially
@@ -199,10 +175,10 @@ STATIC SV *vmg_clone(pTHX_ SV *sv, tTHX owner) {
 # define VMG_COMPAT_ARRAY_UNDEF_CLEAR 0
 #endif
 
-#if VMG_HAS_PERL_MAINT(5, 11, 0, 32969) || VMG_HAS_PERL(5, 12, 0)
-# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 1
+#if VMG_HAS_PERL(5, 11, 0)
+# define VMG_COMPAT_HASH_DELETE_NOUVAR_VOID 1
 #else
-# define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
+# define VMG_COMPAT_HASH_DELETE_NOUVAR_VOID 0
 #endif
 
 #if VMG_HAS_PERL(5, 13, 2)
@@ -359,9 +335,11 @@ STATIC opclass vmg_opclass(const OP *o) {
   return ((o->op_private & OPpASSIGN_BACKWARDS) ? OPc_UNOP : OPc_BINOP);
 
  if (o->op_type == OP_AELEMFAST) {
+#if PERL_VERSION <= 14
   if (o->op_flags & OPf_SPECIAL)
    return OPc_BASEOP;
   else
+#endif
 #ifdef USE_ITHREADS
    return OPc_PADOP;
 #else
@@ -424,52 +402,127 @@ STATIC const char vmg_invalid_wiz[]    = "Invalid wizard object";
 STATIC const char vmg_wrongargnum[]    = "Wrong number of arguments";
 STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
 
-/* --- Signatures ---------------------------------------------------------- */
+/* --- Context-safe global data -------------------------------------------- */
 
-#define SIG_WZO ((U16) (0x3891))
-#define SIG_WIZ ((U16) (0x3892))
+#define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
-/* --- MGWIZ structure ----------------------------------------------------- */
+typedef struct {
+ HV *b__op_stashes[OPc_MAX];
+} my_cxt_t;
+
+START_MY_CXT
+
+/* --- <vmg_vtable> structure ---------------------------------------------- */
+
+#if VMG_THREADSAFE
 
 typedef struct {
  MGVTBL *vtbl;
+ U32     refcount;
+} vmg_vtable;
+
+STATIC vmg_vtable *vmg_vtable_alloc(pTHX) {
+#define vmg_vtable_alloc() vmg_vtable_alloc(aTHX)
+ vmg_vtable *t;
+
+ t = VOID2(vmg_vtable *, PerlMemShared_malloc(sizeof *t));
+
+ t->vtbl     = VOID2(MGVTBL *, PerlMemShared_malloc(sizeof *t->vtbl));
+ t->refcount = 1;
+
+ return t;
+}
+
+#define vmg_vtable_vtbl(T) (T)->vtbl
+
+#if VMG_THREADSAFE
+STATIC perl_mutex vmg_vtable_refcount_mutex;
+#endif
+
+STATIC vmg_vtable *vmg_vtable_dup(pTHX_ vmg_vtable *t) {
+#define vmg_vtable_dup(T) vmg_vtable_dup(aTHX_ (T))
+ VMG_LOCK(&vmg_vtable_refcount_mutex);
+ ++t->refcount;
+ VMG_UNLOCK(&vmg_vtable_refcount_mutex);
+
+ return t;
+}
+
+STATIC void vmg_vtable_free(pTHX_ vmg_vtable *t) {
+#define vmg_vtable_free(T) vmg_vtable_free(aTHX_ (T))
+ U32 refcount;
+
+ VMG_LOCK(&vmg_vtable_refcount_mutex);
+ refcount = --t->refcount;
+ VMG_UNLOCK(&vmg_vtable_refcount_mutex);
+
+ if (!refcount) {
+  PerlMemShared_free(t->vtbl);
+  PerlMemShared_free(t);
+ }
+}
+
+#else /* VMG_THREADSAFE */
+
+typedef MGVTBL vmg_vtable;
+
+STATIC vmg_vtable *vmg_vtable_alloc(pTHX) {
+#define vmg_vtable_alloc() vmg_vtable_alloc(aTHX)
+ vmg_vtable *t;
+
+ Newx(t, 1, vmg_vtable);
+
+ return t;
+}
+
+#define vmg_vtable_vtbl(T) ((MGVTBL *) (T))
+
+#define vmg_vtable_free(T) Safefree(T)
+
+#endif /* !VMG_THREADSAFE */
+
+/* --- <vmg_wizard> structure ---------------------------------------------- */
+
+typedef struct {
+ vmg_vtable *vtable;
 
  U8 opinfo;
  U8 uvar;
 
  SV *cb_data;
  SV *cb_get, *cb_set, *cb_len, *cb_clear, *cb_free;
-#if MGf_COPY
  SV *cb_copy;
-#endif /* MGf_COPY */
-#if MGf_DUP
  SV *cb_dup;
-#endif /* MGf_DUP */
 #if MGf_LOCAL
  SV *cb_local;
 #endif /* MGf_LOCAL */
 #if VMG_UVAR
  SV *cb_fetch, *cb_store, *cb_exists, *cb_delete;
 #endif /* VMG_UVAR */
+} vmg_wizard;
 
-#if VMG_MULTIPLICITY
- tTHX owner;
-#endif /* VMG_MULTIPLICITY */
-} MGWIZ;
+STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo);
 
-STATIC void vmg_mgwiz_free(pTHX_ MGWIZ *w) {
-#define vmg_mgwiz_free(W) vmg_mgwiz_free(aTHX_ (W))
+STATIC vmg_wizard *vmg_wizard_alloc(pTHX_ UV opinfo) {
+#define vmg_wizard_alloc(O) vmg_wizard_alloc(aTHX_ (O))
+ vmg_wizard *w;
+
+ Newx(w, 1, vmg_wizard);
+
+ w->uvar   = 0;
+ w->opinfo = (U8) ((opinfo < 255) ? opinfo : 255);
+ if (w->opinfo)
+  vmg_op_info_init(aTHX_ w->opinfo);
+
+ w->vtable = vmg_vtable_alloc();
+
+ return w;
+}
+
+STATIC void vmg_wizard_free(pTHX_ vmg_wizard *w) {
+#define vmg_wizard_free(W) vmg_wizard_free(aTHX_ (W))
  if (!w)
   return;
-
- /* We reach this point in dirty state when ptable_free() is called from the
-  * atexit cleanup callback, and that the global table still holds a live
-  * wizard. This happens before all the SV bodies are freed, so all the wizard
-  * callbacks are still alive (as they are referenced by the undead wizard).
-  * Hence it is safe to decrement their refcount. Later on, the wizard free
-  * callback itself will trigger when the wizard body is reaped, but it will
-  * be skipped as it guards against dirty state - which is good since nothing
-  * has to be done anymore at that point. */
 
  SvREFCNT_dec(w->cb_data);
  SvREFCNT_dec(w->cb_get);
@@ -477,12 +530,10 @@ STATIC void vmg_mgwiz_free(pTHX_ MGWIZ *w) {
  SvREFCNT_dec(w->cb_len);
  SvREFCNT_dec(w->cb_clear);
  SvREFCNT_dec(w->cb_free);
-#if MGf_COPY
  SvREFCNT_dec(w->cb_copy);
-#endif /* MGf_COPY */
-#if 0 /* MGf_DUP */
+#if 0
  SvREFCNT_dec(w->cb_dup);
-#endif /* MGf_DUP */
+#endif
 #if MGf_LOCAL
  SvREFCNT_dec(w->cb_local);
 #endif /* MGf_LOCAL */
@@ -493,7 +544,7 @@ STATIC void vmg_mgwiz_free(pTHX_ MGWIZ *w) {
  SvREFCNT_dec(w->cb_delete);
 #endif /* VMG_UVAR */
 
- Safefree(w->vtbl);
+ vmg_vtable_free(w->vtable);
  Safefree(w);
 
  return;
@@ -502,23 +553,19 @@ STATIC void vmg_mgwiz_free(pTHX_ MGWIZ *w) {
 #if VMG_THREADSAFE
 
 #define VMG_CLONE_CB(N) \
- z->cb_ ## N = (w->cb_ ## N) ? vmg_clone(w->cb_ ## N, w->owner) \
+ z->cb_ ## N = (w->cb_ ## N) ? SvREFCNT_inc(sv_dup(w->cb_ ## N, params)) \
                              : NULL;
 
-STATIC MGWIZ *vmg_mgwiz_clone(pTHX_ const MGWIZ *w) {
-#define vmg_mgwiz_clone(W) vmg_mgwiz_clone(aTHX_ (W))
- MGVTBL *t;
- MGWIZ *z;
+STATIC const vmg_wizard *vmg_wizard_dup(pTHX_ const vmg_wizard *w, CLONE_PARAMS *params) {
+#define vmg_wizard_dup(W, P) vmg_wizard_dup(aTHX_ (W), (P))
+ vmg_wizard *z;
 
  if (!w)
   return NULL;
 
- Newx(t, 1, MGVTBL);
- Copy(w->vtbl, t, 1, MGVTBL);
+ Newx(z, 1, vmg_wizard);
 
- Newx(z, 1, MGWIZ);
-
- z->vtbl   = t;
+ z->vtable = vmg_vtable_dup(w->vtable);
  z->uvar   = w->uvar;
  z->opinfo = w->opinfo;
 
@@ -528,12 +575,8 @@ STATIC MGWIZ *vmg_mgwiz_clone(pTHX_ const MGWIZ *w) {
  VMG_CLONE_CB(len);
  VMG_CLONE_CB(clear);
  VMG_CLONE_CB(free);
-#if MGf_COPY
  VMG_CLONE_CB(copy);
-#endif /* MGf_COPY */
-#if MGf_DUP
  VMG_CLONE_CB(dup);
-#endif /* MGf_DUP */
 #if MGf_LOCAL
  VMG_CLONE_CB(local);
 #endif /* MGf_LOCAL */
@@ -544,174 +587,128 @@ STATIC MGWIZ *vmg_mgwiz_clone(pTHX_ const MGWIZ *w) {
  VMG_CLONE_CB(delete);
 #endif /* VMG_UVAR */
 
- z->owner = aTHX;
-
  return z;
 }
 
 #endif /* VMG_THREADSAFE */
 
-/* --- Context-safe global data -------------------------------------------- */
+#define vmg_wizard_id(W) PTR2IV(vmg_vtable_vtbl((W)->vtable))
 
-#if VMG_THREADSAFE
+/* --- Wizard SV objects --------------------------------------------------- */
 
-#define PTABLE_NAME        ptable
-#define PTABLE_VAL_FREE(V) vmg_mgwiz_free(VOID2(MGWIZ *, (V)))
-
-#define pPTBL  pTHX
-#define pPTBL_ pTHX_
-#define aPTBL  aTHX
-#define aPTBL_ aTHX_
-
-#include "ptable.h"
-
-#define ptable_store(T, K, V) ptable_store(aTHX_ (T), (K), (V))
-#define ptable_clear(T)       ptable_clear(aTHX_ (T))
-#define ptable_free(T)        ptable_free(aTHX_ (T))
-
-#endif /* VMG_THREADSAFE */
-
-#define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
-
-typedef struct {
-#if VMG_THREADSAFE
- ptable *wizards;
- tTHX    owner;
-#endif
- HV     *b__op_stashes[OPc_MAX];
-} my_cxt_t;
-
-START_MY_CXT
-
-#if VMG_THREADSAFE
-
-STATIC void vmg_ptable_clone(pTHX_ ptable_ent *ent, void *ud_) {
- my_cxt_t *ud = VOID2(my_cxt_t *, ud_);
- MGWIZ *w;
-
- if (ud->owner == aTHX)
-  return;
-
- w = vmg_mgwiz_clone(VOID2(MGWIZ *, ent->val));
- if (w)
-  ptable_store(ud->wizards, ent->key, w);
-}
-
-#endif /* VMG_THREADSAFE */
-
-/* --- Wizard objects ------------------------------------------------------ */
-
-STATIC int vmg_wizard_free(pTHX_ SV *sv, MAGIC *mg);
-
-STATIC MGVTBL vmg_wizard_vtbl = {
- NULL,            /* get */
- NULL,            /* set */
- NULL,            /* len */
- NULL,            /* clear */
- vmg_wizard_free, /* free */
-#if MGf_COPY
- NULL,            /* copy */
-#endif /* MGf_COPY */
-#if MGf_DUP
- NULL,            /* dup */
-#endif /* MGf_DUP */
-#if MGf_LOCAL
- NULL,            /* local */
-#endif /* MGf_LOCAL */
-};
-
-/* ... Wizard constructor .................................................. */
-
-STATIC SV *vmg_wizard_new(pTHX_ const MGWIZ *w) {
-#define vmg_wizard_new(W) vmg_wizard_new(aTHX_ (W))
- SV *wiz = newSVuv(PTR2IV(w));
-
- if (w) {
-  MAGIC *mg = sv_magicext(wiz, NULL, PERL_MAGIC_ext, &vmg_wizard_vtbl, NULL, 0);
-  mg->mg_private = SIG_WZO;
- }
- SvREADONLY_on(wiz);
-
- return wiz;
-}
-
-STATIC const SV *vmg_wizard_validate(pTHX_ const SV *wiz) {
-#define vmg_wizard_validate(W) vmg_wizard_validate(aTHX_ (W))
- if (SvROK(wiz)) {
-  wiz = SvRV_const(wiz);
-  if (SvIOK(wiz))
-   return wiz;
- }
-
- croak(vmg_invalid_wiz);
- /* Not reached */
- return NULL;
-}
-
-#define vmg_wizard_id(W)         SvIVX((const SV *) (W))
-#define vmg_wizard_main_mgwiz(W) INT2PTR(const MGWIZ *, vmg_wizard_id(W))
-
-/* ... Wizard destructor ................................................... */
-
-STATIC int vmg_wizard_free(pTHX_ SV *sv, MAGIC *mg) {
- MGWIZ *w;
-
+STATIC int vmg_wizard_sv_free(pTHX_ SV *sv, MAGIC *mg) {
  if (PL_dirty) /* During global destruction, the context is already freed */
   return 0;
 
- w = (MGWIZ *) vmg_wizard_main_mgwiz(sv);
-
-#if VMG_THREADSAFE
- {
-  dMY_CXT;
-  ptable_store(MY_CXT.wizards, w, NULL);
- }
-#else /* VMG_THREADSAFE */
- vmg_mgwiz_free(w);
-#endif /* !VMG_THREADSAFE */
+ vmg_wizard_free((vmg_wizard *) mg->mg_ptr);
 
  return 0;
 }
 
 #if VMG_THREADSAFE
 
-STATIC const MGWIZ *vmg_wizard_mgwiz(pTHX_ const SV *wiz) {
-#define vmg_wizard_mgwiz(W) vmg_wizard_mgwiz(aTHX_ ((const SV *) (W)))
- const MGWIZ *w;
+STATIC int vmg_wizard_sv_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *params) {
+ mg->mg_ptr = (char *) vmg_wizard_dup((const vmg_wizard *) mg->mg_ptr, params);
 
- w = vmg_wizard_main_mgwiz(wiz);
- if (w->owner == aTHX)
-  return w;
+ return 0;
+}
 
- {
-  dMY_CXT;
-  return VOID2(const MGWIZ *, ptable_fetch(MY_CXT.wizards, w));
+#endif /* VMG_THREADSAFE */
+
+STATIC MGVTBL vmg_wizard_sv_vtbl = {
+ NULL,               /* get */
+ NULL,               /* set */
+ NULL,               /* len */
+ NULL,               /* clear */
+ vmg_wizard_sv_free, /* free */
+ NULL,               /* copy */
+#if VMG_THREADSAFE
+ vmg_wizard_sv_dup,  /* dup */
+#else
+ NULL,               /* dup */
+#endif
+#if MGf_LOCAL
+ NULL,               /* local */
+#endif /* MGf_LOCAL */
+};
+
+STATIC SV *vmg_wizard_sv_new(pTHX_ const vmg_wizard *w) {
+#define vmg_wizard_sv_new(W) vmg_wizard_sv_new(aTHX_ (W))
+ SV *wiz;
+
+#if VMG_THREADSAFE
+ wiz = newSV(0);
+#else
+ wiz = newSViv(PTR2IV(w));
+#endif
+
+ if (w) {
+  MAGIC *mg = sv_magicext(wiz, NULL, PERL_MAGIC_ext, &vmg_wizard_sv_vtbl,
+                                     (const char *) w, 0);
+  mg->mg_private = 0;
+#if VMG_THREADSAFE
+  mg->mg_flags  |= MGf_DUP;
+#endif
  }
+ SvREADONLY_on(wiz);
+
+ return wiz;
+}
+
+#if VMG_THREADSAFE
+
+#define vmg_sv_has_wizard_type(S) (SvTYPE(S) >= SVt_PVMG)
+
+STATIC const vmg_wizard *vmg_wizard_from_sv_nocheck(const SV *wiz) {
+ MAGIC *mg;
+
+ for (mg = SvMAGIC(wiz); mg; mg = mg->mg_moremagic) {
+  if (mg->mg_type == PERL_MAGIC_ext && mg->mg_virtual == &vmg_wizard_sv_vtbl)
+   return (const vmg_wizard *) mg->mg_ptr;
+ }
+
+ return NULL;
 }
 
 #else /* VMG_THREADSAFE */
 
-#define vmg_wizard_mgwiz(W) vmg_wizard_main_mgwiz(W)
+#define vmg_sv_has_wizard_type(S) SvIOK(S)
+
+#define vmg_wizard_from_sv_nocheck(W) INT2PTR(const vmg_wizard *, SvIVX(W))
 
 #endif /* !VMG_THREADSAFE */
 
+#define vmg_wizard_from_sv(W) (vmg_sv_has_wizard_type(W) ? vmg_wizard_from_sv_nocheck(W) : NULL)
+
+STATIC const vmg_wizard *vmg_wizard_from_mg(const MAGIC *mg) {
+ if (mg->mg_type == PERL_MAGIC_ext && mg->mg_len == HEf_SVKEY) {
+  SV *sv = (SV *) mg->mg_ptr;
+
+  if (vmg_sv_has_wizard_type(sv))
+   return vmg_wizard_from_sv_nocheck(sv);
+ }
+
+ return NULL;
+}
+
+#define vmg_wizard_from_mg_nocheck(M) vmg_wizard_from_sv_nocheck((const SV *) (M)->mg_ptr)
+
 /* --- User-level functions implementation --------------------------------- */
 
-STATIC const MAGIC *vmg_find(const SV *sv, const SV *wiz) {
- const MAGIC *mg, *moremagic;
+STATIC const MAGIC *vmg_find(const SV *sv, const vmg_wizard *w) {
+ const MAGIC *mg;
  IV wid;
 
  if (SvTYPE(sv) < SVt_PVMG)
   return NULL;
 
- wid = vmg_wizard_id(wiz);
- for (mg = SvMAGIC(sv); mg; mg = moremagic) {
-  moremagic = mg->mg_moremagic;
-  if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
-   IV zid = vmg_wizard_id(mg->mg_ptr);
-   if (zid == wid)
-    return mg;
-  }
+ wid = vmg_wizard_id(w);
+
+ for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
+  const vmg_wizard *z = vmg_wizard_from_mg(mg);
+
+  if (z && vmg_wizard_id(z) == wid)
+   return mg;
  }
 
  return NULL;
@@ -753,11 +750,12 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, SV **args, I32 items) {
  return nsv;
 }
 
-STATIC SV *vmg_data_get(pTHX_ SV *sv, const SV *wiz) {
+STATIC SV *vmg_data_get(pTHX_ SV *sv, const vmg_wizard *w) {
 #define vmg_data_get(S, W) vmg_data_get(aTHX_ (S), (W))
- const MAGIC *mg = vmg_find(sv, wiz);
+ const MAGIC *mg = vmg_find(sv, w);
+
  return mg ? mg->mg_obj : NULL;
-} 
+}
 
 /* ... Magic cast/dispell .................................................. */
 
@@ -776,35 +774,35 @@ STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) 
 }
 #endif /* VMG_UVAR */
 
-STATIC UV vmg_cast(pTHX_ SV *sv, const SV *wiz, SV **args, I32 items) {
-#define vmg_cast(S, W, A, I) vmg_cast(aTHX_ (S), (W), (A), (I))
- MAGIC       *mg;
- SV          *data;
- const MGWIZ *w;
- U32          oldgmg;
+STATIC UV vmg_cast(pTHX_ SV *sv, const vmg_wizard *w, const SV *wiz, SV **args, I32 items) {
+#define vmg_cast(S, W, WIZ, A, I) vmg_cast(aTHX_ (S), (W), (WIZ), (A), (I))
+ MAGIC  *mg;
+ MGVTBL *t;
+ SV     *data;
+ U32     oldgmg;
 
- if (vmg_find(sv, wiz))
+ if (vmg_find(sv, w))
   return 1;
 
- w = vmg_wizard_mgwiz(wiz);
  oldgmg = SvGMAGICAL(sv);
 
  data = (w->cb_data) ? vmg_data_new(w->cb_data, sv, args, items) : NULL;
+
+ t  = vmg_vtable_vtbl(w->vtable);
+ mg = sv_magicext(sv, data, PERL_MAGIC_ext, t, (const char *) wiz, HEf_SVKEY);
+ mg->mg_private = 0;
+
  /* sv_magicext() calls mg_magical and increments data's refcount */
- mg   = sv_magicext(sv, data, PERL_MAGIC_ext, w->vtbl,
-                              (const char *) wiz, HEf_SVKEY);
  SvREFCNT_dec(data);
- mg->mg_private = SIG_WIZ;
-#if MGf_COPY
- if (w->cb_copy)
+
+ if (t->svt_copy)
   mg->mg_flags |= MGf_COPY;
-#endif /* MGf_COPY */
-#if 0 /* MGf_DUP */
- if (w->cb_dup)
+#if 0
+ if (t->svt_dup)
   mg->mg_flags |= MGf_DUP;
-#endif /* MGf_DUP */
+#endif
 #if MGf_LOCAL
- if (w->cb_local)
+ if (t->svt_local)
   mg->mg_flags |= MGf_LOCAL;
 #endif /* MGf_LOCAL */
 
@@ -862,36 +860,39 @@ done:
  return 1;
 }
 
-STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
+STATIC UV vmg_dispell(pTHX_ SV *sv, const vmg_wizard *w) {
 #define vmg_dispell(S, W) vmg_dispell(aTHX_ (S), (W))
 #if VMG_UVAR
  U32 uvars = 0;
 #endif /* VMG_UVAR */
  MAGIC *mg, *prevmagic, *moremagic = NULL;
- IV wid = vmg_wizard_id(wiz);
+ IV wid = vmg_wizard_id(w);
 
  if (SvTYPE(sv) < SVt_PVMG)
   return 0;
 
  for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
+  const vmg_wizard *z;
+
   moremagic = mg->mg_moremagic;
-  if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
+
+  z = vmg_wizard_from_mg(mg);
+  if (z) {
+   IV zid = vmg_wizard_id(z);
+
 #if VMG_UVAR
-   const MGWIZ *z   = vmg_wizard_mgwiz(mg->mg_ptr);
-#endif /* VMG_UVAR */
-   IV           zid = vmg_wizard_id(mg->mg_ptr);
    if (zid == wid) {
-#if VMG_UVAR
     /* If the current has no uvar, short-circuit uvar deletion. */
     uvars = z->uvar ? (uvars + 1) : 0;
-#endif /* VMG_UVAR */
     break;
-#if VMG_UVAR
    } else if (z->uvar) {
     ++uvars;
     /* We can't break here since we need to find the ext magic to delete. */
-#endif /* VMG_UVAR */
    }
+#else /* VMG_UVAR */
+   if (zid == wid)
+    break;
+#endif /* !VMG_UVAR */
   }
  }
  if (!mg)
@@ -916,12 +917,11 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const SV *wiz) {
   /* mg was the first ext magic in the chain that had uvar */
 
   for (mg = moremagic; mg; mg = mg->mg_moremagic) {
-   if (mg->mg_type == PERL_MAGIC_ext && mg->mg_private == SIG_WIZ) {
-    const MGWIZ *z = vmg_wizard_mgwiz(mg->mg_ptr);
-    if (z->uvar) {
-     ++uvars;
-     break;
-    }
+   const vmg_wizard *z = vmg_wizard_from_mg(mg);
+
+   if (z && z->uvar) {
+    ++uvars;
+    break;
    }
   }
 
@@ -970,18 +970,14 @@ STATIC void vmg_op_info_init(pTHX_ unsigned int opinfo) {
 #define vmg_op_info_init(W) vmg_op_info_init(aTHX_ (W))
  switch (opinfo) {
   case VMG_OP_INFO_NAME:
-#if VMG_THREADSAFE
-   MUTEX_LOCK(&vmg_op_name_init_mutex);
-#endif
+   VMG_LOCK(&vmg_op_name_init_mutex);
    if (!vmg_op_name_init) {
     OPCODE t;
     for (t = 0; t < OP_max; ++t)
      vmg_op_name_len[t] = strlen(PL_op_name[t]);
     vmg_op_name_init = 1;
    }
-#if VMG_THREADSAFE
-   MUTEX_UNLOCK(&vmg_op_name_init_mutex);
-#endif
+   VMG_UNLOCK(&vmg_op_name_init_mutex);
    break;
   case VMG_OP_INFO_OBJECT: {
    dMY_CXT;
@@ -1079,17 +1075,19 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
         vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 3), (S), (A1), (A2), (A3))
 
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
+
  return vmg_cb_call1(w->cb_get, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
+
  return vmg_cb_call1(w->cb_set, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
  unsigned int opinfo = w->opinfo;
  U32 len, ret;
  SV *svr;
@@ -1143,12 +1141,13 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
 }
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
+
  return vmg_cb_call1(w->cb_clear, w->opinfo, sv, mg->mg_obj);
 }
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
- const MGWIZ *w;
+ const vmg_wizard *w;
  int ret = 0;
  SV *svr;
 
@@ -1159,7 +1158,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  if (PL_dirty)
   return 0;
 
- w = vmg_wizard_mgwiz(mg->mg_ptr);
+ w = vmg_wizard_from_mg_nocheck(mg);
 
  /* So that it survives the temp cleanup below */
  SvREFCNT_inc_simple_void(sv);
@@ -1202,16 +1201,15 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  return ret;
 }
 
-#if MGf_COPY
-STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
-# if VMG_HAS_PERL_MAINT(5, 11, 0, 33256) || VMG_HAS_PERL(5, 12, 0)
-  I32 keylen
-# else
-  int keylen
-# endif
- ) {
+#if VMG_HAS_PERL_MAINT(5, 11, 0, 33256) || VMG_HAS_PERL(5, 12, 0)
+# define VMG_SVT_COPY_KEYLEN_TYPE I32
+#else
+# define VMG_SVT_COPY_KEYLEN_TYPE int
+#endif
+
+STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, VMG_SVT_COPY_KEYLEN_TYPE keylen) {
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
  SV *keysv;
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
  int ret;
 
  if (keylen == HEf_SVKEY) {
@@ -1228,17 +1226,17 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key,
 
  return ret;
 }
-#endif /* MGf_COPY */
 
-#if 0 /*  MGf_DUP */
+#if 0
 STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
  return 0;
 }
-#endif /* MGf_DUP */
+#endif
 
 #if MGf_LOCAL
 STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
- const MGWIZ *w = vmg_wizard_mgwiz(mg->mg_ptr);
+ const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
+
  return vmg_cb_call1(w->cb_local, w->opinfo, nsv, mg->mg_obj);
 }
 #endif /* MGf_LOCAL */
@@ -1265,9 +1263,9 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
  if (uf[1].uf_set)
   uf[1].uf_set(aTHX_ action, sv);
 
- action &= HV_FETCH_ISSTORE | HV_FETCH_ISEXISTS | HV_FETCH_LVALUE | HV_DELETE;
  for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
-  const MGWIZ *w;
+  const vmg_wizard *w;
+
   switch (mg->mg_type) {
    case PERL_MAGIC_ext:
     break;
@@ -1277,8 +1275,11 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
    default:
     continue;
   }
-  if (mg->mg_private != SIG_WIZ) continue;
-  w = vmg_wizard_mgwiz(mg->mg_ptr);
+
+  w = vmg_wizard_from_mg(mg);
+  if (!w)
+   continue;
+
   switch (w->uvar) {
    case 0:
     continue;
@@ -1286,7 +1287,9 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
     if (!newkey)
      newkey = key = umg->mg_obj = sv_mortalcopy(umg->mg_obj);
   }
-  switch (action) {
+
+  switch (action
+             & (HV_FETCH_ISSTORE|HV_FETCH_ISEXISTS|HV_FETCH_LVALUE|HV_DELETE)) {
    case 0:
     if (w->cb_fetch)
      vmg_cb_call2(w->cb_fetch, w->opinfo, sv, mg->mg_obj, key);
@@ -1308,21 +1311,21 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   }
  }
 
- if (SvRMAGICAL(sv) && !tied) {
+ if (SvRMAGICAL(sv) && !tied && !(action & (HV_FETCH_ISSTORE|HV_DELETE))) {
   /* Temporarily hide the RMAGICAL flag of the hash so it isn't wrongly
    * mistaken for a tied hash by the rest of hv_common. It will be reset by
    * the op_ppaddr of a new fake op injected between the current and the next
    * one. */
-  OP *o = PL_op;
-  if (!o->op_next || o->op_next->op_ppaddr != vmg_pp_resetuvar) {
+  OP *nop = PL_op->op_next;
+  if (!nop || nop->op_ppaddr != vmg_pp_resetuvar) {
    SVOP *svop;
    NewOp(1101, svop, 1, SVOP);
    svop->op_type   = OP_STUB;
    svop->op_ppaddr = vmg_pp_resetuvar;
-   svop->op_next   = o->op_next;
+   svop->op_next   = nop;
    svop->op_flags  = 0;
    svop->op_sv     = sv;
-   o->op_next      = (OP *) svop;
+   PL_op->op_next  = (OP *) svop;
   }
   SvRMAGICAL_off(sv);
  }
@@ -1347,17 +1350,6 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
   w->cb_  ## N = NULL;                \
  }
 
-#if VMG_THREADSAFE
-
-STATIC void vmg_cleanup(pTHX_ void *ud) {
- dMY_CXT;
-
- ptable_free(MY_CXT.wizards);
- MY_CXT.wizards = NULL;
-}
-
-#endif /* VMG_THREADSAFE */
-
 /* --- XS ------------------------------------------------------------------ */
 
 MODULE = Variable::Magic            PACKAGE = Variable::Magic
@@ -1369,14 +1361,10 @@ BOOT:
  HV *stash;
 
  MY_CXT_INIT;
-#if VMG_THREADSAFE
- MY_CXT.wizards = ptable_new();
- MY_CXT.owner   = aTHX;
-#endif
  MY_CXT.b__op_stashes[0] = NULL;
 #if VMG_THREADSAFE
+ MUTEX_INIT(&vmg_vtable_refcount_mutex);
  MUTEX_INIT(&vmg_op_name_init_mutex);
- call_atexit(vmg_cleanup, NULL);
 #endif
 
  stash = gv_stashpv(__PACKAGE__, 1);
@@ -1384,6 +1372,8 @@ BOOT:
  newCONSTSUB(stash, "MGf_DUP",   newSVuv(MGf_DUP));
  newCONSTSUB(stash, "MGf_LOCAL", newSVuv(MGf_LOCAL));
  newCONSTSUB(stash, "VMG_UVAR",  newSVuv(VMG_UVAR));
+ newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
+                    newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN",
                     newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID",
@@ -1392,8 +1382,8 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_UNSHIFT_NOLEN_VOID));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_UNDEF_CLEAR",
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
- newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
-                    newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
+ newCONSTSUB(stash, "VMG_COMPAT_HASH_DELETE_NOUVAR_VOID",
+                    newSVuv(VMG_COMPAT_HASH_DELETE_NOUVAR_VOID));
  newCONSTSUB(stash, "VMG_COMPAT_GLOB_GET", newSVuv(VMG_COMPAT_GLOB_GET));
  newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));
@@ -1408,18 +1398,11 @@ void
 CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
- ptable *t;
- U32     had_b__op_stash = 0;
- int     c;
+ U32 had_b__op_stash = 0;
+ int c;
 PPCODE:
  {
-  my_cxt_t ud;
   dMY_CXT;
-
-  ud.wizards = t = ptable_new();
-  ud.owner   = MY_CXT.owner;
-  ptable_walk(MY_CXT.wizards, vmg_ptable_clone, &ud);
-
   for (c = OPc_NULL; c < OPc_MAX; ++c) {
    if (MY_CXT.b__op_stashes[c])
     had_b__op_stash |= (((U32) 1) << c);
@@ -1427,8 +1410,6 @@ PPCODE:
  }
  {
   MY_CXT_CLONE;
-  MY_CXT.wizards = t;
-  MY_CXT.owner   = aTHX;
   for (c = OPc_NULL; c < OPc_MAX; ++c) {
    MY_CXT.b__op_stashes[c] = (had_b__op_stash & (((U32) 1) << c))
                               ? gv_stashpv(vmg_opclassnames[c], 1) : NULL;
@@ -1441,21 +1422,12 @@ PPCODE:
 SV *_wizard(...)
 PROTOTYPE: DISABLE
 PREINIT:
- I32 i = 0;
- UV opinfo;
- MGWIZ *w;
+ vmg_wizard *w;
  MGVTBL *t;
- SV *cb;
+ SV *cb, *op_info, *copy_key;
+ I32 i = 0;
 CODE:
- dMY_CXT;
-
- if (items != 7
-#if MGf_COPY
-              + 1
-#endif /* MGf_COPY */
-#if MGf_DUP
-              + 1
-#endif /* MGf_DUP */
+ if (items != 9
 #if MGf_LOCAL
               + 1
 #endif /* MGf_LOCAL */
@@ -1464,31 +1436,22 @@ CODE:
 #endif /* VMG_UVAR */
               ) { croak(vmg_wrongargnum); }
 
- Newx(t, 1, MGVTBL);
- Newx(w, 1, MGWIZ);
+ op_info = ST(i++);
+ w = vmg_wizard_alloc(SvOK(op_info) ? SvUV(op_info) : 0);
+ t = vmg_vtable_vtbl(w->vtable);
 
  VMG_SET_CB(ST(i++), data);
-
- cb = ST(i++);
- opinfo = SvOK(cb) ? SvUV(cb) : 0;
- w->opinfo = (U8) ((opinfo < 255) ? opinfo : 255);
- if (w->opinfo)
-  vmg_op_info_init(w->opinfo);
 
  VMG_SET_SVT_CB(ST(i++), get);
  VMG_SET_SVT_CB(ST(i++), set);
  VMG_SET_SVT_CB(ST(i++), len);
  VMG_SET_SVT_CB(ST(i++), clear);
  VMG_SET_SVT_CB(ST(i++), free);
-#if MGf_COPY
  VMG_SET_SVT_CB(ST(i++), copy);
-#endif /* MGf_COPY */
-#if MGf_DUP
  /* VMG_SET_SVT_CB(ST(i++), dup); */
  i++;
  t->svt_dup = NULL;
  w->cb_dup  = NULL;
-#endif /* MGf_DUP */
 #if MGf_LOCAL
  VMG_SET_SVT_CB(ST(i++), local);
 #endif /* MGf_LOCAL */
@@ -1497,35 +1460,35 @@ CODE:
  VMG_SET_CB(ST(i++), store);
  VMG_SET_CB(ST(i++), exists);
  VMG_SET_CB(ST(i++), delete);
- cb = ST(i++);
- if (w->cb_fetch || w->cb_store || w->cb_exists || w->cb_delete)
-  w->uvar = SvTRUE(cb) ? 2 : 1;
- else
-  w->uvar = 0;
-#endif /* VMG_UVAR */
-#if VMG_MULTIPLICITY
- w->owner = aTHX;
-#endif /* VMG_MULTIPLICITY */
- w->vtbl  = t;
-#if VMG_THREADSAFE
- ptable_store(MY_CXT.wizards, w, w);
-#endif /* VMG_THREADSAFE */
 
- RETVAL = newRV_noinc(vmg_wizard_new(w));
+ copy_key = ST(i++);
+ if (w->cb_fetch || w->cb_store || w->cb_exists || w->cb_delete)
+  w->uvar = SvTRUE(copy_key) ? 2 : 1;
+#endif /* VMG_UVAR */
+
+ RETVAL = newRV_noinc(vmg_wizard_sv_new(w));
 OUTPUT:
  RETVAL
 
 SV *cast(SV *sv, SV *wiz, ...)
 PROTOTYPE: \[$@%&*]$@
 PREINIT:
+ const vmg_wizard *w = NULL;
  SV **args = NULL;
+ UV ret;
  I32 i = 0;
 CODE:
  if (items > 2) {
   i = items - 2;
   args = &ST(2);
  }
- RETVAL = newSVuv(vmg_cast(SvRV(sv), vmg_wizard_validate(wiz), args, i));
+ if (SvROK(wiz)) {
+  wiz = SvRV_const(wiz);
+  w   = vmg_wizard_from_sv(wiz);
+ }
+ if (!w)
+  croak(vmg_invalid_wiz);
+ RETVAL = newSVuv(vmg_cast(SvRV(sv), w, wiz, args, i));
 OUTPUT:
  RETVAL
 
@@ -1533,9 +1496,14 @@ void
 getdata(SV *sv, SV *wiz)
 PROTOTYPE: \[$@%&*]$
 PREINIT:
+ const vmg_wizard *w = NULL;
  SV *data;
 PPCODE:
- data = vmg_data_get(SvRV(sv), vmg_wizard_validate(wiz));
+ if (SvROK(wiz))
+  w = vmg_wizard_from_sv(SvRV_const(wiz));
+ if (!w)
+  croak(vmg_invalid_wiz);
+ data = vmg_data_get(SvRV(sv), w);
  if (!data)
   XSRETURN_EMPTY;
  ST(0) = data;
@@ -1543,7 +1511,13 @@ PPCODE:
 
 SV *dispell(SV *sv, SV *wiz)
 PROTOTYPE: \[$@%&*]$
+PREINIT:
+ const vmg_wizard *w = NULL;
 CODE:
- RETVAL = newSVuv(vmg_dispell(SvRV(sv), vmg_wizard_validate(wiz)));
+ if (SvROK(wiz))
+  w = vmg_wizard_from_sv(SvRV_const(wiz));
+ if (!w)
+  croak(vmg_invalid_wiz);
+ RETVAL = newSVuv(vmg_dispell(SvRV(sv), w));
 OUTPUT:
  RETVAL

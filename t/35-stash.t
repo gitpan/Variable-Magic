@@ -96,7 +96,7 @@ cast %Hlagh::, $wiz;
  is $@, "ok\n", 'stash: function calls compiled fine';
  is_deeply \%mg, {
   fetch => \@calls,
-  store => ($] < 5.011002 ? \@calls : [ map { ($_) x 2 } @calls ]),
+  store => ("$]" < 5.011002 ? \@calls : [ map { ($_) x 2 } @calls ]),
  }, 'stash: function calls';
 }
 
@@ -296,7 +296,7 @@ $_ => sub {
 CB
 } qw<fetch store exists delete>);
 
-my $uo_exp = $] < 5.011002 ? 2 : 3;
+my $uo_exp = "$]" < 5.011002 ? 2 : 3;
 
 $code .= ', data => sub { +{ guard => 0 } }';
 

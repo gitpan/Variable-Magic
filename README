@@ -2,14 +2,16 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.46
+    Version 0.47
 
 SYNOPSIS
         use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
 
         { # A variable tracer
-         my $wiz = wizard set  => sub { print "now set to ${$_[0]}!\n" },
-                          free => sub { print "destroyed!\n" };
+         my $wiz = wizard(
+          set  => sub { print "now set to ${$_[0]}!\n" },
+          free => sub { print "destroyed!\n" },
+         );
 
          my $a = 1;
          cast $a, $wiz;
@@ -17,15 +19,17 @@ SYNOPSIS
         }               # "destroyed!"
 
         { # A hash with a default value
-         my $wiz = wizard data     => sub { $_[1] },
-                          fetch    => sub { $_[2] = $_[1] unless exists $_[0]->{$_[2]}; () },
-                          store    => sub { print "key $_[2] stored in $_[-1]\n" },
-                          copy_key => 1,
-                          op_info  => VMG_OP_INFO_NAME;
+         my $wiz = wizard(
+          data     => sub { $_[1] },
+          fetch    => sub { $_[2] = $_[1] unless exists $_[0]->{$_[2]}; () },
+          store    => sub { print "key $_[2] stored in $_[-1]\n" },
+          copy_key => 1,
+          op_info  => VMG_OP_INFO_NAME,
+         );
 
          my %h = (_default => 0, apple => 2);
          cast %h, $wiz, '_default';
-         print $h{banana}, "\n"; # "0", because the 'banana' key doesn't exist in %h
+         print $h{banana}, "\n"; # "0" (there is no 'banana' key in %h)
          $h{pear} = 1;           # "key pear stored in helem"
         }
 
@@ -150,29 +154,26 @@ DESCRIPTION
     You can refer to the tests to have more insight of where the different
     magics are invoked.
 
-    To prevent any clash between different magics defined with this module,
-    an unique numerical signature is attached to each kind of magic (i.e.
-    each set of callbacks for magic operations). At the C level, magic
-    tokens owned by magic created by this module have their "mg->mg_private"
-    field set to 0x3891 or 0x3892, so please don't use these magic (sic)
-    numbers in other extensions.
-
 FUNCTIONS
   "wizard"
-        wizard data     => sub { ... },
-               get      => sub { my ($ref, $data [, $op]) = @_; ... },
-               set      => sub { my ($ref, $data [, $op]) = @_; ... },
-               len      => sub { my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen; },
-               clear    => sub { my ($ref, $data [, $op]) = @_; ... },
-               free     => sub { my ($ref, $data [, $op]) = @_, ... },
-               copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
-               local    => sub { my ($ref, $data [, $op]) = @_; ... },
-               fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-               store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-               exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-               delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
-               copy_key => $bool,
-               op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ]
+        wizard(
+         data     => sub { ... },
+         get      => sub { my ($ref, $data [, $op]) = @_; ... },
+         set      => sub { my ($ref, $data [, $op]) = @_; ... },
+         len      => sub {
+          my ($ref, $data, $len [, $op]) = @_; ... ; return $newlen
+         },
+         clear    => sub { my ($ref, $data [, $op]) = @_; ... },
+         free     => sub { my ($ref, $data [, $op]) = @_, ... },
+         copy     => sub { my ($ref, $data, $key, $elt [, $op]) = @_; ... },
+         local    => sub { my ($ref, $data [, $op]) = @_; ... },
+         fetch    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+         store    => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+         exists   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+         delete   => sub { my ($ref, $data, $key [, $op]) = @_; ... },
+         copy_key => $bool,
+         op_info  => [ 0 | VMG_OP_INFO_NAME | VMG_OP_INFO_OBJECT ],
+        )
 
     This function creates a 'wizard', an opaque type that holds the magic
     information. It takes a list of keys / values as argument, whose keys
@@ -243,9 +244,11 @@ FUNCTIONS
     Here's a simple usage example :
 
         # A simple scalar tracer
-        my $wiz = wizard get  => sub { print STDERR "got ${$_[0]}\n" },
-                         set  => sub { print STDERR "set to ${$_[0]}\n" },
-                         free => sub { print STDERR "${$_[0]} was deleted\n" }
+        my $wiz = wizard(
+         get  => sub { print STDERR "got ${$_[0]}\n" },
+         set  => sub { print STDERR "set to ${$_[0]}\n" },
+         free => sub { print STDERR "${$_[0]} was deleted\n" },
+        );
 
   "cast"
         cast [$@%&*]var, $wiz, ...
@@ -310,6 +313,10 @@ CONSTANTS
     callbacks on hashes. Initial VMG_UVAR capability was introduced in perl
     5.9.5, with a fully functional implementation shipped with perl 5.10.0.
 
+  "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
+    True for perls that don't call 'len' magic when taking the "length" of a
+    magical scalar.
+
   "VMG_COMPAT_ARRAY_PUSH_NOLEN"
     True for perls that don't call 'len' magic when you push an element in a
     magical array. Starting from perl 5.11.0, this only refers to pushes in
@@ -326,9 +333,9 @@ CONSTANTS
   "VMG_COMPAT_ARRAY_UNDEF_CLEAR"
     True for perls that call 'clear' magic when undefining magical arrays.
 
-  "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
-    True for perls that don't call 'len' magic when taking the "length" of a
-    magical scalar.
+  "VMG_COMPAT_HASH_DELETE_NOUVAR_VOID"
+    True for perls that don't call 'delete' uvar magic when you delete an
+    element from a hash in void context.
 
   "VMG_COMPAT_GLOB_GET"
     True for perls that call 'get' magic for operations on globs.
@@ -373,7 +380,7 @@ COOKBOOK
           unless (defined $data) {
            $data = \(my $slot);
            &cast($var, $wiz, $slot)
-                            or die "Couldn't cast UserData magic onto the variable";
+                     or die "Couldn't cast UserData magic onto the variable";
           }
           $$data;
          }

@@ -8,7 +8,7 @@ use Test::More;
 BEGIN {
  local $@;
  if (eval "use Symbol qw<gensym>; 1") {
-  plan tests => 2 * 12 + 1;
+  plan tests => 2 * 17 + 1;
   defined and diag "Using Symbol $_" for $Symbol::VERSION;
  } else {
   plan skip_all => "Symbol::gensym required for testing magic for globs";
@@ -32,19 +32,38 @@ watch { cast *a, $wiz } +{ }, 'cast';
 
 watch { local *b = *a } +{ %get }, 'assign to';
 
-watch { *a = \1 }          +{ %get, set => 1 }, 'assign scalar slot';
-watch { *a = [ qw<x y> ] } +{ %get, set => 1 }, 'assign array slot';
-watch { *a = { u => 1 } }  +{ %get, set => 1 }, 'assign hash slot';
-watch { *a = sub { } }     +{ %get, set => 1 }, 'assign code slot';
+SKIP: {
+ skip 'This failed temporarily between perls 5.13.1 and 5.13.8 (included)'
+                            => 5 * 2 if "$]" >= 5.013_001 and "$]" <= 5.013_008;
 
-watch { *a = gensym() }    +{ %get, set => 1 }, 'assign glob';
+ my $cxt = 'void contex';
+ my $exp = { set => 1 };
+
+ watch { *a = \1 }          $exp, "assign scalar slot in $cxt";
+ watch { *a = [ qw<x y> ] } $exp, "assign array slot in $cxt";
+ watch { *a = { u => 1 } }  $exp, "assign hash slot in $cxt";
+ watch { *a = sub { } }     $exp, "assign code slot in $cxt";
+ watch { *a = gensym() }    $exp, "assign glob in $cxt";
+}
+
+{
+ my $cxt = 'scalar context';
+ my $exp = { %get, set => 1 };
+ my $v;
+
+ $v = watch { *a = \1 }          $exp, "assign scalar slot in $cxt";
+ $v = watch { *a = [ qw<x y> ] } $exp, "assign array slot in $cxt";
+ $v = watch { *a = { u => 1 } }  $exp, "assign hash slot in $cxt";
+ $v = watch { *a = sub { } }     $exp, "assign code slot in $cxt";
+ $v = watch { *a = gensym() }    $exp, "assign glob in $cxt";
+}
 
 watch {
  local *b = gensym();
  watch { cast *b, $wiz } +{ }, 'cast 2';
 } +{ }, 'scope end';
 
-%get = () if $] >= 5.013007;
+%get = () if "$]" >= 5.013007;
 
 watch { undef *a } +{ %get }, 'undef';
 
