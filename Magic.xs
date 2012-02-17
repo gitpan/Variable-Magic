@@ -435,9 +435,7 @@ STATIC vmg_vtable *vmg_vtable_alloc(pTHX) {
 
 #define vmg_vtable_vtbl(T) (T)->vtbl
 
-#if VMG_THREADSAFE
 STATIC perl_mutex vmg_vtable_refcount_mutex;
-#endif
 
 STATIC vmg_vtable *vmg_vtable_dup(pTHX_ vmg_vtable *t) {
 #define vmg_vtable_dup(T) vmg_vtable_dup(aTHX_ (T))
@@ -1016,7 +1014,7 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
  return &PL_sv_undef;
 }
 
-/* ... svt callbacks ....................................................... */
+/* --- svt callbacks ------------------------------------------------------- */
 
 #define VMG_CB_CALL_ARGS_MASK  15
 #define VMG_CB_CALL_ARGS_SHIFT 4
@@ -1074,16 +1072,42 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
 #define vmg_cb_call3(I, OI, S, A1, A2, A3) \
         vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 3), (S), (A1), (A2), (A3))
 
+STATIC int vmg_svt_default_noop(pTHX_ SV *sv, MAGIC *mg) {
+ return 0;
+}
+
+/* ... get magic ........................................................... */
+
 STATIC int vmg_svt_get(pTHX_ SV *sv, MAGIC *mg) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
 
  return vmg_cb_call1(w->cb_get, w->opinfo, sv, mg->mg_obj);
 }
 
+#define vmg_svt_get_noop vmg_svt_default_noop
+
+/* ... set magic ........................................................... */
+
 STATIC int vmg_svt_set(pTHX_ SV *sv, MAGIC *mg) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
 
  return vmg_cb_call1(w->cb_set, w->opinfo, sv, mg->mg_obj);
+}
+
+#define vmg_svt_set_noop vmg_svt_default_noop
+
+/* ... len magic ........................................................... */
+
+STATIC U32 vmg_sv_len(pTHX_ SV *sv) {
+#define vmg_sv_len(S) vmg_sv_len(aTHX_ (S))
+ STRLEN len;
+#if VMG_HAS_PERL(5, 9, 3)
+ const U8 *s = VOID2(const U8 *, VOID2(const void *, SvPV_const(sv, len)));
+#else
+ U8 *s = SvPV(sv, len);
+#endif
+
+ return DO_UTF8(sv) ? utf8_length(s, s + len) : len;
 }
 
 STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
@@ -1103,16 +1127,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  PUSHs(sv_2mortal(newRV_inc(sv)));
  PUSHs(mg->mg_obj ? mg->mg_obj : &PL_sv_undef);
  if (t < SVt_PVAV) {
-  STRLEN l;
-#if VMG_HAS_PERL(5, 9, 3)
-  const U8 *s = VOID2(const U8 *, VOID2(const void *, SvPV_const(sv, l)));
-#else
-  U8 *s = SvPV(sv, l);
-#endif
-  if (DO_UTF8(sv))
-   len = utf8_length(s, s + l);
-  else
-   len = l;
+  len = vmg_sv_len(sv);
   mPUSHu(len);
  } else if (t == SVt_PVAV) {
   len = av_len((AV *) sv) + 1;
@@ -1140,11 +1155,30 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
  return ret;
 }
 
+STATIC U32 vmg_svt_len_noop(pTHX_ SV *sv, MAGIC *mg) {
+ U32    len = 0;
+ svtype t   = SvTYPE(sv);
+
+ if (t < SVt_PVAV) {
+  len = vmg_sv_len(sv);
+ } else if (t == SVt_PVAV) {
+  len = (U32) av_len((AV *) sv);
+ }
+
+ return len;
+}
+
+/* ... clear magic ......................................................... */
+
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
 
  return vmg_cb_call1(w->cb_clear, w->opinfo, sv, mg->mg_obj);
 }
+
+#define vmg_svt_clear_noop vmg_svt_default_noop
+
+/* ... free magic .......................................................... */
 
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  const vmg_wizard *w;
@@ -1201,11 +1235,15 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  return ret;
 }
 
+#define vmg_svt_free_noop vmg_svt_default_noop
+
 #if VMG_HAS_PERL_MAINT(5, 11, 0, 33256) || VMG_HAS_PERL(5, 12, 0)
 # define VMG_SVT_COPY_KEYLEN_TYPE I32
 #else
 # define VMG_SVT_COPY_KEYLEN_TYPE int
 #endif
+
+/* ... copy magic .......................................................... */
 
 STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, VMG_SVT_COPY_KEYLEN_TYPE keylen) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
@@ -1227,19 +1265,34 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, VMG_S
  return ret;
 }
 
+STATIC int vmg_svt_copy_noop(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, VMG_SVT_COPY_KEYLEN_TYPE keylen) {
+ return 0;
+}
+
+/* ... dup magic ........................................................... */
+
 #if 0
 STATIC int vmg_svt_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *param) {
  return 0;
 }
+#define vmg_svt_dup_noop vmg_svt_dup
 #endif
 
+/* ... local magic ......................................................... */
+
 #if MGf_LOCAL
+
 STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
 
  return vmg_cb_call1(w->cb_local, w->opinfo, nsv, mg->mg_obj);
 }
+
+#define vmg_svt_local_noop vmg_svt_default_noop
+
 #endif /* MGf_LOCAL */
+
+/* ... uvar magic .......................................................... */
 
 #if VMG_UVAR
 STATIC OP *vmg_pp_resetuvar(pTHX) {
@@ -1336,19 +1389,46 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
 
 /* --- Macros for the XS section ------------------------------------------- */
 
-#define VMG_SET_CB(S, N)              \
- cb = (S);                            \
- w->cb_ ## N = (SvOK(cb) && SvROK(cb)) ? SvREFCNT_inc(SvRV(cb)) : NULL;
+#ifdef CvISXSUB
+# define VMG_CVOK(C) \
+   ((CvISXSUB(C) ? (void *) CvXSUB(C) : (void *) CvROOT(C)) ? 1 : 0)
+#else
+# define VMG_CVOK(C) (CvROOT(C) || CvXSUB(C))
+#endif
 
-#define VMG_SET_SVT_CB(S, N)          \
- cb = (S);                            \
- if (SvOK(cb) && SvROK(cb)) {         \
-  t->svt_ ## N = vmg_svt_ ## N;       \
-  w->cb_  ## N = SvREFCNT_inc(SvRV(cb)); \
- } else {                             \
-  t->svt_ ## N = NULL;                \
-  w->cb_  ## N = NULL;                \
- }
+#define VMG_CBOK(S) ((SvTYPE(S) == SVt_PVCV) ? VMG_CVOK(S) : SvOK(S))
+
+#define VMG_SET_CB(S, N) {       \
+ SV *cb = (S);                   \
+ if (SvOK(cb) && SvROK(cb)) {    \
+  cb = SvRV(cb);                 \
+  if (VMG_CBOK(cb))              \
+   SvREFCNT_inc_simple_void(cb); \
+  else                           \
+   cb = NULL;                    \
+ } else {                        \
+  cb = NULL;                     \
+ }                               \
+ w->cb_ ## N = cb;               \
+}
+
+#define VMG_SET_SVT_CB(S, N) {   \
+ SV *cb = (S);                   \
+ if (SvOK(cb) && SvROK(cb)) {    \
+  cb = SvRV(cb);                 \
+  if (VMG_CBOK(cb)) {            \
+   t->svt_ ## N = vmg_svt_ ## N; \
+   SvREFCNT_inc_simple_void(cb); \
+  } else {                       \
+   t->svt_ ## N = vmg_svt_ ## N ## _noop; \
+   cb           = NULL;          \
+  }                              \
+ } else {                        \
+  t->svt_ ## N = NULL;           \
+  cb           = NULL;           \
+ }                               \
+ w->cb_ ## N = cb;               \
+}
 
 /* --- XS ------------------------------------------------------------------ */
 
@@ -1424,7 +1504,7 @@ PROTOTYPE: DISABLE
 PREINIT:
  vmg_wizard *w;
  MGVTBL *t;
- SV *cb, *op_info, *copy_key;
+ SV *op_info, *copy_key;
  I32 i = 0;
 CODE:
  if (items != 9

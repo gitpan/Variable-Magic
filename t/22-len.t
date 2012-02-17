@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 39 + (2 * 2 + 1);
+use Test::More tests => 39 + (2 * 2 + 1) + (5 + 2 * 3);
 
 use Variable::Magic qw<wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN>;
 
@@ -70,8 +70,8 @@ SKIP: {
  $c = 0;
  $n = 1 + int rand 1000;
  # length magic on scalars needs also get magic to be triggered.
- $wiz = wizard get => sub { return 'anything' },
-               len => sub { $d = $_[2]; ++$c; return $n };
+ my $wiz = wizard get => sub { return 'anything' },
+                  len => sub { $d = $_[2]; ++$c; return $n };
 
  my $x = 6789;
 
@@ -166,4 +166,36 @@ SKIP: {
 
  dispell @val, $wv;
  is_deeply \@val, [ 4, 5, 8 ], 'len: after value';
+}
+
+{
+ local $@;
+
+ my $wua = eval { wizard len => \undef };
+ is $@, '', 'len: noop wizard (for arrays) creation does not croak';
+
+ my @a = ('a' .. 'z');
+ eval { cast @a, $wua };
+ is $@, '', 'len: noop wizard (for arrays) cast does not croak';
+
+ my $l;
+ eval { $l = $#a };
+ is $@, '', 'len: noop wizard (for arrays) invocation does not croak';
+ is $l, 25, 'len: noop magic on an array returns the previous length';
+
+ my $wus = eval { wizard get => \undef, len => \undef };
+ is $@, '', 'len: noop wizard (for strings) creation does not croak';
+
+ for ([ 'euro', 'string' ], [ "\x{20AC}uro", 'unicode string' ]) {
+  my ($euro, $desc) = @$_;
+
+  eval { cast $euro, $wus };
+  is $@, '', 'len: noop wizard (for strings) cast does not croak';
+
+  eval { pos($euro) = 2 };
+  is $@, '', 'len: noop wizard (for strings) invocation does not croak';
+
+  my ($rest) = ($euro =~ /(.*)/g);
+  is $rest, 'ro', "len: noop magic on a $desc returns the previous length";
+ }
 }

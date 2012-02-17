@@ -28,6 +28,7 @@ sub init_watcher ($;$) {
  croak 'can\'t initialize twice' if defined $wiz;
  my $types = _types shift;
  $prefix   = (defined) ? "$_: " : '' for shift;
+ local $@;
  %mg  = ();
  $wiz = eval 'wizard ' . join(', ', map {
   "$_ => sub { \$mg{$_}++;" . ($_ eq 'len' ? '$_[2]' : '0') . '}'

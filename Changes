@@ -1,5 +1,10 @@
 Revision history for Variable-Magic
 
+0.48    2012-02-17 23:40 UTC
+        + Add : You can now pass a reference to undef as the magic callback in
+                order to install a no-op callback.
+                Thanks Florian Ragwitz for the suggestion.
+
 0.47    2011-10-27 16:55 UTC
         + Add : The new constant VMG_COMPAT_HASH_DELETE_NOUVAR_VOID evaluates
                 to true when "delete $hash{key}" does not call 'delete' uvar
