@@ -270,7 +270,9 @@ use Variable::Magic qw<wizard cast>; BEGIN { cast %::, wizard fetch => sub { die
  CODE
  skip 'Test code didn\'t run properly' => $count unless defined $output;
  my $suffix = "\nExecution(?s:.*)";
- if ("$]" >= 5.011005) {
+ if ("$]" >= 5.017) {
+  $suffix = "(?:\nsalsify at -e line \\d+.){16}" . $suffix;
+ } elsif ("$]" >= 5.011005) {
   $suffix = "(?:\nsalsify at -e line \\d+.){12}" . $suffix;
  } elsif ("$]" >= 5.011) {
   $suffix = "(?:\nsalsify at -e line \\d+.){3}" . $suffix;

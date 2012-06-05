@@ -15,7 +15,7 @@ sub skipall {
 
 sub diag {
  require Test::More;
- Test::More::diag(@_);
+ Test::More::diag($_) for @_;
 }
 
 sub import {
@@ -66,10 +66,7 @@ sub spawn {
   threads->create(@_);
  };
  push @diag, "Thread creation error: $@" if $@;
- if (@diag) {
-  require Test::More;
-  Test::More::diag($_) for @diag;
- }
+ diag(@diag) if @diag;
  return $thread ? $thread : ();
 }
 
