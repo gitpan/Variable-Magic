@@ -224,7 +224,7 @@ STATIC void vmg_mg_magical(SV *sv) {
 
 #define VMG_SAVE_LAST_CX (!VMG_HAS_PERL(5, 8, 4) || VMG_HAS_PERL(5, 9, 5))
 
-STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, I32 destructor) {
+STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, SV *dsv) {
 #define vmg_call_sv(S, F, D) vmg_call_sv(aTHX_ (S), (F), (D))
  I32 ret, cxix = 0, in_eval = 0;
 #if VMG_SAVE_LAST_CX
@@ -239,7 +239,7 @@ STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, I32 destructor) {
 
  if (cxstack_ix < cxstack_max) {
   cxix = cxstack_ix + 1;
-  if (destructor && CxTYPE(cxstack + cxix) == CXt_EVAL)
+  if (dsv && CxTYPE(cxstack + cxix) == CXt_EVAL)
    in_eval = 1;
  }
 
@@ -277,8 +277,23 @@ STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, I32 destructor) {
 #else
    ++PL_Ierror_count;
 #endif
-   } else if (!in_eval)
+   } else if (!in_eval) {
+    if (dsv) {
+     /* We are about to croak() while dsv is being destroyed. Try to clean up
+      * things a bit. */
+     MAGIC *mg = SvMAGIC(dsv);
+     SvREFCNT_dec((SV *) mg->mg_ptr);
+     /* mg->mg_obj may not be refcounted if the data constructor returned the
+      * variable itself. */
+     if (mg->mg_flags & MGf_REFCOUNTED)
+      SvREFCNT_dec(mg->mg_obj);
+     SvMAGIC_set(dsv, mg->mg_moremagic);
+     Safefree(mg);
+     mg_magical(dsv);
+     SvREFCNT_dec(dsv);
+    }
     croak(NULL);
+   }
  } else {
   if (old_err) {
    SvREFCNT_dec(ERRSV);
@@ -522,26 +537,32 @@ STATIC void vmg_wizard_free(pTHX_ vmg_wizard *w) {
  if (!w)
   return;
 
- SvREFCNT_dec(w->cb_data);
- SvREFCNT_dec(w->cb_get);
- SvREFCNT_dec(w->cb_set);
- SvREFCNT_dec(w->cb_len);
- SvREFCNT_dec(w->cb_clear);
- SvREFCNT_dec(w->cb_free);
- SvREFCNT_dec(w->cb_copy);
+ /* During global destruction, any of the callbacks may already have been
+  * freed, so we can't rely on still being able to access them. */
+ if (!PL_dirty) {
+  SvREFCNT_dec(w->cb_data);
+  SvREFCNT_dec(w->cb_get);
+  SvREFCNT_dec(w->cb_set);
+  SvREFCNT_dec(w->cb_len);
+  SvREFCNT_dec(w->cb_clear);
+  SvREFCNT_dec(w->cb_free);
+  SvREFCNT_dec(w->cb_copy);
 #if 0
- SvREFCNT_dec(w->cb_dup);
+  SvREFCNT_dec(w->cb_dup);
 #endif
 #if MGf_LOCAL
- SvREFCNT_dec(w->cb_local);
+  SvREFCNT_dec(w->cb_local);
 #endif /* MGf_LOCAL */
 #if VMG_UVAR
- SvREFCNT_dec(w->cb_fetch);
- SvREFCNT_dec(w->cb_store);
- SvREFCNT_dec(w->cb_exists);
- SvREFCNT_dec(w->cb_delete);
+  SvREFCNT_dec(w->cb_fetch);
+  SvREFCNT_dec(w->cb_store);
+  SvREFCNT_dec(w->cb_exists);
+  SvREFCNT_dec(w->cb_delete);
 #endif /* VMG_UVAR */
+ }
 
+ /* PerlMemShared_free() and Safefree() are still fine during global
+  * destruction though. */
  vmg_vtable_free(w->vtable);
  Safefree(w);
 
@@ -595,9 +616,6 @@ STATIC const vmg_wizard *vmg_wizard_dup(pTHX_ const vmg_wizard *w, CLONE_PARAMS 
 /* --- Wizard SV objects --------------------------------------------------- */
 
 STATIC int vmg_wizard_sv_free(pTHX_ SV *sv, MAGIC *mg) {
- if (PL_dirty) /* During global destruction, the context is already freed */
-  return 0;
-
  vmg_wizard_free((vmg_wizard *) mg->mg_ptr);
 
  return 0;
@@ -731,7 +749,7 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, SV **args, I32 items) {
   PUSHs(args[i]);
  PUTBACK;
 
- vmg_call_sv(ctor, G_SCALAR, 0);
+ vmg_call_sv(ctor, G_SCALAR, NULL);
 
  SPAGAIN;
  nsv = POPs;
@@ -930,9 +948,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const vmg_wizard *w) {
     if (mg->mg_type == PERL_MAGIC_uvar)
      break;
    }
-   /* assert(mg); */
    uf = (struct ufuncs *) mg->mg_ptr;
-   /* assert(uf->uf_val == vmg_svt_val); */
    if (uf[1].uf_val || uf[1].uf_set) {
     /* Revert the original uvar magic. */
     uf[0] = uf[1];
@@ -1048,7 +1064,7 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- vmg_call_sv(cb, G_SCALAR, 0);
+ vmg_call_sv(cb, G_SCALAR, NULL);
 
  SPAGAIN;
  svr = POPs;
@@ -1140,7 +1156,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- vmg_call_sv(w->cb_len, G_SCALAR, 0);
+ vmg_call_sv(w->cb_len, G_SCALAR, NULL);
 
  SPAGAIN;
  svr = POPs;
@@ -1187,8 +1203,8 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
 
  dSP;
 
- /* Don't even bother if we are in global destruction - the wizard is prisoner
-  * of circular references and we are way beyond user realm */
+ /* During global destruction, we cannot be sure that the wizard and its free
+  * callback are still alive. */
  if (PL_dirty)
   return 0;
 
@@ -1215,7 +1231,7 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(w->opinfo));
  PUTBACK;
 
- vmg_call_sv(w->cb_free, G_SCALAR, 1);
+ vmg_call_sv(w->cb_free, G_SCALAR, sv);
 
  SPAGAIN;
  svr = POPs;

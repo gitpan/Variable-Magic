@@ -226,13 +226,19 @@ sub run_perl {
 
 my $has_capture_tiny = do {
  local $@;
- eval 'use Capture::Tiny 0.08 (); 1'
+ eval {
+  require Capture::Tiny;
+  Capture::Tiny->VERSION('0.08');
+ }
 };
 if ($has_capture_tiny) {
- my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
+ local $@;
+ my $output = eval {
+  Capture::Tiny::capture_merged(sub { run_perl <<'  CODE' });
 print STDOUT "pants\n";
 print STDERR "trousers\n";
- CODE
+  CODE
+ };
  unless (defined $output and $output =~ /pants/ and $output =~ /trousers/) {
   $has_capture_tiny = 0;
  }
@@ -266,18 +272,10 @@ SKIP:
  skip 'No working Capture::Tiny is installed'=> $count unless $has_capture_tiny;
 
  my $output = Capture::Tiny::capture_merged(sub { run_perl <<' CODE' });
-use Variable::Magic qw<wizard cast>; BEGIN { cast %::, wizard fetch => sub { die q[salsify] } } hlagh()
+use Variable::Magic qw<wizard cast>; BEGIN { cast %derp::, wizard fetch => sub { die q[raddish] } } derp::hlagh()
  CODE
  skip 'Test code didn\'t run properly' => $count unless defined $output;
- my $suffix = "\nExecution(?s:.*)";
- if ("$]" >= 5.017) {
-  $suffix = "(?:\nsalsify at -e line \\d+.){16}" . $suffix;
- } elsif ("$]" >= 5.011005) {
-  $suffix = "(?:\nsalsify at -e line \\d+.){12}" . $suffix;
- } elsif ("$]" >= 5.011) {
-  $suffix = "(?:\nsalsify at -e line \\d+.){3}" . $suffix;
- }
- like $output, expect('salsify', '-e', $suffix),
-                  'die in free callback at compile time and not in eval string';
+ like $output, expect('raddish', '-e', "\nExecution(?s:.*)"),
+               'die in free callback at compile time and not in eval string';
  --$count;
 }

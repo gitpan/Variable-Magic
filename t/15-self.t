@@ -7,6 +7,9 @@ use Test::More tests => 17;
 
 use Variable::Magic qw<wizard cast dispell getdata>;
 
+use lib 't/lib';
+use Variable::Magic::TestGlobalDestruction;
+
 my $c = 0;
 
 {
@@ -54,8 +57,3 @@ eval q[
  BEGIN { require Variable::Magic::TestDestroyRequired; }
 ];
 is $@, '', 'wizard destruction at the end of BEGIN-time require doesn\'t panic';
-
-if ((defined $ENV{PERL_DESTRUCT_LEVEL} and $ENV{PERL_DESTRUCT_LEVEL} >= 3)
-    or eval "use Perl::Destruct::Level level => 3; 1") {
- diag 'Test global destruction';
-}

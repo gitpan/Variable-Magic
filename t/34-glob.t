@@ -63,7 +63,7 @@ watch {
  watch { cast *b, $wiz } +{ }, 'cast 2';
 } +{ }, 'scope end';
 
-%get = () if "$]" >= 5.013007;
+%get = () if "$]" >= 5.013_007;
 
 watch { undef *a } +{ %get }, 'undef';
 

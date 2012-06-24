@@ -13,8 +13,8 @@ sub Variable::Magic::TestPkg::foo { }
 
 my $is_5130_release = ("$]" == 5.013 && !$Config{git_describe}) ? 1 : 0;
 
-my $aelem     = "$]" <= 5.008003 ? 'aelem'
-                                 : ("$]" < 5.013 or $is_5130_release)
+my $aelem     = "$]" <= 5.008_003 ? 'aelem'
+                                  : ("$]" < 5.013 or $is_5130_release)
                                                    ? 'aelemfast'
                                                    : 'sassign';
 my $aelemf    = ("$]" < 5.013 or $is_5130_release) ? 'aelemfast' : 'sassign';

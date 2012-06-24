@@ -72,7 +72,7 @@ $b = watch { exists $a[1] } { }, 'array element: exists';
 is $b, 1, 'scalar: array element: exists correctly';
 
 # $b has to be set inside the block for the test to pass on 5.8.3 and lower
-watch { $b = delete $a[1] } { get => 1, free => ("$]" > 5.008005 ? 1 : 0) },
+watch { $b = delete $a[1] } { get => 1, free => ("$]" > 5.008_005 ? 1 : 0) },
                             'array element: delete';
 is $b, 6, 'scalar: array element: delete correctly';
 

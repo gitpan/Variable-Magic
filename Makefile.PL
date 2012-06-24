@@ -20,7 +20,7 @@ my $as_perl = eval {
 
 my $is_as_822 = 0;
 print "Checking if this is ActiveState Perl 5.8.8 build 822 or higher... ";
-if ("$]" == 5.008008 and defined $as_perl and $as_perl >= 822) {
+if ("$]" == 5.008_008 and defined $as_perl and $as_perl >= 822) {
  $is_as_822 = 1;
  push @DEFINES, '-DVMG_COMPAT_ARRAY_PUSH_NOLEN=1';
 }
@@ -52,7 +52,7 @@ if ($^O eq 'MSWin32' && "$]" < 5.009) {
 }
 
 # Fork emulation got "fixed" in 5.10.1
-if ($^O eq 'MSWin32' && "$]" < 5.010001) {
+if ($^O eq 'MSWin32' && "$]" < 5.010_001) {
  push @DEFINES, '-DVMG_FORKSAFE=0';
  print "Fork safety not ensured for perl 5.8.x and 5.10.0 on Windows.\n";
 }
@@ -104,7 +104,7 @@ WriteMakefile(
  PL_FILES         => {},
  @DEFINES,
  PREREQ_PM        => \%PREREQ_PM,
- MIN_PERL_VERSION => 5.008,
+ MIN_PERL_VERSION => '5.008',
  META_MERGE       => \%META,
  dist             => {
   PREOP    => "pod2text -u $file > \$(DISTVNAME)/README",

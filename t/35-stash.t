@@ -96,7 +96,7 @@ cast %Hlagh::, $wiz;
  is $@, "ok\n", 'stash: function calls compiled fine';
  is_deeply \%mg, {
   fetch => \@calls,
-  store => ("$]" < 5.011002 ? \@calls : [ map { ($_) x 2 } @calls ]),
+  store => ("$]" < 5.011_002 ? \@calls : [ map { ($_) x 2 } @calls ]),
  }, 'stash: function calls';
 }
 
@@ -215,6 +215,9 @@ cast %Hlagh::, $wiz;
 {
  local %mg;
 
+ my @expected_stores = map { ($_) x 2 } qw<nevermentioned eat shoot>;
+ push @expected_stores, 'nevermentioned' if "$]" < 5.017_001;
+
  eval q{
   package Hlagh;
   undef &nevermentioned;
@@ -223,11 +226,7 @@ cast %Hlagh::, $wiz;
  };
 
  is $@, '', 'stash: delete executed fine';
- is_deeply \%mg, {
-  store => [
-   qw<nevermentioned nevermentioned eat eat shoot shoot nevermentioned>
-  ],
- }, 'stash: delete';
+ is_deeply \%mg, { store => \@expected_stores }, 'stash: delete';
 }
 
 END {
@@ -296,7 +295,7 @@ $_ => sub {
 CB
 } qw<fetch store exists delete>);
 
-my $uo_exp = "$]" < 5.011002 ? 2 : 3;
+my $uo_exp = "$]" < 5.011_002 ? 2 : 3;
 
 $code .= ', data => sub { +{ guard => 0 } }';
 

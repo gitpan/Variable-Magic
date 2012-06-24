@@ -1,5 +1,16 @@
 Revision history for Variable-Magic
 
+0.50    2012-06-24 23:00 UTC
+        + Fix : Less memory is leaked when a wizard is freed during global
+                destruction, or when an exception is thrown from a 'free'
+                callback.
+        + Fix : [RT #77991] : t/17-ctl.t fails on perl 5.14 and 5.16.
+                This was actually an issue with ActivePerl, and this test
+                has learned to cope with it.
+                Thanks Gisle Aas for reporting.
+        + Tst : t/35-stash.t has been taught about perl 5.17.1.
+        + Doc : Many clarifications.
+
 0.49    2012-06-05 21:40 UTC
         This is a maintenance release. The code contains no functional change.
         Satisfied users of version 0.48 can skip this update.
