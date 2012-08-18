@@ -35,4 +35,4 @@ resources:
   homepage: http://search.cpan.org/dist/Variable-Magic/
   license: http://dev.perl.org/licenses/
   repository: http://git.profvince.com/?p=perl%2Fmodules%2FVariable-Magic.git
-version: 0.50
+version: 0.51

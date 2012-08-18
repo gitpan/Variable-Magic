@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 * 8 + 10 + 1 + 1;
+use Test::More tests => 4 * 8 + 4 * (2 * 4 + 1) + 10 + 1 + 1;
 
 use Variable::Magic qw<wizard cast VMG_UVAR>;
 
@@ -128,6 +128,101 @@ for my $t (@scalar_tests) {
 
 # Free
 
+{
+ my $wiz   = wizard free => sub { die 'avocado' };
+ my $check = sub { like $@, expect('avocado', $0), $_[0] };
+
+ for my $local_out (0, 1) {
+  for my $local_in (0, 1) {
+   my $desc   = "die in free callback";
+   if ($local_in or $local_out) {
+    $desc .= ' with $@ localized ';
+    if ($local_in and $local_out) {
+     $desc .= 'inside and outside';
+    } elsif ($local_in) {
+     $desc .= 'inside';
+    } else {
+     $desc .= 'outside';
+    }
+   }
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    cast $x, $wiz;
+   };
+   $check->("$desc at eval BLOCK 1");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    cast $x, $wiz;
+   };
+   $check->("$desc at eval STRING 1");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    my $y = \$x;
+    &cast($y, $wiz);
+   };
+   $check->("$desc at eval BLOCK 2");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    my $y = \$x;
+    &cast($y, $wiz);
+   };
+   $check->("$desc at eval STRING 2");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    cast $x, $wiz;
+    my $y = 1;
+   };
+   $check->("$desc at eval BLOCK 3");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    local $@ = 'yyy' if $local_in;
+    my $x;
+    cast $x, $wiz;
+    my $y = 1;
+   };
+   $check->("$desc at eval STRING 3");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    local $@ = 'yyy' if $local_in;
+    {
+     my $x;
+     cast $x, $wiz;
+    }
+   };
+   $check->("$desc at block in eval BLOCK");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    local $@ = 'yyy' if $local_in;
+    {
+     my $x;
+     cast $x, $wiz;
+    }
+   };
+   $check->("$desc at block in eval STRING");
+
+   ok defined($desc), "$desc did not over-unwind the save stack";
+  }
+ }
+}
+
 my $wiz;
 
 eval {
@@ -137,7 +232,7 @@ eval {
  cast $x, $wiz, sub { die "spinach" };
 };
 
-like $@, expect('spinach', $0), 'die in free callback';
+like $@, expect('spinach', $0), 'die in sub in free callback';
 
 eval {
  $wiz = wizard free => sub { die 'zucchini' };

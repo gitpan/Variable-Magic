@@ -1,5 +1,17 @@
 Revision history for Variable-Magic
 
+0.51    2012-08-18 15:00 UTC
+        + Fix : It is now safe to call dispell() from inside 'free', 'copy' and
+                'uvar' callbacks to dispell the magic currently in use.
+                Thanks Clinton Gormley for reporting.
+        + Fix : Exceptions thrown from inside a 'free' callback are now always
+                consistently propagated outside of the callback. They used to
+                be lost when the 'free' callback was invoked at the end of an
+                eval block or string.
+        + Fix : The 'reset RMG flag' workaroundn used to allow wizards with
+                both 'uvar' and 'clear' magics to be cast onto a hash, has been
+                made thread-safe.
+
 0.50    2012-06-24 23:00 UTC
         + Fix : Less memory is leaked when a wizard is freed during global
                 destruction, or when an exception is thrown from a 'free'

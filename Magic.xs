@@ -187,6 +187,11 @@
 # define VMG_COMPAT_GLOB_GET 0
 #endif
 
+#define VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE (VMG_HAS_PERL(5, 10, 0) && !VMG_HAS_PERL(5, 10, 1))
+
+/* NewOp() isn't public in perl 5.8.0. */
+#define VMG_RESET_RMG_NEEDS_TRAMPOLINE (VMG_UVAR && (VMG_THREADSAFE || !VMG_HAS_PERL(5, 8, 1)))
+
 /* ... Bug-free mg_magical ................................................. */
 
 /* See the discussion at http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00036.html */
@@ -220,16 +225,51 @@ STATIC void vmg_mg_magical(SV *sv) {
 
 #endif
 
-/* ... Safe version of call_sv() ........................................... */
+/* --- Trampoline ops ------------------------------------------------------ */
 
-#define VMG_SAVE_LAST_CX (!VMG_HAS_PERL(5, 8, 4) || VMG_HAS_PERL(5, 9, 5))
+#define VMG_NEEDS_TRAMPOLINE VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE || VMG_RESET_RMG_NEEDS_TRAMPOLINE
 
-STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, SV *dsv) {
-#define vmg_call_sv(S, F, D) vmg_call_sv(aTHX_ (S), (F), (D))
- I32 ret, cxix = 0, in_eval = 0;
-#if VMG_SAVE_LAST_CX
+#if VMG_NEEDS_TRAMPOLINE
+
+typedef struct {
+ OP   temp;
+ SVOP target;
+} vmg_trampoline;
+
+STATIC void vmg_trampoline_init(vmg_trampoline *t, OP *(*cb)(pTHX)) {
+ t->temp.op_type    = OP_STUB;
+ t->temp.op_ppaddr  = 0;
+ t->temp.op_next    = (OP *) &t->target;
+ t->temp.op_flags   = 0;
+ t->temp.op_private = 0;
+
+ t->target.op_type    = OP_STUB;
+ t->target.op_ppaddr  = cb;
+ t->target.op_next    = NULL;
+ t->target.op_flags   = 0;
+ t->target.op_private = 0;
+ t->target.op_sv      = NULL;
+}
+
+STATIC OP *vmg_trampoline_bump(pTHX_ vmg_trampoline *t, SV *sv, OP *o) {
+#define vmg_trampoline_bump(T, S, O) vmg_trampoline_bump(aTHX_ (T), (S), (O))
+ t->temp         = *o;
+ t->temp.op_next = (OP *) &t->target;
+
+ t->target.op_sv   = sv;
+ t->target.op_next = o->op_next;
+
+ return &t->temp;
+}
+
+#endif /* VMG_NEEDS_TRAMPOLINE */
+
+/* --- Safe version of call_sv() ------------------------------------------- */
+
+STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, int (*cleanup)(pTHX_ void *), void *ud) {
+#define vmg_call_sv(S, F, C, U) vmg_call_sv(aTHX_ (S), (F), (C), (U))
+ I32 ret, cxix;
  PERL_CONTEXT saved_cx;
-#endif
  SV *old_err = NULL;
 
  if (SvTRUE(ERRSV)) {
@@ -237,23 +277,14 @@ STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, SV *dsv) {
   ERRSV   = newSV(0);
  }
 
- if (cxstack_ix < cxstack_max) {
-  cxix = cxstack_ix + 1;
-  if (dsv && CxTYPE(cxstack + cxix) == CXt_EVAL)
-   in_eval = 1;
- }
-
-#if VMG_SAVE_LAST_CX
+ cxix     = (cxstack_ix < cxstack_max) ? (cxstack_ix + 1) : Perl_cxinc(aTHX);
  /* The last popped context will be reused by call_sv(), but our callers may
   * still need its previous value. Back it up so that it isn't clobbered. */
  saved_cx = cxstack[cxix];
-#endif
 
  ret = call_sv(sv, flags | G_EVAL);
 
-#if VMG_SAVE_LAST_CX
  cxstack[cxix] = saved_cx;
-#endif
 
  if (SvTRUE(ERRSV)) {
   if (old_err) {
@@ -277,23 +308,10 @@ STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, SV *dsv) {
 #else
    ++PL_Ierror_count;
 #endif
-   } else if (!in_eval) {
-    if (dsv) {
-     /* We are about to croak() while dsv is being destroyed. Try to clean up
-      * things a bit. */
-     MAGIC *mg = SvMAGIC(dsv);
-     SvREFCNT_dec((SV *) mg->mg_ptr);
-     /* mg->mg_obj may not be refcounted if the data constructor returned the
-      * variable itself. */
-     if (mg->mg_flags & MGf_REFCOUNTED)
-      SvREFCNT_dec(mg->mg_obj);
-     SvMAGIC_set(dsv, mg->mg_moremagic);
-     Safefree(mg);
-     mg_magical(dsv);
-     SvREFCNT_dec(dsv);
-    }
+  } else {
+   if (!cleanup || cleanup(aTHX_ ud))
     croak(NULL);
-   }
+  }
  } else {
   if (old_err) {
    SvREFCNT_dec(ERRSV);
@@ -422,7 +440,15 @@ STATIC const char vmg_argstorefailed[] = "Error while storing arguments";
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
 typedef struct {
- HV *b__op_stashes[OPc_MAX];
+ HV             *b__op_stashes[OPc_MAX];
+ I32             depth;
+ MAGIC          *freed_tokens;
+#if VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE
+ vmg_trampoline  propagate_errsv;
+#endif
+#if VMG_RESET_RMG_NEEDS_TRAMPOLINE
+ vmg_trampoline  reset_rmg;
+#endif
 } my_cxt_t;
 
 START_MY_CXT
@@ -749,7 +775,7 @@ STATIC SV *vmg_data_new(pTHX_ SV *ctor, SV *sv, SV **args, I32 items) {
   PUSHs(args[i]);
  PUTBACK;
 
- vmg_call_sv(ctor, G_SCALAR, NULL);
+ vmg_call_sv(ctor, G_SCALAR, 0, NULL);
 
  SPAGAIN;
  nsv = POPs;
@@ -776,19 +802,68 @@ STATIC SV *vmg_data_get(pTHX_ SV *sv, const vmg_wizard *w) {
 /* ... Magic cast/dispell .................................................. */
 
 #if VMG_UVAR
+
 STATIC I32 vmg_svt_val(pTHX_ IV, SV *);
 
-STATIC void vmg_uvar_del(SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) {
- if (prevmagic) {
-  prevmagic->mg_moremagic = moremagic;
- } else {
-  SvMAGIC_set(sv, moremagic);
- }
- mg->mg_moremagic = NULL;
- Safefree(mg->mg_ptr);
- Safefree(mg);
-}
+typedef struct {
+ struct ufuncs new_uf;
+ struct ufuncs old_uf;
+} vmg_uvar_ud;
+
 #endif /* VMG_UVAR */
+
+STATIC void vmg_mg_del(pTHX_ SV *sv, MAGIC *prevmagic, MAGIC *mg, MAGIC *moremagic) {
+#define vmg_mg_del(S, P, M, N) vmg_mg_del(aTHX_ (S), (P), (M), (N))
+ dMY_CXT;
+
+ if (prevmagic)
+  prevmagic->mg_moremagic = moremagic;
+ else
+  SvMAGIC_set(sv, moremagic);
+
+ /* Destroy private data */
+#if VMG_UVAR
+ if (mg->mg_type == PERL_MAGIC_uvar) {
+  Safefree(mg->mg_ptr);
+ } else {
+#endif /* VMG_UVAR */
+  if (mg->mg_obj != sv) {
+   SvREFCNT_dec(mg->mg_obj);
+   mg->mg_obj = NULL;
+  }
+  /* Unreference the wizard */
+  SvREFCNT_dec((SV *) mg->mg_ptr);
+  mg->mg_ptr = NULL;
+#if VMG_UVAR
+ }
+#endif /* VMG_UVAR */
+
+ if (MY_CXT.depth) {
+  mg->mg_moremagic    = MY_CXT.freed_tokens;
+  MY_CXT.freed_tokens = mg;
+ } else {
+  mg->mg_moremagic = NULL;
+  Safefree(mg);
+ }
+}
+
+STATIC int vmg_magic_chain_free(pTHX_ MAGIC *mg, MAGIC *skip) {
+#define vmg_magic_chain_free(M, S) vmg_magic_chain_free(aTHX_ (M), (S))
+ int skipped = 0;
+
+ while (mg) {
+  MAGIC *moremagic = mg->mg_moremagic;
+
+  if (mg == skip)
+   ++skipped;
+  else
+   Safefree(mg);
+
+  mg = moremagic;
+ }
+
+ return skipped;
+}
 
 STATIC UV vmg_cast(pTHX_ SV *sv, const vmg_wizard *w, const SV *wiz, SV **args, I32 items) {
 #define vmg_cast(S, W, WIZ, A, I) vmg_cast(aTHX_ (S), (W), (WIZ), (A), (I))
@@ -837,14 +912,14 @@ STATIC UV vmg_cast(pTHX_ SV *sv, const vmg_wizard *w, const SV *wiz, SV **args, 
 #if VMG_UVAR
  if (w->uvar) {
   MAGIC *prevmagic, *moremagic = NULL;
-  struct ufuncs uf[2];
+  vmg_uvar_ud ud;
 
-  uf[0].uf_val   = vmg_svt_val;
-  uf[0].uf_set   = NULL;
-  uf[0].uf_index = 0;
-  uf[1].uf_val   = NULL;
-  uf[1].uf_set   = NULL;
-  uf[1].uf_index = 0;
+  ud.new_uf.uf_val   = vmg_svt_val;
+  ud.new_uf.uf_set   = NULL;
+  ud.new_uf.uf_index = 0;
+  ud.old_uf.uf_val   = NULL;
+  ud.old_uf.uf_set   = NULL;
+  ud.old_uf.uf_index = 0;
 
   /* One uvar magic in the chain is enough. */
   for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic) {
@@ -854,18 +929,18 @@ STATIC UV vmg_cast(pTHX_ SV *sv, const vmg_wizard *w, const SV *wiz, SV **args, 
   }
 
   if (mg) { /* Found another uvar magic. */
-   struct ufuncs *olduf = (struct ufuncs *) mg->mg_ptr;
-   if (olduf->uf_val == vmg_svt_val) {
+   struct ufuncs *uf = (struct ufuncs *) mg->mg_ptr;
+   if (uf->uf_val == vmg_svt_val) {
     /* It's our uvar magic, nothing to do. oldgmg was true. */
     goto done;
    } else {
     /* It's another uvar magic, backup it and replace it by ours. */
-    uf[1] = *olduf;
-    vmg_uvar_del(sv, prevmagic, mg, moremagic);
+    ud.old_uf = *uf;
+    vmg_mg_del(sv, prevmagic, mg, moremagic);
    }
   }
 
-  sv_magic(sv, NULL, PERL_MAGIC_uvar, (const char *) &uf, sizeof(uf));
+  sv_magic(sv, NULL, PERL_MAGIC_uvar, (const char *) &ud, sizeof(ud));
   vmg_mg_magical(sv);
   /* Our hash now carries uvar magic. The uvar/clear shortcoming has to be
    * handled by our uvar callback. */
@@ -914,19 +989,7 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const vmg_wizard *w) {
  if (!mg)
   return 0;
 
- if (prevmagic) {
-  prevmagic->mg_moremagic = moremagic;
- } else {
-  SvMAGIC_set(sv, moremagic);
- }
- mg->mg_moremagic = NULL;
-
- /* Destroy private data */
- if (mg->mg_obj != sv)
-  SvREFCNT_dec(mg->mg_obj);
- /* Unreference the wizard */
- SvREFCNT_dec((SV *) mg->mg_ptr);
- Safefree(mg);
+ vmg_mg_del(sv, prevmagic, mg, moremagic);
 
 #if VMG_UVAR
  if (uvars == 1 && SvTYPE(sv) >= SVt_PVHV) {
@@ -942,22 +1005,26 @@ STATIC UV vmg_dispell(pTHX_ SV *sv, const vmg_wizard *w) {
   }
 
   if (uvars == 1) {
-   struct ufuncs *uf;
+   vmg_uvar_ud *ud;
+
    for (prevmagic = NULL, mg = SvMAGIC(sv); mg; prevmagic = mg, mg = moremagic){
     moremagic = mg->mg_moremagic;
     if (mg->mg_type == PERL_MAGIC_uvar)
      break;
    }
-   uf = (struct ufuncs *) mg->mg_ptr;
-   if (uf[1].uf_val || uf[1].uf_set) {
+
+   ud = (vmg_uvar_ud *) mg->mg_ptr;
+   if (ud->old_uf.uf_val || ud->old_uf.uf_set) {
     /* Revert the original uvar magic. */
-    uf[0] = uf[1];
-    Renew(uf, 1, struct ufuncs);
+    struct ufuncs *uf;
+    Newx(uf, 1, struct ufuncs);
+    *uf = ud->old_uf;
+    Safefree(ud);
     mg->mg_ptr = (char *) uf;
-    mg->mg_len = sizeof(struct ufuncs);
+    mg->mg_len = sizeof(*uf);
    } else {
     /* Remove the uvar magic. */
-    vmg_uvar_del(sv, prevmagic, mg, moremagic);
+    vmg_mg_del(sv, prevmagic, mg, moremagic);
    }
   }
  }
@@ -1034,12 +1101,77 @@ STATIC SV *vmg_op_info(pTHX_ unsigned int opinfo) {
 
 #define VMG_CB_CALL_ARGS_MASK  15
 #define VMG_CB_CALL_ARGS_SHIFT 4
-#define VMG_CB_CALL_OPINFO     (VMG_OP_INFO_NAME|VMG_OP_INFO_OBJECT)
+#define VMG_CB_CALL_OPINFO     (VMG_OP_INFO_NAME|VMG_OP_INFO_OBJECT) /* 1|2 */
+#define VMG_CB_CALL_GUARD      4
+
+STATIC int vmg_dispell_guard_oncroak(pTHX_ void *ud) {
+ dMY_CXT;
+
+ MY_CXT.depth--;
+
+ /* If we're at the upmost magic call and we're about to die, we can just free
+  * the tokens right now, since we will jump past the problematic part of our
+  * caller. */
+ if (MY_CXT.depth == 0 && MY_CXT.freed_tokens) {
+  vmg_magic_chain_free(MY_CXT.freed_tokens, NULL);
+  MY_CXT.freed_tokens = NULL;
+ }
+
+ return 1;
+}
+
+STATIC int vmg_dispell_guard_free(pTHX_ SV *sv, MAGIC *mg) {
+ vmg_magic_chain_free((MAGIC *) mg->mg_ptr, NULL);
+
+ return 0;
+}
+
+#if VMG_THREADSAFE
+
+STATIC int vmg_dispell_guard_dup(pTHX_ MAGIC *mg, CLONE_PARAMS *params) {
+ /* The freed magic tokens aren't cloned by perl because it cannot reach them
+  * (they have been detached from their parent SV when they were enqueued).
+  * Hence there's nothing to purge in the new thread. */
+ mg->mg_ptr = NULL;
+
+ return 0;
+}
+
+#endif /* VMG_THREADSAFE */
+
+STATIC MGVTBL vmg_dispell_guard_vtbl = {
+ NULL,                   /* get */
+ NULL,                   /* set */
+ NULL,                   /* len */
+ NULL,                   /* clear */
+ vmg_dispell_guard_free, /* free */
+ NULL,                   /* copy */
+#if VMG_THREADSAFE
+ vmg_dispell_guard_dup,  /* dup */
+#else
+ NULL,                   /* dup */
+#endif
+#if MGf_LOCAL
+ NULL,                   /* local */
+#endif /* MGf_LOCAL */
+};
+
+STATIC SV *vmg_dispell_guard_new(pTHX_ MAGIC *root) {
+#define vmg_dispell_guard_new(R) vmg_dispell_guard_new(aTHX_ (R))
+ SV *guard;
+
+ guard = sv_newmortal();
+ sv_magicext(guard, NULL, PERL_MAGIC_ext, &vmg_dispell_guard_vtbl,
+                          (char *) root, 0);
+
+ return guard;
+}
 
 STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
  va_list ap;
  int ret = 0;
  unsigned int i, args, opinfo;
+ MAGIC **chain = NULL;
  SV *svr;
 
  dSP;
@@ -1064,7 +1196,16 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- vmg_call_sv(cb, G_SCALAR, NULL);
+ if (flags & VMG_CB_CALL_GUARD) {
+  dMY_CXT;
+  MY_CXT.depth++;
+  vmg_call_sv(cb, G_SCALAR, vmg_dispell_guard_oncroak, NULL);
+  MY_CXT.depth--;
+  if (MY_CXT.depth == 0 && MY_CXT.freed_tokens)
+   chain = &MY_CXT.freed_tokens;
+ } else {
+  vmg_call_sv(cb, G_SCALAR, 0, NULL);
+ }
 
  SPAGAIN;
  svr = POPs;
@@ -1074,6 +1215,11 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
 
  FREETMPS;
  LEAVE;
+
+ if (chain) {
+  vmg_dispell_guard_new(*chain);
+  *chain = NULL;
+ }
 
  return ret;
 }
@@ -1087,6 +1233,8 @@ STATIC int vmg_cb_call(pTHX_ SV *cb, unsigned int flags, SV *sv, ...) {
         vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 2), (S), (A1), (A2))
 #define vmg_cb_call3(I, OI, S, A1, A2, A3) \
         vmg_cb_call(aTHX_ (I), VMG_CB_FLAGS((OI), 3), (S), (A1), (A2), (A3))
+
+/* ... Default no-op magic callback ........................................ */
 
 STATIC int vmg_svt_default_noop(pTHX_ SV *sv, MAGIC *mg) {
  return 0;
@@ -1156,7 +1304,7 @@ STATIC U32 vmg_svt_len(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(opinfo));
  PUTBACK;
 
- vmg_call_sv(w->cb_len, G_SCALAR, NULL);
+ vmg_call_sv(w->cb_len, G_SCALAR, 0, NULL);
 
  SPAGAIN;
  svr = POPs;
@@ -1188,15 +1336,129 @@ STATIC U32 vmg_svt_len_noop(pTHX_ SV *sv, MAGIC *mg) {
 
 STATIC int vmg_svt_clear(pTHX_ SV *sv, MAGIC *mg) {
  const vmg_wizard *w = vmg_wizard_from_mg_nocheck(mg);
+ unsigned int flags  = w->opinfo;
 
- return vmg_cb_call1(w->cb_clear, w->opinfo, sv, mg->mg_obj);
+#if !VMG_HAS_PERL(5, 12, 0)
+ flags |= VMG_CB_CALL_GUARD;
+#endif
+
+ return vmg_cb_call1(w->cb_clear, flags, sv, mg->mg_obj);
 }
 
 #define vmg_svt_clear_noop vmg_svt_default_noop
 
 /* ... free magic .......................................................... */
 
+#if VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE
+
+STATIC OP *vmg_pp_propagate_errsv(pTHX) {
+ SVOP *o = cSVOPx(PL_op);
+
+ if (o->op_sv) {
+  SvREFCNT_dec(ERRSV);
+  ERRSV    = o->op_sv;
+  o->op_sv = NULL;
+ }
+
+ return NORMAL;
+}
+
+#endif /* VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE */
+
+STATIC int vmg_propagate_errsv_free(pTHX_ SV *sv, MAGIC *mg) {
+ if (mg->mg_obj) {
+  ERRSV         = mg->mg_obj;
+  mg->mg_obj    = NULL;
+  mg->mg_flags &= ~MGf_REFCOUNTED;
+ }
+
+ return 0;
+}
+
+/* perl is already kind enough to handle the cloning of the mg_obj member,
+   hence we don't need to define a dup magic callback. */
+
+STATIC MGVTBL vmg_propagate_errsv_vtbl = {
+ 0,                        /* get */
+ 0,                        /* set */
+ 0,                        /* len */
+ 0,                        /* clear */
+ vmg_propagate_errsv_free, /* free */
+ 0,                        /* copy */
+ 0,                        /* dup */
+#if MGf_LOCAL
+ 0,                        /* local */
+#endif /* MGf_LOCAL */
+};
+
+typedef struct {
+ SV  *sv;
+ int  in_eval;
+ I32  base;
+} vmg_svt_free_cleanup_ud;
+
+STATIC int vmg_svt_free_cleanup(pTHX_ void *ud_) {
+ vmg_svt_free_cleanup_ud *ud = VOID2(vmg_svt_free_cleanup_ud *, ud_);
+
+ if (ud->in_eval) {
+  U32 optype = PL_op ? PL_op->op_type : OP_NULL;
+
+  if (optype == OP_LEAVETRY || optype == OP_LEAVEEVAL) {
+   SV *errsv = newSVsv(ERRSV);
+
+   FREETMPS;
+   LEAVE_SCOPE(ud->base);
+
+#if VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE
+   if (optype == OP_LEAVETRY) {
+    dMY_CXT;
+    PL_op = vmg_trampoline_bump(&MY_CXT.propagate_errsv, errsv, PL_op);
+   } else if (optype == OP_LEAVEEVAL) {
+    SV *guard = sv_newmortal();
+    sv_magicext(guard, errsv, PERL_MAGIC_ext, &vmg_propagate_errsv_vtbl,
+                              NULL, 0);
+   }
+#else /* !VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE */
+# if !VMG_HAS_PERL(5, 8, 9)
+   {
+    SV *guard = sv_newmortal();
+    sv_magicext(guard, errsv, PERL_MAGIC_ext, &vmg_propagate_errsv_vtbl,
+                              NULL, 0);
+   }
+# else
+   sv_magicext(ERRSV, errsv, PERL_MAGIC_ext, &vmg_propagate_errsv_vtbl,
+                             NULL, 0);
+   SvREFCNT_dec(errsv);
+# endif
+#endif /* VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE */
+
+   SAVETMPS;
+  }
+
+  /* Don't propagate */
+  return 0;
+ } else {
+  SV    *sv = ud->sv;
+  MAGIC *mg;
+
+  /* We are about to croak() while sv is being destroyed. Try to clean up
+   * things a bit. */
+  mg = SvMAGIC(sv);
+  if (mg) {
+   vmg_mg_del(sv, NULL, mg, mg->mg_moremagic);
+   mg_magical(sv);
+  }
+  SvREFCNT_dec(sv);
+
+  vmg_dispell_guard_oncroak(aTHX_ NULL);
+
+  /* After that, propagate the error upwards. */
+  return 1;
+ }
+}
+
 STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
+ vmg_svt_free_cleanup_ud ud;
  const vmg_wizard *w;
  int ret = 0;
  SV *svr;
@@ -1220,6 +1482,15 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
  SvMAGIC_set(sv, mg);
 #endif
 
+ ud.sv = sv;
+ if (cxstack_ix < cxstack_max) {
+  ud.in_eval = (CxTYPE(cxstack + cxstack_ix + 1) == CXt_EVAL);
+  ud.base    = ud.in_eval ? PL_scopestack[PL_scopestack_ix] : 0;
+ } else {
+  ud.in_eval = 0;
+  ud.base    = 0;
+ }
+
  ENTER;
  SAVETMPS;
 
@@ -1231,7 +1502,18 @@ STATIC int vmg_svt_free(pTHX_ SV *sv, MAGIC *mg) {
   XPUSHs(vmg_op_info(w->opinfo));
  PUTBACK;
 
- vmg_call_sv(w->cb_free, G_SCALAR, sv);
+ {
+  dMY_CXT;
+  MY_CXT.depth++;
+  vmg_call_sv(w->cb_free, G_SCALAR, vmg_svt_free_cleanup, &ud);
+  MY_CXT.depth--;
+  if (MY_CXT.depth == 0 && MY_CXT.freed_tokens) {
+   /* Free all the tokens in the chain but the current one (if it's present).
+    * It will be taken care of by our caller, Perl_mg_free(). */
+   vmg_magic_chain_free(MY_CXT.freed_tokens, mg);
+   MY_CXT.freed_tokens = NULL;
+  }
+ }
 
  SPAGAIN;
  svr = POPs;
@@ -1311,29 +1593,38 @@ STATIC int vmg_svt_local(pTHX_ SV *nsv, MAGIC *mg) {
 /* ... uvar magic .......................................................... */
 
 #if VMG_UVAR
-STATIC OP *vmg_pp_resetuvar(pTHX) {
- SvRMAGICAL_on(cSVOP_sv);
+
+STATIC OP *vmg_pp_reset_rmg(pTHX) {
+ SVOP *o = cSVOPx(PL_op);
+
+ SvRMAGICAL_on(o->op_sv);
+ o->op_sv = NULL;
+
  return NORMAL;
 }
 
 STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
- struct ufuncs *uf;
- MAGIC *mg, *umg;
+ vmg_uvar_ud *ud;
+ MAGIC *mg, *umg, *moremagic;
  SV *key = NULL, *newkey = NULL;
  int tied = 0;
 
  umg = mg_find(sv, PERL_MAGIC_uvar);
  /* umg can't be NULL or we wouldn't be there. */
  key = umg->mg_obj;
- uf  = (struct ufuncs *) umg->mg_ptr;
+ ud  = (vmg_uvar_ud *) umg->mg_ptr;
 
- if (uf[1].uf_val)
-  uf[1].uf_val(aTHX_ action, sv);
- if (uf[1].uf_set)
-  uf[1].uf_set(aTHX_ action, sv);
+ if (ud->old_uf.uf_val)
+  ud->old_uf.uf_val(aTHX_ action, sv);
+ if (ud->old_uf.uf_set)
+  ud->old_uf.uf_set(aTHX_ action, sv);
 
- for (mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic) {
+ for (mg = SvMAGIC(sv); mg; mg = moremagic) {
   const vmg_wizard *w;
+
+  /* mg may be freed later by the uvar call, so we need to fetch the next
+   * token before reaching that fateful point. */
+  moremagic = mg->mg_moremagic;
 
   switch (mg->mg_type) {
    case PERL_MAGIC_ext:
@@ -1361,21 +1652,25 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
              & (HV_FETCH_ISSTORE|HV_FETCH_ISEXISTS|HV_FETCH_LVALUE|HV_DELETE)) {
    case 0:
     if (w->cb_fetch)
-     vmg_cb_call2(w->cb_fetch, w->opinfo, sv, mg->mg_obj, key);
+     vmg_cb_call2(w->cb_fetch, w->opinfo | VMG_CB_CALL_GUARD, sv,
+                               mg->mg_obj, key);
     break;
    case HV_FETCH_ISSTORE:
    case HV_FETCH_LVALUE:
    case (HV_FETCH_ISSTORE|HV_FETCH_LVALUE):
     if (w->cb_store)
-     vmg_cb_call2(w->cb_store, w->opinfo, sv, mg->mg_obj, key);
+     vmg_cb_call2(w->cb_store, w->opinfo | VMG_CB_CALL_GUARD, sv,
+                               mg->mg_obj, key);
     break;
    case HV_FETCH_ISEXISTS:
     if (w->cb_exists)
-     vmg_cb_call2(w->cb_exists, w->opinfo, sv, mg->mg_obj, key);
+     vmg_cb_call2(w->cb_exists, w->opinfo | VMG_CB_CALL_GUARD, sv,
+                                mg->mg_obj, key);
     break;
    case HV_DELETE:
     if (w->cb_delete)
-     vmg_cb_call2(w->cb_delete, w->opinfo, sv, mg->mg_obj, key);
+     vmg_cb_call2(w->cb_delete, w->opinfo | VMG_CB_CALL_GUARD, sv,
+                                mg->mg_obj, key);
     break;
   }
  }
@@ -1385,22 +1680,41 @@ STATIC I32 vmg_svt_val(pTHX_ IV action, SV *sv) {
    * mistaken for a tied hash by the rest of hv_common. It will be reset by
    * the op_ppaddr of a new fake op injected between the current and the next
    * one. */
-  OP *nop = PL_op->op_next;
-  if (!nop || nop->op_ppaddr != vmg_pp_resetuvar) {
-   SVOP *svop;
+
+#if VMG_RESET_RMG_NEEDS_TRAMPOLINE
+
+  dMY_CXT;
+
+  PL_op = vmg_trampoline_bump(&MY_CXT.reset_rmg, sv, PL_op);
+
+#else /* !VMG_RESET_RMG_NEEDS_TRAMPOLINE */
+
+  OP   *nop  = PL_op->op_next;
+  SVOP *svop = NULL;
+
+  if (nop && nop->op_ppaddr == vmg_pp_reset_rmg) {
+   svop = (SVOP *) nop;
+  } else {
    NewOp(1101, svop, 1, SVOP);
-   svop->op_type   = OP_STUB;
-   svop->op_ppaddr = vmg_pp_resetuvar;
-   svop->op_next   = nop;
-   svop->op_flags  = 0;
-   svop->op_sv     = sv;
-   PL_op->op_next  = (OP *) svop;
+   svop->op_type    = OP_STUB;
+   svop->op_ppaddr  = vmg_pp_reset_rmg;
+   svop->op_next    = nop;
+   svop->op_flags   = 0;
+   svop->op_private = 0;
+
+   PL_op->op_next = (OP *) svop;
   }
+
+  svop->op_sv = sv;
+
+#endif /* VMG_RESET_RMG_NEEDS_TRAMPOLINE */
+
   SvRMAGICAL_off(sv);
  }
 
  return 0;
 }
+
 #endif /* VMG_UVAR */
 
 /* --- Macros for the XS section ------------------------------------------- */
@@ -1455,9 +1769,24 @@ PROTOTYPES: ENABLE
 BOOT:
 {
  HV *stash;
+ int c;
 
  MY_CXT_INIT;
- MY_CXT.b__op_stashes[0] = NULL;
+ for (c = OPc_NULL; c < OPc_MAX; ++c)
+  MY_CXT.b__op_stashes[c] = NULL;
+
+ MY_CXT.depth        = 0;
+ MY_CXT.freed_tokens = NULL;
+
+ /* XS doesn't like a blank line here */
+#if VMG_PROPAGATE_ERRSV_NEEDS_TRAMPOLINE
+ vmg_trampoline_init(&MY_CXT.propagate_errsv, vmg_pp_propagate_errsv);
+#endif
+#if VMG_RESET_RMG_NEEDS_TRAMPOLINE
+ vmg_trampoline_init(&MY_CXT.reset_rmg, vmg_pp_reset_rmg);
+#endif
+
+ /* XS doesn't like a blank line here */
 #if VMG_THREADSAFE
  MUTEX_INIT(&vmg_vtable_refcount_mutex);
  MUTEX_INIT(&vmg_op_name_init_mutex);
@@ -1495,6 +1824,7 @@ CLONE(...)
 PROTOTYPE: DISABLE
 PREINIT:
  U32 had_b__op_stash = 0;
+ I32 old_depth;
  int c;
 PPCODE:
  {
@@ -1503,6 +1833,7 @@ PPCODE:
    if (MY_CXT.b__op_stashes[c])
     had_b__op_stash |= (((U32) 1) << c);
   }
+  old_depth = MY_CXT.depth;
  }
  {
   MY_CXT_CLONE;
@@ -1510,6 +1841,8 @@ PPCODE:
    MY_CXT.b__op_stashes[c] = (had_b__op_stash & (((U32) 1) << c))
                               ? gv_stashpv(vmg_opclassnames[c], 1) : NULL;
   }
+  MY_CXT.depth        = old_depth;
+  MY_CXT.freed_tokens = NULL;
  }
  XSRETURN(0);
 
@@ -1571,7 +1904,6 @@ PROTOTYPE: \[$@%&*]$@
 PREINIT:
  const vmg_wizard *w = NULL;
  SV **args = NULL;
- UV ret;
  I32 i = 0;
 CODE:
  if (items > 2) {

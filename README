@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.50
+    Version 0.51
 
 SYNOPSIS
         use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
@@ -63,13 +63,18 @@ DESCRIPTION
         the correct "Tie::Std*" class and overriding individual methods in
         your own class.
 
+    *   Magic is multivalued.
+
+        You can safely apply different kinds of magics to the same variable,
+        and each of them will be invoked successively.
+
     *   Magic is type-agnostic.
 
         The same magic can be applied on scalars, arrays, hashes, subs or
         globs. But the same hook (see below for a list) may trigger
         differently depending on the the type of the variable.
 
-    *   Magic is invisible at the Perl level.
+    *   Magic is invisible at Perl level.
 
         Magical and non-magical variables cannot be distinguished with
         "ref", "tied" or another trick.
@@ -111,9 +116,11 @@ DESCRIPTION
 
     *   *free*
 
-        This magic is called when an object is destroyed as the result of
-        the variable going out of scope (but not when the variable is
-        undefined).
+        This magic is called when a variable is destroyed as the result of
+        going out of scope (but not when it is undefined). It behaves
+        roughly like Perl object destructors (i.e. "DESTROY" methods),
+        except that exceptions thrown from inside a *free* callback will
+        always be propagated to the surrounding code.
 
     *   *copy*
 

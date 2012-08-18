@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (2 * 27 + 9) + (2 * 5 + 5) + 1;
+use Test::More tests => (2 * 27 + 9) + 2 * (2 * 5 + 5) + 1;
 
 use Variable::Magic qw<
  cast dispell
@@ -112,40 +112,54 @@ SKIP: {
   $SKIP = 'uvar magic';
  } else {
   local $@;
-  unless (eval { require B::Deparse; 1 }) {
-   $SKIP = 'B::Deparse';
+  unless (eval { require B; require B::Deparse; 1 }) {
+   $SKIP = 'B and B::Deparse';
   }
  }
  if ($SKIP) {
   $SKIP .= ' required to test uvar/clear interaction fix';
-  skip $SKIP => 2 * 5 + 5;
+  skip $SKIP => 2 * ( 2 * 5 + 5);
  }
 
  my $bd = B::Deparse->new;
 
- my %h = (a => 13, b => 15);
- watch { cast %h, $wiz } { }, 'cast clear/uvar';
+ my %h1 = (a => 13, b => 15);
+ my %h2 = (a => 17, b => 19);
 
- my $code   = sub { my $x = $h{$_[0]}; ++$x; $x };
- my $before = $bd->coderef2text($code);
- my $res;
+ my @tests = (
+  [ \%h1 => 'first hash'  => (14, 16) ],
+  [ \%h2 => 'second hash' => (18, 20) ],
+ );
 
- watch { $res = $code->('a') } { fetch => 1 }, 'fixed fetch "a"';
- is $res, 14, 'uvar: fixed fetch "a" returned the right thing';
+ for my $test (@tests) {
+  my ($h, $desc, @exp) = @$test;
 
- my $after = $bd->coderef2text($code);
- is $before, $after, 'uvar: fixed fetch deparse correctly';
+  watch { &cast($h, $wiz) } { }, "cast clear/uvar on $desc";
 
- watch { $res = $code->('b') } { fetch => 1 }, 'fixed fetch "b"';
- is $res, 16, 'uvar: fixed fetch "b" returned the right thing';
+  my $code   = sub { my $x = $h->{$_[0]}; ++$x; $x };
+  my $before = $bd->coderef2text($code);
+  my $res;
 
- $after = $bd->coderef2text($code);
- is $before, $after, 'uvar: fixed fetch deparse correctly';
+  watch { $res = $code->('a') } { fetch => 1 }, "fetch constant 'a' from $desc";
+  is $res, $exp[0], "uvar: fetch constant 'a' from $desc was correct";
 
- watch { %h = () } { clear => 1 }, 'fixed clear';
+  my $after = $bd->coderef2text($code);
+  is $before, $after,
+                "uvar: code deparses correctly after constant fetch from $desc";
 
- watch { dispell %h, $wiz } { }, 'dispell clear/uvar';
+  my $key = 'b';
+  watch { $res = $code->($key) } { fetch => 1 },"fetch variable 'b' from $desc";
+  is $res, $exp[1], "uvar: fetch variable 'b' from $desc was correct";
 
- require B;
- ok(!(B::svref_2object(\%h)->FLAGS & B::SVs_RMG()), '%h no longer has the RMG flag set');
+  $after = $bd->coderef2text($code);
+  is $before, $after,
+                "uvar: code deparses correctly after variable fetch from $desc";
+
+  watch { %$h = () } { clear => 1 }, "fixed clear for $desc";
+
+  watch { &dispell($h, $wiz) } { }, "dispell clear/uvar from $desc";
+
+  ok(!(B::svref_2object($h)->FLAGS & B::SVs_RMG()),
+                               "$desc no longer has the RMG flag set");
+ }
 }

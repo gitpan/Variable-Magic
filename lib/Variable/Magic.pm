@@ -11,13 +11,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.50
+Version 0.51
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.50';
+ $VERSION = '0.51';
 }
 
 =head1 SYNOPSIS
@@ -79,6 +79,12 @@ This also makes catching individual events easier than with C<tie>, where you ha
 
 =item *
 
+Magic is multivalued.
+
+You can safely apply different kinds of magics to the same variable, and each of them will be invoked successively.
+
+=item *
+
 Magic is type-agnostic.
 
 The same magic can be applied on scalars, arrays, hashes, subs or globs.
@@ -86,7 +92,7 @@ But the same hook (see below for a list) may trigger differently depending on th
 
 =item *
 
-Magic is invisible at the Perl level.
+Magic is invisible at Perl level.
 
 Magical and non-magical variables cannot be distinguished with C<ref>, C<tied> or another trick.
 
@@ -136,7 +142,8 @@ Please note that this is different from undefining the variable, even though the
 
 I<free>
 
-This magic is called when an object is destroyed as the result of the variable going out of scope (but not when the variable is undefined).
+This magic is called when a variable is destroyed as the result of going out of scope (but not when it is undefined).
+It behaves roughly like Perl object destructors (i.e. C<DESTROY> methods), except that exceptions thrown from inside a I<free> callback will always be propagated to the surrounding code.
 
 =item *
 
