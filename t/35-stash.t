@@ -215,8 +215,9 @@ cast %Hlagh::, $wiz;
 {
  local %mg;
 
- my @expected_stores = map { ($_) x 2 } qw<nevermentioned eat shoot>;
- push @expected_stores, 'nevermentioned' if "$]" < 5.017_001;
+ my @expected_stores = qw<nevermentioned eat shoot>;
+ @expected_stores    = map { ($_) x 2 } @expected_stores if "$]" < 5.017_004;
+ push @expected_stores, 'nevermentioned'                 if "$]" < 5.017_001;
 
  eval q{
   package Hlagh;

@@ -7,22 +7,17 @@ use Test::More;
 
 use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
 
-if (!VMG_UVAR) {
- plan skip_all => 'No nice uvar magic for this perl';
-}
-
-{
- local $@;
- if (eval { require Hash::Util::FieldHash; 1 }) {
-  plan tests => 2 * 5 + 7 + 1;
-  defined and diag "Using Hash::Util::FieldHash $_"
-                                            for $Hash::Util::FieldHash::VERSION;
- } else {
-  plan skip_all => 'Hash::Util::FieldHash required for testing uvar interaction'
- }
-}
-
 use lib 't/lib';
+use VPIT::TestHelpers;
+
+if (VMG_UVAR) {
+ load_or_skip('Hash::Util::FieldHash', undef, [ ],
+              'required for testing uvar interaction');
+ plan tests => 2 * 5 + 7 + 1;
+} else {
+ skip_all 'No nice uvar magic for this perl';
+}
+
 use Variable::Magic::TestWatcher;
 
 my $wiz = init_watcher [ qw<fetch store> ], 'huf';

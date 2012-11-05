@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 * 8 + 4 * (2 * 4 + 1) + 10 + 1 + 1;
+use Test::More tests => 4 * 8 + 4 * (2 * 6 + 1) + 10 + 1 + 1;
 
 use Variable::Magic qw<wizard cast VMG_UVAR>;
 
@@ -152,7 +152,7 @@ for my $t (@scalar_tests) {
     my $x;
     cast $x, $wiz;
    };
-   $check->("$desc at eval BLOCK 1");
+   $check->("$desc at eval BLOCK 1a");
 
    local $@ = $local_out ? 'xxx' : undef;
    eval q{
@@ -160,7 +160,23 @@ for my $t (@scalar_tests) {
     my $x;
     cast $x, $wiz;
    };
-   $check->("$desc at eval STRING 1");
+   $check->("$desc at eval STRING 1a");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    my $x;
+    local $@ = 'yyy' if $local_in;
+    cast $x, $wiz;
+   };
+   $check->("$desc at eval BLOCK 1b");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    my $x;
+    local $@ = 'yyy' if $local_in;
+    cast $x, $wiz;
+   };
+   $check->("$desc at eval STRING 1b");
 
    local $@ = $local_out ? 'xxx' : undef;
    eval {
@@ -169,7 +185,7 @@ for my $t (@scalar_tests) {
     my $y = \$x;
     &cast($y, $wiz);
    };
-   $check->("$desc at eval BLOCK 2");
+   $check->("$desc at eval BLOCK 2a");
 
    local $@ = $local_out ? 'xxx' : undef;
    eval q{
@@ -178,7 +194,25 @@ for my $t (@scalar_tests) {
     my $y = \$x;
     &cast($y, $wiz);
    };
-   $check->("$desc at eval STRING 2");
+   $check->("$desc at eval STRING 2a");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval {
+    my $x;
+    my $y = \$x;
+    local $@ = 'yyy' if $local_in;
+    &cast($y, $wiz);
+   };
+   $check->("$desc at eval BLOCK 2b");
+
+   local $@ = $local_out ? 'xxx' : undef;
+   eval q{
+    my $x;
+    my $y = \$x;
+    local $@ = 'yyy' if $local_in;
+    &cast($y, $wiz);
+   };
+   $check->("$desc at eval STRING 2b");
 
    local $@ = $local_out ? 'xxx' : undef;
    eval {

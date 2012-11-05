@@ -5,7 +5,10 @@ use warnings;
 
 use Test::More tests => 39 + (2 * 2 + 1) + (5 + 2 * 3);
 
-use Variable::Magic qw<wizard cast dispell VMG_COMPAT_SCALAR_LENGTH_NOLEN>;
+use Variable::Magic qw<
+ wizard cast dispell
+ VMG_COMPAT_SCALAR_LENGTH_NOLEN VMG_COMPAT_SCALAR_NOLEN
+>;
 
 use lib 't/lib';
 use Variable::Magic::TestValue;
@@ -65,95 +68,101 @@ is $d, 0,  'len: get last empty array index have correct default length';
 is $b, -1, 'len: get last empty array index correctly';
 
 SKIP: {
- skip 'length() no longer calls mg_len magic' => 16 if VMG_COMPAT_SCALAR_LENGTH_NOLEN;
+ skip 'len magic is no longer called for scalars' => 16 + 6
+                                                     if VMG_COMPAT_SCALAR_NOLEN;
 
- $c = 0;
- $n = 1 + int rand 1000;
- # length magic on scalars needs also get magic to be triggered.
- my $wiz = wizard get => sub { return 'anything' },
-                  len => sub { $d = $_[2]; ++$c; return $n };
+ SKIP: {
+  skip 'length() no longer calls len magic on plain scalars' => 16
+                                              if VMG_COMPAT_SCALAR_LENGTH_NOLEN;
 
- my $x = 6789;
+  $c = 0;
+  $n = 1 + int rand 1000;
+  # length magic on scalars needs also get magic to be triggered.
+  my $wiz = wizard get => sub { return 'anything' },
+                   len => sub { $d = $_[2]; ++$c; return $n };
 
- $c = 0;
- cast $x, $wiz;
- is $c, 0, 'len: cast on scalar doesn\'t trigger magic';
+  my $x = 6789;
 
- $c = 0;
- $d = undef;
- $b = length $x;
- is $c, 1,  'len: get scalar length triggers magic correctly';
- is $d, 4,  'len: get scalar length have correct default length';
- is $b, $n, 'len: get scalar length correctly';
-
- $n = 0;
-
- $c = 0;
- $d = undef;
- $b = length $x;
- is $c, 1,  'len: get scalar length 0 triggers magic correctly';
- is $d, 4,  'len: get scalar length 0 have correct default length';
- is $b, $n, 'len: get scalar length 0 correctly';
-
- $n = undef;
- $x = '';
- cast $x, $wiz;
-
- $c = 0;
- $d = undef;
- $b = length $x;
- is $c, 1, 'len: get empty scalar length triggers magic correctly';
- is $d, 0, 'len: get empty scalar length have correct default length';
- is $b, 0, 'len: get empty scalar length correctly';
-
- $x = "\x{20AB}ongs";
- cast $x, $wiz;
-
- {
-  use bytes;
+  $c = 0;
+  cast $x, $wiz;
+  is $c, 0, 'len: cast on scalar doesn\'t trigger magic';
 
   $c = 0;
   $d = undef;
   $b = length $x;
-  is $c, 1,  'len: get utf8 scalar length in bytes triggers magic correctly';
-  is $d, 7,  'len: get utf8 scalar length in bytes have correct default length';
-  is $b, $d, 'len: get utf8 scalar length in bytes correctly';
- }
+  is $c, 1,  'len: get scalar length triggers magic correctly';
+  is $d, 4,  'len: get scalar length have correct default length';
+  is $b, $n, 'len: get scalar length correctly';
 
- $c = 0;
- $d = undef;
- $b = length $x;
- is $c, 1,  'len: get utf8 scalar length triggers magic correctly';
- is $d, 5,  'len: get utf8 scalar length have correct default length';
- is $b, $d, 'len: get utf8 scalar length correctly';
-}
+  $n = 0;
 
-{
- our $c;
- # length magic on scalars needs also get magic to be triggered.
- my $wiz = wizard get => sub { 0 },
-                  len => sub { $d = $_[2]; ++$c; return $_[2] };
+  $c = 0;
+  $d = undef;
+  $b = length $x;
+  is $c, 1,  'len: get scalar length 0 triggers magic correctly';
+  is $d, 4,  'len: get scalar length 0 have correct default length';
+  is $b, $n, 'len: get scalar length 0 correctly';
 
- {
-  my $x = "banana";
+  $n = undef;
+  $x = '';
   cast $x, $wiz;
 
-  local $c = 0;
-  pos($x) = 2;
-  is $c, 1,        'len: pos scalar triggers magic correctly';
-  is $d, 6,        'len: pos scalar have correct default length';
-  is $x, 'banana', 'len: pos scalar works correctly'
+  $c = 0;
+  $d = undef;
+  $b = length $x;
+  is $c, 1, 'len: get empty scalar length triggers magic correctly';
+  is $d, 0, 'len: get empty scalar length have correct default length';
+  is $b, 0, 'len: get empty scalar length correctly';
+
+  $x = "\x{20AB}ongs";
+  cast $x, $wiz;
+
+  {
+   use bytes;
+
+   $c = 0;
+   $d = undef;
+   $b = length $x;
+   is $c, 1, 'len: get utf8 scalar length in bytes triggers magic correctly';
+   is $d, 7, 'len: get utf8 scalar length in bytes have correct default length';
+   is $b, $d,'len: get utf8 scalar length in bytes correctly';
+  }
+
+  $c = 0;
+  $d = undef;
+  $b = length $x;
+  is $c, 1,  'len: get utf8 scalar length triggers magic correctly';
+  is $d, 5,  'len: get utf8 scalar length have correct default length';
+  is $b, $d, 'len: get utf8 scalar length correctly';
  }
 
  {
-  my $x = "hl\x{20AB}gh"; # Force utf8 on string
-  cast $x, $wiz;
+  our $c;
+  # length magic on scalars needs also get magic to be triggered.
+  my $wiz = wizard get => sub { 0 },
+                   len => sub { $d = $_[2]; ++$c; return $_[2] };
 
-  local $c = 0;
-  substr($x, 2, 1) = 'a';
-  is $c, 1,       'len: substr utf8 scalar triggers magic correctly';
-  is $d, 5,       'len: substr utf8 scalar have correct default length';
-  is $x, 'hlagh', 'len: substr utf8 scalar correctly';
+  {
+   my $x = "banana";
+   cast $x, $wiz;
+
+   local $c = 0;
+   pos($x) = 2;
+   is $c, 1,        'len: pos scalar triggers magic correctly';
+   is $d, 6,        'len: pos scalar have correct default length';
+   is $x, 'banana', 'len: pos scalar works correctly'
+  }
+
+  {
+   my $x = "hl\x{20AB}gh"; # Force utf8 on string
+   cast $x, $wiz;
+
+   local $c = 0;
+   substr($x, 2, 1) = 'a';
+   is $c, 1,       'len: substr utf8 scalar triggers magic correctly';
+   is $d, 5,       'len: substr utf8 scalar have correct default length';
+   is $x, 'hlagh', 'len: substr utf8 scalar correctly';
+  }
  }
 }
 

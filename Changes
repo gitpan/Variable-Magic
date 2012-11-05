@@ -1,5 +1,13 @@
 Revision history for Variable-Magic
 
+0.52    2012-11-05 02:30 UTC
+        + Add : The new constant VMG_COMPAT_SCALAR_NOLEN evaluates to true
+                when your perl does not call 'len' magic for scalars, which
+                is the case for perl 5.17.4 and above.
+                This fixes RT #80388.
+        + Tst : t/35-stash.t has been taught about perl 5.17.4.
+        + Tst : Author tests overhaul.
+
 0.51    2012-08-18 15:00 UTC
         + Fix : It is now safe to call dispell() from inside 'free', 'copy' and
                 'uvar' callbacks to dispell the magic currently in use.

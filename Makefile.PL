@@ -4,11 +4,7 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
-BEGIN {
- eval { require Config };
- die 'OS unsupported' if $@;
- Config->import(qw<%Config>);
-}
+use Config;
 
 my @DEFINES;
 my %macro;
@@ -74,17 +70,21 @@ my %PREREQ_PM = (
  'base'     => 0,
 );
 
+my %BUILD_REQUIRES = (
+ 'Carp'                => 0,
+ 'Config'              => 0,
+ 'ExtUtils::MakeMaker' => 0,
+ 'Test::More'          => 0,
+ %PREREQ_PM,
+);
+
 my %META = (
  configure_requires => {
   'Config'              => 0,
   'ExtUtils::MakeMaker' => 0,
  },
  build_requires => {
-  'Carp'                => 0,
-  'Config'              => 0,
-  'ExtUtils::MakeMaker' => 0,
-  'Test::More'          => 0,
-  %PREREQ_PM,
+  %BUILD_REQUIRES,
  },
  dynamic_config => 1,
  resources => {
@@ -103,6 +103,7 @@ WriteMakefile(
  ABSTRACT_FROM    => $file,
  PL_FILES         => {},
  @DEFINES,
+ BUILD_REQUIRES   => \%BUILD_REQUIRES,
  PREREQ_PM        => \%PREREQ_PM,
  MIN_PERL_VERSION => '5.008',
  META_MERGE       => \%META,

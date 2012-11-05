@@ -139,6 +139,12 @@
 # define VMG_COMPAT_SCALAR_LENGTH_NOLEN 0
 #endif
 
+#if VMG_HAS_PERL(5, 17, 4)
+# define VMG_COMPAT_SCALAR_NOLEN 1
+#else
+# define VMG_COMPAT_SCALAR_NOLEN 0
+#endif
+
 /* Applied to dev-5.9 as 25854, integrated to maint-5.8 as 28160, partially
  * reverted to dev-5.11 as 9cdcb38b */
 #if VMG_HAS_PERL_MAINT(5, 8, 9, 28160) || VMG_HAS_PERL_MAINT(5, 9, 3, 25854) || VMG_HAS_PERL(5, 10, 0)
@@ -1799,6 +1805,8 @@ BOOT:
  newCONSTSUB(stash, "VMG_UVAR",  newSVuv(VMG_UVAR));
  newCONSTSUB(stash, "VMG_COMPAT_SCALAR_LENGTH_NOLEN",
                     newSVuv(VMG_COMPAT_SCALAR_LENGTH_NOLEN));
+ newCONSTSUB(stash, "VMG_COMPAT_SCALAR_NOLEN",
+                    newSVuv(VMG_COMPAT_SCALAR_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN",
                     newSVuv(VMG_COMPAT_ARRAY_PUSH_NOLEN));
  newCONSTSUB(stash, "VMG_COMPAT_ARRAY_PUSH_NOLEN_VOID",

@@ -5,6 +5,12 @@ use warnings;
 
 use Test::More;
 
-eval "use Test::Pod 1.14";
-plan skip_all => "Test::Pod 1.14 required for testing POD" if $@;
+use lib 't/lib';
+use VPIT::TestHelpers;
+
+load_or_skip('Test::Pod', '1.22', [ ],
+             'required for testing POD syntax');
+
+eval 'use Test::Pod'; # Make Kwalitee test happy
+
 all_pod_files_ok();

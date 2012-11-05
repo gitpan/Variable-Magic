@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.51
+    Version 0.52
 
 SYNOPSIS
         use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
@@ -100,11 +100,19 @@ DESCRIPTION
 
     *   *len*
 
-        This magic only applies to scalars and arrays, and is triggered when
-        the 'size' or the 'length' of the variable has to be known by Perl.
-        This is typically the magic involved when an array is evaluated in
-        scalar context, but also on array assignment and loops ("for", "map"
-        or "grep"). The length is returned from the callback as an integer.
+        This magic only applies to arrays (though it used to also apply to
+        scalars), and is triggered when the 'size' or the 'length' of the
+        variable has to be known by Perl. This is typically the magic
+        involved when an array is evaluated in scalar context, but also on
+        array assignment and loops ("for", "map" or "grep"). The length is
+        returned from the callback as an integer.
+
+        Starting from perl 5.12, this magic is no longer called by the
+        "length" keyword, and starting from perl 5.17.4 it is also no longer
+        called for scalars in any situation, making this magic only
+        meaningful on arrays. You can use the constants
+        "VMG_COMPAT_SCALAR_LENGTH_NOLEN" and "VMG_COMPAT_SCALAR_NOLEN" to
+        see if this magic is available for scalars or not.
 
     *   *clear*
 
@@ -352,6 +360,10 @@ CONSTANTS
   "VMG_COMPAT_SCALAR_LENGTH_NOLEN"
     True for perls that don't call *len* magic when taking the "length" of a
     magical scalar.
+
+  "VMG_COMPAT_SCALAR_NOLEN"
+    True for perls that don't call *len* magic on scalars. Implies
+    "VMG_COMPAT_SCALAR_LENGTH_NOLEN".
 
   "VMG_COMPAT_ARRAY_PUSH_NOLEN"
     True for perls that don't call *len* magic when you push an element in a

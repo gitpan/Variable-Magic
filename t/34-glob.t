@@ -5,14 +5,14 @@ use warnings;
 
 use Test::More;
 
+use lib 't/lib';
+use VPIT::TestHelpers;
+
 BEGIN {
- local $@;
- if (eval "use Symbol qw<gensym>; 1") {
-  plan tests => 2 * 17 + 1;
-  defined and diag "Using Symbol $_" for $Symbol::VERSION;
- } else {
-  plan skip_all => "Symbol::gensym required for testing magic for globs";
- }
+ load_or_skip('Symbol', undef, [ 'gensym' ],
+              'required for testing magic for globs');
+
+ plan tests => 2 * 17 + 1;
 }
 
 use Variable::Magic qw<cast dispell VMG_COMPAT_GLOB_GET>;
