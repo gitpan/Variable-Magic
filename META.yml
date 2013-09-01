@@ -14,7 +14,7 @@ configure_requires:
   Config: 0
   ExtUtils::MakeMaker: 0
 dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.6302, CPAN::Meta::Converter version 2.120921'
+generated_by: 'ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -31,8 +31,8 @@ requires:
   base: 0
   perl: 5.008
 resources:
-  bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Variable-Magic
+  bugtracker: http://rt.cpan.org/Dist/Display.html?Name=Variable-Magic
   homepage: http://search.cpan.org/dist/Variable-Magic/
   license: http://dev.perl.org/licenses/
   repository: http://git.profvince.com/?p=perl%2Fmodules%2FVariable-Magic.git
-version: 0.52
+version: 0.53

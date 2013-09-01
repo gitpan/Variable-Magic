@@ -9,9 +9,7 @@ use lib 't/lib';
 use VPIT::TestHelpers;
 
 BEGIN {
- load_or_skip('Symbol', undef, [ 'gensym' ],
-              'required for testing magic for globs');
-
+ load_or_skip_all('Symbol', undef, [ 'gensym' ]);
  plan tests => 2 * 17 + 1;
 }
 

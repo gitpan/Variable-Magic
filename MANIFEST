@@ -39,11 +39,6 @@ t/35-stash.t
 t/40-threads.t
 t/41-clone.t
 t/80-leaks.t
-t/91-pod.t
-t/92-pod-coverage.t
-t/93-pod-spelling.t
-t/95-portability-files.t
-t/99-kwalitee.t
 t/lib/VPIT/TestHelpers.pm
 t/lib/Variable/Magic/TestDestroyRequired.pm
 t/lib/Variable/Magic/TestGlobalDestruction.pm

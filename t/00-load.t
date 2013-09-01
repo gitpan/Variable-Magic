@@ -6,7 +6,7 @@ use warnings;
 use Test::More tests => 1;
 
 BEGIN {
-	use_ok( 'Variable::Magic' );
+ use_ok( 'Variable::Magic' );
 }
 
 my $p = Variable::Magic::VMG_PERL_PATCHLEVEL;

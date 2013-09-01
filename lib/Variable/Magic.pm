@@ -11,13 +11,13 @@ Variable::Magic - Associate user-defined magic to variables from Perl.
 
 =head1 VERSION
 
-Version 0.52
+Version 0.53
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.52';
+ $VERSION = '0.53';
 }
 
 =head1 SYNOPSIS
@@ -88,7 +88,7 @@ You can safely apply different kinds of magics to the same variable, and each of
 Magic is type-agnostic.
 
 The same magic can be applied on scalars, arrays, hashes, subs or globs.
-But the same hook (see below for a list) may trigger differently depending on the the type of the variable.
+But the same hook (see below for a list) may trigger differently depending on the type of the variable.
 
 =item *
 
@@ -671,12 +671,12 @@ L<perl> 5.8.
 A C compiler.
 This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
 
-L<Carp> (core since perl 5), L<XSLoader> (since 5.006).
+L<Carp> (core since perl 5), L<XSLoader> (since 5.6.0).
 
 Copy tests need L<Tie::Array> (core since perl 5.005) and L<Tie::Hash> (since 5.002).
-Some uvar tests need L<Hash::Util::FieldHash> (since 5.009004).
+Some uvar tests need L<Hash::Util::FieldHash> (since 5.9.4).
 Glob tests need L<Symbol> (since 5.002).
-Threads tests need L<threads> and L<threads::shared> (both since 5.007003).
+Threads tests need L<threads> and L<threads::shared> (both since 5.7.3).
 
 =head1 SEE ALSO
 
@@ -705,7 +705,7 @@ Tests code coverage report is available at L<http://www.profvince.com/perl/cover
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2007,2008,2009,2010,2011,2012 Vincent Pit, all rights reserved.
+Copyright 2007,2008,2009,2010,2011,2012,2013 Vincent Pit, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

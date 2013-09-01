@@ -1,5 +1,13 @@
 Revision history for Variable-Magic
 
+0.53    2013-09-01 17:50 UTC
+        This is a maintenance release. The code contains no functional change.
+        Satisfied users of version 0.52 can skip this update.
+        + Fix : [RT #86338] : typo fix.
+                Thanks dsteinbrunner@pobox.com for the patch.
+        + Tst : Author tests are no longer bundled with this distribution.
+                They are only made available to authors in the git repository.
+
 0.52    2012-11-05 02:30 UTC
         + Add : The new constant VMG_COMPAT_SCALAR_NOLEN evaluates to true
                 when your perl does not call 'len' magic for scalars, which

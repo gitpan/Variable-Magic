@@ -5,14 +5,13 @@ use warnings;
 
 use Test::More;
 
-use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
-
 use lib 't/lib';
 use VPIT::TestHelpers;
 
+use Variable::Magic qw<wizard cast dispell VMG_UVAR>;
+
 if (VMG_UVAR) {
- load_or_skip('Hash::Util::FieldHash', undef, [ ],
-              'required for testing uvar interaction');
+ load_or_skip_all('Hash::Util::FieldHash', undef, [ ]);
  plan tests => 2 * 5 + 7 + 1;
 } else {
  skip_all 'No nice uvar magic for this perl';

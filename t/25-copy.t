@@ -5,6 +5,9 @@ use warnings;
 
 use Test::More;
 
+use lib 't/lib';
+use VPIT::TestHelpers;
+
 use Variable::Magic qw<cast dispell>;
 
 plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
@@ -16,10 +19,7 @@ use Variable::Magic::TestValue;
 my $wiz = init_watcher 'copy', 'copy';
 
 SKIP: {
- my $has_tie_array = do { local $@; eval { require Tie::Array; 1 } };
- skip 'Tie::Array required to test copy magic on arrays'
-                             => (2 * 5 + 3) + (2 * 2 + 1) unless $has_tie_array;
- defined and diag "Using Tie::Array $_" for $Tie::Array::VERSION;
+ load_or_skip('Tie::Array', undef, undef, (2 * 5 + 3) + (2 * 2 + 1));
 
  tie my @a, 'Tie::StdArray';
  @a = (1 .. 10);
@@ -51,10 +51,7 @@ SKIP: {
 }
 
 SKIP: {
- my $has_tie_hash = do { local $@; eval { require Tie::Hash; 1 } };
- skip 'Tie::Hash required to test copy magic on hashes'
-                                              => 2 * 9 + 6 unless $has_tie_hash;
- defined and diag "Using Tie::Hash $_" for $Tie::Hash::VERSION;
+ load_or_skip('Tie::Hash', undef, undef, 2 * 9 + 6);
 
  tie my %h, 'Tie::StdHash';
  %h = (a => 1, b => 2, c => 3);

@@ -7,6 +7,9 @@ use Config qw<%Config>;
 
 use Test::More tests => (2 * 14 + 2) + 2 * (2 * 8 + 4) + 5 + 1;
 
+use lib 't/lib';
+use VPIT::TestHelpers;
+
 use Variable::Magic qw<wizard cast dispell>;
 
 use lib 't/lib';
@@ -103,10 +106,7 @@ is $b, 6, 'scalar: hash element: delete correctly';
 watch { $h{b} = 4 } { }, 'hash element: set after delete';
 
 SKIP: {
- unless (do { local $@; eval { require Tie::Array; 1 } }) {
-  skip 'Tie::Array required to test clear magic on tied array values' => 5;
- }
- defined and diag "Using Tie::Array $_" for $Tie::Array::VERSION;
+ load_or_skip('Tie::Array', undef, undef, 5);
 
  tie my @a, 'Tie::StdArray';
  $a[0] = $$;
