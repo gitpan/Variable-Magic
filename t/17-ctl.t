@@ -5,6 +5,9 @@ use warnings;
 
 use Test::More tests => 4 * 8 + 4 * (2 * 6 + 1) + 10 + 1 + 1;
 
+use lib 't/lib';
+use VPIT::TestHelpers;
+
 use Variable::Magic qw<wizard cast VMG_UVAR>;
 
 sub expect {
@@ -341,17 +344,6 @@ eval q{BEGIN {
 
 like $@, expect('tomato', undef, "\nBEGIN.*"),
                           'die in BEGIN in eval triggers hints hash destructor';
-
-sub run_perl {
- my $code = shift;
-
- my ($SystemRoot, $PATH) = @ENV{qw<SystemRoot PATH>};
- local %ENV;
- $ENV{SystemRoot} = $SystemRoot if $^O eq 'MSWin32' and defined $SystemRoot;
- $ENV{PATH}       = $PATH       if $^O eq 'cygwin'  and defined $PATH;
-
- system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
-}
 
 my $has_capture_tiny = do {
  local $@;

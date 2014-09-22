@@ -187,6 +187,12 @@
 # define VMG_COMPAT_HASH_DELETE_NOUVAR_VOID 0
 #endif
 
+#if VMG_HAS_PERL(5, 17, 0)
+# define VMG_COMPAT_CODE_COPY_CLONE 1
+#else
+# define VMG_COMPAT_CODE_COPY_CLONE 0
+#endif
+
 #if VMG_HAS_PERL(5, 13, 2)
 # define VMG_COMPAT_GLOB_GET 1
 #else
@@ -1560,6 +1566,9 @@ STATIC int vmg_svt_copy(pTHX_ SV *sv, MAGIC *mg, SV *nsv, const char *key, VMG_S
   keysv = newSVpvn(key, keylen);
  }
 
+ if (SvTYPE(sv) >= SVt_PVCV)
+  nsv = sv_2mortal(newRV_inc(nsv));
+
  ret = vmg_cb_call3(w->cb_copy, w->opinfo, sv, mg->mg_obj, keysv, nsv);
 
  if (keylen != HEf_SVKEY) {
@@ -1817,6 +1826,8 @@ BOOT:
                     newSVuv(VMG_COMPAT_ARRAY_UNDEF_CLEAR));
  newCONSTSUB(stash, "VMG_COMPAT_HASH_DELETE_NOUVAR_VOID",
                     newSVuv(VMG_COMPAT_HASH_DELETE_NOUVAR_VOID));
+ newCONSTSUB(stash, "VMG_COMPAT_CODE_COPY_CLONE",
+                    newSVuv(VMG_COMPAT_CODE_COPY_CLONE));
  newCONSTSUB(stash, "VMG_COMPAT_GLOB_GET", newSVuv(VMG_COMPAT_GLOB_GET));
  newCONSTSUB(stash, "VMG_PERL_PATCHLEVEL", newSVuv(VMG_PERL_PATCHLEVEL));
  newCONSTSUB(stash, "VMG_THREADSAFE",      newSVuv(VMG_THREADSAFE));

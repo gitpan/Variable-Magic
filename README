@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.53
+    Version 0.54
 
 SYNOPSIS
         use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
@@ -132,8 +132,13 @@ DESCRIPTION
 
     *   *copy*
 
-        This magic only applies to tied arrays and hashes, and fires when
-        you try to access or change their elements.
+        When applied to tied arrays and hashes, this magic fires when you
+        try to access or change their elements.
+
+        Starting from perl 5.17.0, it can also be applied to closure
+        prototypes, in which case the magic will be called when the
+        prototype is cloned. The "VMG_COMPAT_CODE_COPY_CLONE" constant is
+        true when your perl support this feature.
 
     *   *dup*
 
@@ -225,10 +230,15 @@ FUNCTIONS
 
         *       *copy*
 
-                $_[2] is a either an alias or a copy of the current key, and
-                $_[3] is an alias to the current element (i.e. the value).
-                Because $_[2] might be a copy, it is useless to try to
-                change it or cast magic on it.
+                When the variable for which the magic is invoked is an array
+                or an hash, $_[2] is a either an alias or a copy of the
+                current key, and $_[3] is an alias to the current element
+                (i.e. the value). Since $_[2] might be a copy, it is useless
+                to try to change it or cast magic on it.
+
+                Starting from perl 5.17.0, this magic can also be called for
+                code references. In this case, $_[2] is always "undef" and
+                $_[3] is a reference to the cloned anonymous subroutine.
 
         *       *fetch*, *store*, *exists* and *delete*
 
@@ -384,6 +394,10 @@ CONSTANTS
   "VMG_COMPAT_HASH_DELETE_NOUVAR_VOID"
     True for perls that don't call *delete* magic when you delete an element
     from a hash in void context.
+
+  "VMG_COMPAT_CODE_COPY_CLONE"
+    True for perls that call *copy* magic when a magical closure prototype
+    is cloned.
 
   "VMG_COMPAT_GLOB_GET"
     True for perls that call *get* magic for operations on globs.
@@ -593,8 +607,8 @@ SUPPORT
     <http://www.profvince.com/perl/cover/Variable-Magic>.
 
 COPYRIGHT & LICENSE
-    Copyright 2007,2008,2009,2010,2011,2012,2013 Vincent Pit, all rights
-    reserved.
+    Copyright 2007,2008,2009,2010,2011,2012,2013,2014 Vincent Pit, all
+    rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

@@ -1,5 +1,18 @@
 Revision history for Variable-Magic
 
+0.54    2014-09-22 17:30 UTC
+        + Add : The new constant VMG_COMPAT_CODE_COPY_CLONE evaluates to true
+                if your perl calls 'copy' magic when a magical code prototype
+                is cloned, which is currently the case for perl 5.17.0 and
+                above.
+        + Fix : [RT #90205] : copy magic on subs puts raw CV in $_[3]
+                $_[3] will now contain a reference to the cloned code when
+                'copy' magic is called for a coderef.
+                Thanks Lukas Mai for reporting.
+        + Fix : t/35-stash.t has been taught about perl 5.21.4.
+        + Fix : Tests using run_perl() in t/17-ctl.t will no longer fail on
+                Android.
+
 0.53    2013-09-01 17:50 UTC
         This is a maintenance release. The code contains no functional change.
         Satisfied users of version 0.52 can skip this update.

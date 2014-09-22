@@ -8,9 +8,9 @@ use Test::More;
 use lib 't/lib';
 use VPIT::TestHelpers;
 
-use Variable::Magic qw<cast dispell>;
+use Variable::Magic qw<wizard cast dispell VMG_COMPAT_CODE_COPY_CLONE>;
 
-plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 1;
+plan tests => 2 + ((2 * 5 + 3) + (2 * 2 + 1)) + (2 * 9 + 6) + 3 + 1;
 
 use lib 't/lib';
 use Variable::Magic::TestWatcher;
@@ -79,4 +79,24 @@ SKIP: {
  is_deeply [ sort { $a <=> $b } @v ], [ 1, 3 ], 'copy: tied hash values correctly';
 
  watch { undef %h } { }, 'tied hash undef';
+}
+
+SKIP: {
+ skip 'copy magic not called for cloned prototypes before perl 5.17.0' => 3
+                                              unless VMG_COMPAT_CODE_COPY_CLONE;
+ my $w = wizard copy => sub {
+  is ref($_[0]), 'CODE', 'first arg in copy on clone is a code ref';
+  is $_[2],      undef,  'third arg in copy on clone is undef';
+  is ref($_[3]), 'CODE', 'fourth arg in copy on clone is a code ref';
+ };
+ eval <<'TEST_COPY';
+  package X;
+  sub MODIFY_CODE_ATTRIBUTES {
+   my ($pkg, $sub) = @_;
+   &Variable::Magic::cast($sub, $w);
+   return;
+  }
+  my $i;
+  my $f = sub : Hello { $i };
+TEST_COPY
 }
