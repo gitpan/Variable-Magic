@@ -1,5 +1,11 @@
 Revision history for Variable-Magic
 
+0.55    2014-10-20 23:45 UTC
+        + Fix : [RT #99319] : t/18-opinfo.t: test failure due to change in
+                perl 5 blead
+                The new METHOP op class added in perl 5.21.5 is now supported.
+                Thanks James E Keenan for reporting.
+
 0.54    2014-09-22 17:30 UTC
         + Add : The new constant VMG_COMPAT_CODE_COPY_CLONE evaluates to true
                 if your perl calls 'copy' magic when a magical code prototype

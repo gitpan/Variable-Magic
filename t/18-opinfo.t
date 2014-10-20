@@ -20,6 +20,7 @@ my $aelem     = "$]" <= 5.008_003 ? 'aelem'
 my $aelemf    = ("$]" < 5.013 or $is_5130_release) ? 'aelemfast' : 'sassign';
 my $aelemf_op = $aelemf eq 'sassign'
                    ? 'B::BINOP' : $Config{useithreads} ? 'B::PADOP' : 'B::SVOP';
+my $meth_op   = ("$]" < 5.021_005) ? 'B::SVOP' : 'B::METHOP';
 
 our @o;
 
@@ -39,7 +40,7 @@ my @tests = (
                                                    [ 'bless',   'B::LISTOP' ] ],
  [ 'get', '$c',    'my $c = ""','$c =~ /x/',       [ 'match',   'B::PMOP'   ] ],
  [ 'get', '$c',    'my $c = "Variable::Magic::TestPkg"',
-                                '$c->foo()',  [ 'method_named', 'B::SVOP'   ] ],
+                                '$c->foo()',  [ 'method_named', $meth_op    ] ],
  [ 'get', '$c',    'my $c = ""','$c =~ y/x/y/',    [ 'trans',   'B::PVOP'   ] ],
  [ 'get', '$c',    'my $c = 1', '1 for 1 .. $c',
                                                  [ 'enteriter', 'B::LOOP'   ] ],

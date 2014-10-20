@@ -2,7 +2,7 @@ NAME
     Variable::Magic - Associate user-defined magic to variables from Perl.
 
 VERSION
-    Version 0.54
+    Version 0.55
 
 SYNOPSIS
         use Variable::Magic qw<wizard cast VMG_OP_INFO_NAME>;
@@ -575,11 +575,6 @@ DEPENDENCIES
     well, but don't rely on it, as no guarantee is made in this regard.
 
     Carp (core since perl 5), XSLoader (since 5.6.0).
-
-    Copy tests need Tie::Array (core since perl 5.005) and Tie::Hash (since
-    5.002). Some uvar tests need Hash::Util::FieldHash (since 5.9.4). Glob
-    tests need Symbol (since 5.002). Threads tests need threads and
-    threads::shared (both since 5.7.3).
 
 SEE ALSO
     perlguts and perlapi for internal information about magic.

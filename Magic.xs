@@ -337,19 +337,22 @@ STATIC I32 vmg_call_sv(pTHX_ SV *sv, I32 flags, int (*cleanup)(pTHX_ void *), vo
 /* --- Stolen chunk of B --------------------------------------------------- */
 
 typedef enum {
- OPc_NULL   = 0,
- OPc_BASEOP = 1,
- OPc_UNOP   = 2,
- OPc_BINOP  = 3,
- OPc_LOGOP  = 4,
- OPc_LISTOP = 5,
- OPc_PMOP   = 6,
- OPc_SVOP   = 7,
- OPc_PADOP  = 8,
- OPc_PVOP   = 9,
- OPc_LOOP   = 10,
- OPc_COP    = 11,
- OPc_MAX    = 12
+ OPc_NULL,
+ OPc_BASEOP,
+ OPc_UNOP,
+ OPc_BINOP,
+ OPc_LOGOP,
+ OPc_LISTOP,
+ OPc_PMOP,
+ OPc_SVOP,
+ OPc_PADOP,
+ OPc_PVOP,
+ OPc_LOOP,
+ OPc_COP,
+#if VMG_HAS_PERL(5, 21, 5)
+ OPc_METHOP,
+#endif
+ OPc_MAX
 } opclass;
 
 STATIC const char *const vmg_opclassnames[] = {
@@ -364,7 +367,11 @@ STATIC const char *const vmg_opclassnames[] = {
  "B::PADOP",
  "B::PVOP",
  "B::LOOP",
- "B::COP"
+ "B::COP",
+#if VMG_HAS_PERL(5, 21, 5)
+ "B::METHOP",
+#endif
+ NULL
 };
 
 STATIC opclass vmg_opclass(const OP *o) {
@@ -436,6 +443,10 @@ STATIC opclass vmg_opclass(const OP *o) {
     return OPc_BASEOP;
    else
     return OPc_PVOP;
+#if VMG_HAS_PERL(5, 21, 5)
+  case OA_METHOP:
+   return OPc_METHOP;
+#endif
  }
 
  return OPc_BASEOP;
